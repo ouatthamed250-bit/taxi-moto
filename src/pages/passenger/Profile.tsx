@@ -1,9 +1,24 @@
 import { useNavigate } from 'react-router-dom';
-import { LogOut, ShieldCheck } from 'lucide-react';
+import {
+  ArrowLeft,
+  BadgeCheck,
+  ChevronRight,
+  HelpCircle,
+  LogOut,
+  MapPin,
+  Shield,
+  Wallet,
+} from 'lucide-react';
 import { Page } from '../../components/Page';
-import { Header } from '../../components/Header';
 import { COLORS, fcfa } from '../../theme';
 import { useApp } from '../../store/useApp';
+import './Profile.css';
+
+const OPTIONS = [
+  { icon: Wallet, label: 'Moyens de paiement', hint: 'Cartes, Mobile Money' },
+  { icon: Shield, label: 'Sécurité et confidentialité', hint: 'Compte et données' },
+  { icon: HelpCircle, label: 'Aide et assistance', hint: 'FAQ et support' },
+];
 
 export default function PassengerProfile() {
   const navigate = useNavigate();
@@ -12,151 +27,111 @@ export default function PassengerProfile() {
   const completed = passengerHistory.filter((ride) => ride.status === 'completed');
   const totalSpent = completed.reduce((sum, ride) => sum + ride.price, 0);
 
+  const displayName = userName || 'Passager';
+  const initial = displayName.trim().charAt(0).toUpperCase() || 'P';
+
   return (
-    <Page nav="passenger" background={COLORS.grayLight}>
-      <Header title="Mon profil" variant="navy" />
+    <Page nav="passenger" background={COLORS.white}>
+      <div className="profile-page">
 
-      <div style={{ padding: 20 }}>
-        <div
-          style={{
-            backgroundColor: COLORS.white,
-            borderRadius: 24,
-            padding: 20,
-            display: 'flex',
-            alignItems: 'center',
-            gap: 14,
-          }}
-        >
-          <div
-            style={{
-              width: 62,
-              height: 62,
-              borderRadius: '50%',
-              backgroundColor: COLORS.grayLight,
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              fontSize: 28,
-            }}
+        {/* Background decoration */}
+        <div className="profile-bg-orb profile-bg-orb--orange" />
+        <div className="profile-bg-orb profile-bg-orb--blue" />
+
+        {/* ===== HEADER ===== */}
+        <header className="profile-topbar">
+          <button
+            type="button"
+            className="profile-back"
+            aria-label="Retour"
+            onClick={() => navigate('/passenger')}
           >
-            🧍
-          </div>
-          <div>
-            <div style={{ fontWeight: 800, color: COLORS.navy, fontSize: 17 }}>
-              {userName || 'Passager'}
-            </div>
-            <div style={{ color: COLORS.gray, fontSize: 13 }}>{phone || '+225 —'}</div>
-            <div
-              style={{
-                marginTop: 6,
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: 5,
-                fontSize: 11,
-                fontWeight: 700,
-                color: COLORS.green,
-              }}
-            >
-              <ShieldCheck size={13} color={COLORS.green} /> Compte vérifié
-            </div>
-          </div>
-        </div>
+            <ArrowLeft size={20} />
+          </button>
 
-        <div style={{ display: 'flex', gap: 12, marginTop: 14 }}>
-          <div
-            style={{
-              flex: 1,
-              backgroundColor: COLORS.white,
-              borderRadius: 20,
-              padding: 16,
-              textAlign: 'center',
-            }}
-          >
-            <div style={{ fontSize: 22, fontWeight: 800, color: COLORS.navy }}>
-              {completed.length}
-            </div>
-            <div style={{ fontSize: 12, color: COLORS.gray }}>Courses</div>
+          <div className="profile-topbar-text">
+            <span className="profile-topbar-eyebrow">Taxi Moto</span>
+            <h1 className="profile-topbar-title">Mon profil</h1>
           </div>
-          <div
-            style={{
-              flex: 1,
-              backgroundColor: COLORS.white,
-              borderRadius: 20,
-              padding: 16,
-              textAlign: 'center',
-            }}
-          >
-            <div style={{ fontSize: 18, fontWeight: 800, color: COLORS.navy }}>
-              {fcfa(totalSpent)}
+
+          <div className="profile-logo" aria-hidden="true">
+            <div className="profile-logo-pin">
+              <MapPin size={15} strokeWidth={2.8} />
             </div>
-            <div style={{ fontSize: 12, color: COLORS.gray }}>Total dépensé</div>
+            <div className="profile-logo-wheel profile-logo-wheel--one" />
+            <div className="profile-logo-wheel profile-logo-wheel--two" />
           </div>
-        </div>
+        </header>
 
-        <div
-          style={{
-            marginTop: 14,
-            backgroundColor: COLORS.white,
-            borderRadius: 22,
-            overflow: 'hidden',
-          }}
-        >
-          {[
-            { icon: '💳', label: 'Moyens de paiement' },
-            { icon: '🛡️', label: 'Sécurité et confidentialité' },
-            { icon: '❓', label: 'Aide et assistance' },
-          ].map((item, index) => (
-            <div
-              key={item.label}
-              style={{
-                padding: '17px 18px',
-                fontSize: 15,
-                color: COLORS.navy,
-                fontWeight: 600,
-                borderTop: index === 0 ? 'none' : `1px solid ${COLORS.grayLight}`,
-                cursor: 'pointer',
-              }}
-            >
-              {item.icon} {item.label}
-            </div>
-          ))}
-        </div>
+        {/* ===== CARTE UTILISATEUR ===== */}
+        <section className="profile-card">
+          <div className="profile-avatar">{initial}</div>
 
-        <button
-          className="btn-primary"
-          type="button"
-          onClick={() => navigate('/register/driver')}
-          style={{ marginTop: 18, backgroundColor: COLORS.blue }}
-        >
-          🛺 Devenir conducteur
-        </button>
+          <div className="profile-identity">
+            <strong className="profile-name">{displayName}</strong>
+            <span className="profile-phone">{phone || '+225 —'}</span>
 
+            <span className="profile-verified">
+              <BadgeCheck size={13} />
+              Compte vérifié
+            </span>
+          </div>
+        </section>
+
+        {/* ===== STATS ===== */}
+        <section className="profile-stats">
+          <div className="profile-stat">
+            <strong>{completed.length}</strong>
+            <span>Nombre de courses</span>
+          </div>
+
+          <div className="profile-stat">
+            <strong>{fcfa(totalSpent)}</strong>
+            <span>Total dépensé</span>
+          </div>
+        </section>
+
+        {/* ===== OPTIONS ===== */}
+        <nav className="profile-menu">
+          {OPTIONS.map((item) => {
+            const Icon = item.icon;
+
+            return (
+              <button
+                key={item.label}
+                type="button"
+                className="profile-menu-item"
+              >
+                <span className="profile-menu-icon">
+                  <Icon size={19} />
+                </span>
+
+                <span className="profile-menu-content">
+                  <strong>{item.label}</strong>
+                  <small>{item.hint}</small>
+                </span>
+
+                <ChevronRight size={18} className="profile-menu-chevron" />
+              </button>
+            );
+          })}
+        </nav>
+
+        {/* ===== DÉCONNEXION ===== */}
         <button
           type="button"
+          className="profile-logout"
           onClick={() => {
             logout();
             navigate('/');
           }}
-          style={{
-            marginTop: 12,
-            width: '100%',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            gap: 8,
-            padding: 16,
-            borderRadius: 16,
-            border: 'none',
-            backgroundColor: '#FDEBEC',
-            color: COLORS.red,
-            fontWeight: 700,
-            fontSize: 15,
-            fontFamily: 'inherit',
-            cursor: 'pointer',
-          }}
         >
-          <LogOut size={17} color={COLORS.red} /> Se déconnecter
+          <span className="profile-logout-icon">
+            <LogOut size={18} />
+          </span>
+          Se déconnecter
         </button>
+
       </div>
     </Page>
   );
