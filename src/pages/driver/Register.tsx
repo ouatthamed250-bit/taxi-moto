@@ -1,245 +1,458 @@
 import { useState } from 'react';
+import type { ChangeEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
+import {
+  ArrowLeft,
+  Bike,
+  Camera,
+  Car,
+  Check,
+  Eye,
+  EyeOff,
+  Flag,
+  LockKeyhole,
+  Radar,
+  Smartphone,
+  UserPlus,
+  UserRound,
+} from 'lucide-react';
 import { Page } from '../../components/Page';
-import { Header } from '../../components/Header';
-import { Field } from '../../components/Field';
 import { COLORS, VEHICLES } from '../../theme';
 import { useApp } from '../../store/useApp';
 import type { VehicleType } from '../../types';
+import './Register.css';
 
-const DOCUMENTS = ['Pièce d’identité', 'Permis de conduire', 'Carte grise', 'Assurance'];
-
-const STEPS = ['Identité', 'Véhicule', 'Détails', 'Documents'];
+const STEPS = ['Vos informations', 'Votre véhicule', 'Confirmation'];
 
 export default function DriverRegister() {
   const navigate = useNavigate();
   const { login, approveDriver } = useApp();
+
   const [step, setStep] = useState(0);
   const [name, setName] = useState('');
   const [phone, setPhone] = useState('');
+  const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirm, setShowConfirm] = useState(false);
   const [vehicle, setVehicle] = useState<VehicleType>('moto');
-  const [model, setModel] = useState('');
   const [plate, setPlate] = useState('');
-  const [docs, setDocs] = useState<string[]>([]);
-  const [pending, setPending] = useState(false);
+  const [photo, setPhoto] = useState('');
+  const [errors, setErrors] = useState<Record<string, string>>({});
 
-  const toggleDoc = (doc: string) => {
-    setDocs((current) =>
-      current.includes(doc) ? current.filter((item) => item !== doc) : [...current, doc],
-    );
+  const info = VEHICLES[vehicle];
+
+  const validateStep = (index: number) => {
+    const next: Record<string, string> = {};
+
+    if (index === 0) {
+      if (name.trim().length < 3) {
+        next.name = 'Entrez votre nom complet.';
+      }
+      if (phone.replace(/\D/g, '').length < 8) {
+        next.phone = 'Numéro invalide (8 chiffres minimum).';
+      }
+      if (password.length < 6) {
+        next.password = 'Le mot de passe doit contenir au moins 6 caractères.';
+      }
+      if (confirmPassword !== password) {
+        next.confirm = 'Les mots de passe ne correspondent pas.';
+      }
+    }
+
+    if (index === 1 && plate.trim().length < 4) {
+      next.plate = 'Immatriculation invalide (ex. AA-123-BC).';
+    }
+
+    setErrors(next);
+    return Object.keys(next).length === 0;
   };
-
-  const canContinue =
-    (step === 0 && name.trim().length > 2 && phone.replace(/\D/g, '').length >= 8) ||
-    step === 1 ||
-    (step === 2 && model.trim().length > 1 && plate.trim().length > 3) ||
-    (step === 3 && docs.length === DOCUMENTS.length);
 
   const next = () => {
-    if (step < 3) {
-      setStep(step + 1);
-      return;
-    }
-    login('driver', name.trim(), phone);
-    setPending(true);
+    if (!validateStep(step)) return;
+    setStep((value) => Math.min(STEPS.length - 1, value + 1));
   };
 
-  if (pending) {
-    return (
-      <Page background={COLORS.white}>
-        <div style={{ padding: '60px 24px', textAlign: 'center' }}>
-          <div style={{ fontSize: 54, marginBottom: 14 }}>⏳</div>
-          <div style={{ fontSize: 21, fontWeight: 800, color: COLORS.navy }}>
-            Votre compte est en attente de validation.
-          </div>
-          <p style={{ color: COLORS.gray, fontSize: 14, lineHeight: 1.6, marginTop: 12 }}>
-            Nos équipes vérifient vos documents. Vous recevrez une notification dès que votre
-            compte sera validé.
-          </p>
-          <div
-            style={{
-              marginTop: 26,
-              padding: 16,
-              borderRadius: 18,
-              backgroundColor: COLORS.grayLight,
-              textAlign: 'left',
-              fontSize: 13,
-              color: COLORS.navy,
-            }}
-          >
-            <div style={{ fontWeight: 700, marginBottom: 6 }}>Récapitulatif</div>
-            <div>👤 {name || 'Conducteur'}</div>
-            <div>
-              {VEHICLES[vehicle].emoji} {VEHICLES[vehicle].label} · {model}
-            </div>
-            <div>🔖 {plate}</div>
-          </div>
-          <button
-            className="btn-primary"
-            type="button"
-            style={{ marginTop: 26 }}
-            onClick={() => {
-              approveDriver();
-              navigate('/driver');
-            }}
-          >
-            Simuler la validation administrateur
-          </button>
-        </div>
-      </Page>
-    );
-  }
+  const previous = () => setStep((value) => Math.max(0, value - 1));
+
+  const onPhoto = (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = () => {
+      setPhoto(typeof reader.result === 'string' ? reader.result : '');
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const submit = () => {
+    login('driver', name.trim(), phone, password);
+    approveDriver();
+    navigate('/driver');
+  };
 
   return (
     <Page background={COLORS.white}>
-      <Header
-        title="Devenir conducteur"
-        subtitle={`Étape ${step + 1}/4 · ${STEPS[step]}`}
-        onBack={() => navigate('/welcome')}
-      />
-      <div style={{ padding: '20px 24px 28px' }}>
-        <div style={{ display: 'flex', gap: 6, marginBottom: 24 }}>
+      <div className="driver-register-page">
+
+        {/* Background decoration */}
+        <div className="driver-register-orb driver-register-orb--orange" />
+        <div className="driver-register-orb driver-register-orb--blue" />
+
+        {/* ===== HEADER ===== */}
+        <header className="driver-register-topbar">
+          <button
+            type="button"
+            className="driver-register-back"
+            aria-label="Retour"
+            onClick={() => navigate('/welcome')}
+          >
+            <ArrowLeft size={20} />
+          </button>
+
+          <div className="driver-register-brand">
+            <div className="driver-register-logo" aria-hidden="true">
+              <div className="driver-register-logo-pin">
+                <Radar size={15} strokeWidth={2.6} />
+              </div>
+              <div className="driver-register-logo-wheel driver-register-logo-wheel--one" />
+              <div className="driver-register-logo-wheel driver-register-logo-wheel--two" />
+            </div>
+
+            <div className="driver-register-brand-text">
+              <span className="driver-register-eyebrow">Taxi Moto</span>
+              <h1 className="driver-register-title">Devenir conducteur</h1>
+            </div>
+          </div>
+        </header>
+
+        {/* ===== PROGRESSION ===== */}
+        <div className="driver-register-progress">
           {STEPS.map((label, index) => (
             <div
               key={label}
-              style={{
-                flex: 1,
-                height: 6,
-                borderRadius: 99,
-                backgroundColor: index <= step ? COLORS.orange : COLORS.grayLight,
-              }}
-            />
+              className={`driver-register-step ${
+                index < step ? 'driver-register-step--done' : ''
+              } ${index === step ? 'driver-register-step--active' : ''}`}
+            >
+              <span className="driver-register-step-dot">
+                {index < step ? <Check size={13} /> : index + 1}
+              </span>
+              <span className="driver-register-step-label">{label}</span>
+            </div>
           ))}
         </div>
 
-        {step === 0 && (
-          <>
-            <Field label="Nom complet" value={name} onChange={setName} placeholder="Kouassi Yao" />
-            <Field
-              label="Numéro de téléphone"
-              value={phone}
-              onChange={setPhone}
-              placeholder="+225 07 00 00 00 00"
-              inputMode="tel"
-            />
-            <button
-              type="button"
-              style={{
-                width: '100%',
-                padding: 16,
-                borderRadius: 16,
-                border: `1.5px dashed ${COLORS.gray}`,
-                background: 'transparent',
-                color: COLORS.gray,
-                fontFamily: 'inherit',
-                fontSize: 14,
-                cursor: 'pointer',
-              }}
-            >
-              📷 Photo de profil
+        {/* ===== EN-TÊTE D'ÉTAPE ===== */}
+        <div className="driver-register-head">
+          <span className="driver-register-head-step">Étape {step + 1}/3</span>
+          <h2 className="driver-register-head-title">{STEPS[step]}</h2>
+        </div>
+
+        {/* ===== CONTENU ===== */}
+        <main className="driver-register-card">
+          {step === 0 && (
+            <>
+              {/* Nom complet */}
+              <div className="driver-register-field">
+                <label htmlFor="driver-name">Nom complet</label>
+
+                <div className="driver-register-input-wrapper">
+                  <span className="driver-register-input-icon">
+                    <UserRound size={18} />
+                  </span>
+
+                  <input
+                    id="driver-name"
+                    className="driver-register-input"
+                    type="text"
+                    autoComplete="name"
+                    placeholder="Kouassi Yao"
+                    value={name}
+                    onChange={(event) => setName(event.target.value)}
+                  />
+                </div>
+
+                {errors.name && (
+                  <span className="driver-register-error">{errors.name}</span>
+                )}
+              </div>
+
+              {/* Téléphone */}
+              <div className="driver-register-field">
+                <label htmlFor="driver-phone">Numéro de téléphone</label>
+
+                <div className="driver-register-input-wrapper">
+                  <span className="driver-register-input-icon">
+                    <Smartphone size={18} />
+                  </span>
+
+                  <span className="driver-register-prefix">+225</span>
+
+                  <input
+                    id="driver-phone"
+                    className="driver-register-input"
+                    type="tel"
+                    inputMode="tel"
+                    autoComplete="tel"
+                    placeholder="07 00 00 00 00"
+                    value={phone}
+                    onChange={(event) => setPhone(event.target.value)}
+                  />
+                </div>
+
+                {errors.phone && (
+                  <span className="driver-register-error">{errors.phone}</span>
+                )}
+              </div>
+
+              {/* Mot de passe */}
+              <div className="driver-register-field">
+                <label htmlFor="driver-password">Mot de passe</label>
+
+                <div className="driver-register-input-wrapper">
+                  <span className="driver-register-input-icon">
+                    <LockKeyhole size={18} />
+                  </span>
+
+                  <input
+                    id="driver-password"
+                    className="driver-register-input"
+                    type={showPassword ? 'text' : 'password'}
+                    autoComplete="new-password"
+                    placeholder="6 caractères minimum"
+                    value={password}
+                    onChange={(event) => setPassword(event.target.value)}
+                  />
+
+                  <button
+                    type="button"
+                    className="driver-register-eye"
+                    aria-label={
+                      showPassword ? 'Masquer le mot de passe' : 'Afficher le mot de passe'
+                    }
+                    onClick={() => setShowPassword((value) => !value)}
+                  >
+                    {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                  </button>
+                </div>
+
+                {errors.password && (
+                  <span className="driver-register-error">{errors.password}</span>
+                )}
+              </div>
+
+              {/* Confirmation du mot de passe */}
+              <div className="driver-register-field">
+                <label htmlFor="driver-confirm">Confirmer le mot de passe</label>
+
+                <div className="driver-register-input-wrapper">
+                  <span className="driver-register-input-icon">
+                    <LockKeyhole size={18} />
+                  </span>
+
+                  <input
+                    id="driver-confirm"
+                    className="driver-register-input"
+                    type={showConfirm ? 'text' : 'password'}
+                    autoComplete="new-password"
+                    placeholder="Répétez le mot de passe"
+                    value={confirmPassword}
+                    onChange={(event) => setConfirmPassword(event.target.value)}
+                  />
+
+                  <button
+                    type="button"
+                    className="driver-register-eye"
+                    aria-label={
+                      showConfirm ? 'Masquer le mot de passe' : 'Afficher le mot de passe'
+                    }
+                    onClick={() => setShowConfirm((value) => !value)}
+                  >
+                    {showConfirm ? <EyeOff size={18} /> : <Eye size={18} />}
+                  </button>
+                </div>
+
+                {errors.confirm && (
+                  <span className="driver-register-error">{errors.confirm}</span>
+                )}
+              </div>
+            </>
+          )}
+
+
+          {step === 1 && (
+            <>
+              {/* Type de véhicule */}
+              <div className="driver-register-field">
+                <label>Type de véhicule</label>
+
+                <div className="driver-register-vehicles">
+                  {(['moto', 'tricycle'] as VehicleType[]).map((key) => {
+                    const Icon = key === 'moto' ? Bike : Car;
+                    const active = vehicle === key;
+
+                    return (
+                      <button
+                        key={key}
+                        type="button"
+                        className={`driver-register-vehicle ${
+                          active ? 'driver-register-vehicle--active' : ''
+                        }`}
+                        onClick={() => setVehicle(key)}
+                      >
+                        <span className="driver-register-vehicle-icon">
+                          <Icon size={20} />
+                        </span>
+                        <strong>{VEHICLES[key].label}</strong>
+                        <small>{VEHICLES[key].description}</small>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Plaque d'immatriculation */}
+              <div className="driver-register-field">
+                <label htmlFor="driver-plate">Plaque d’immatriculation</label>
+
+                <div className="driver-register-input-wrapper">
+                  <span className="driver-register-input-icon">
+                    <Flag size={18} />
+                  </span>
+
+                  <input
+                    id="driver-plate"
+                    className="driver-register-input driver-register-input--plate"
+                    type="text"
+                    autoComplete="off"
+                    maxLength={12}
+                    placeholder="AA-123-BC"
+                    value={plate}
+                    onChange={(event) => setPlate(event.target.value.toUpperCase())}
+                  />
+                </div>
+
+                {errors.plate && (
+                  <span className="driver-register-error">{errors.plate}</span>
+                )}
+              </div>
+
+              {/* Photo du véhicule */}
+              <div className="driver-register-field">
+                <label>Photo du véhicule</label>
+
+                {photo ? (
+                  <div className="driver-register-upload-preview">
+                    <img
+                      className="driver-register-upload-img"
+                      src={photo}
+                      alt={`${info.label} du conducteur`}
+                    />
+
+                    <label className="driver-register-upload-change">
+                      <Camera size={15} />
+                      Changer la photo
+                      <input
+                        className="driver-register-file"
+                        type="file"
+                        accept="image/*"
+                        onChange={onPhoto}
+                      />
+                    </label>
+                  </div>
+                ) : (
+                  <label className="driver-register-upload">
+                    <span className="driver-register-upload-icon">
+                      <Camera size={26} strokeWidth={1.9} />
+                    </span>
+
+                    <strong>Ajouter une photo</strong>
+                    <small>
+                      JPG ou PNG · photo de votre {info.label.toLowerCase()}
+                    </small>
+
+                    <input
+                      className="driver-register-file"
+                      type="file"
+                      accept="image/*"
+                      onChange={onPhoto}
+                    />
+                  </label>
+                )}
+              </div>
+            </>
+          )}
+
+
+          {step === 2 && (
+            <>
+              <p className="driver-register-note">
+                Vérifiez vos informations avant de créer votre compte.
+              </p>
+
+              <div className="driver-register-recap">
+                <div className="driver-register-recap-row">
+                  <span className="driver-register-recap-label">Nom complet</span>
+                  <strong className="driver-register-recap-value">{name.trim() || '—'}</strong>
+                </div>
+
+                <div className="driver-register-recap-row">
+                  <span className="driver-register-recap-label">Téléphone</span>
+                  <strong className="driver-register-recap-value">{phone || '—'}</strong>
+                </div>
+
+                <div className="driver-register-recap-row">
+                  <span className="driver-register-recap-label">Véhicule</span>
+                  <strong className="driver-register-recap-value">
+                    {info.emoji} {info.label}
+                  </strong>
+                </div>
+
+                <div className="driver-register-recap-row">
+                  <span className="driver-register-recap-label">Immatriculation</span>
+                  <strong className="driver-register-recap-value">{plate || '—'}</strong>
+                </div>
+
+                <div className="driver-register-recap-row driver-register-recap-row--photo">
+                  <span className="driver-register-recap-label">Photo du véhicule</span>
+
+                  {photo ? (
+                    <img
+                      className="driver-register-recap-img"
+                      src={photo}
+                      alt={`${info.label} du conducteur`}
+                    />
+                  ) : (
+                    <span className="driver-register-recap-empty">Aucune photo</span>
+                  )}
+                </div>
+              </div>
+            </>
+          )}
+
+        </main>
+
+        {/* ===== ACTIONS ===== */}
+        <div className="driver-register-actions">
+          {step > 0 && (
+            <button type="button" className="driver-register-previous" onClick={previous}>
+              Retour
             </button>
-          </>
-        )}
+          )}
 
-        {step === 1 && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-            {(['moto', 'tricycle'] as VehicleType[]).map((key) => (
-              <button
-                key={key}
-                type="button"
-                onClick={() => setVehicle(key)}
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 14,
-                  padding: 18,
-                  borderRadius: 20,
-                  cursor: 'pointer',
-                  fontFamily: 'inherit',
-                  textAlign: 'left',
-                  border:
-                    vehicle === key ? `2px solid ${COLORS.orange}` : `1.5px solid ${COLORS.grayLight}`,
-                  backgroundColor: vehicle === key ? '#FFF3E6' : COLORS.white,
-                }}
-              >
-                <span style={{ fontSize: 30 }}>{VEHICLES[key].emoji}</span>
-                <span>
-                  <span style={{ display: 'block', fontWeight: 800, color: COLORS.navy }}>
-                    {VEHICLES[key].label}
-                  </span>
-                  <span style={{ fontSize: 12, color: COLORS.gray }}>
-                    {VEHICLES[key].description}
-                  </span>
-                </span>
-              </button>
-            ))}
-          </div>
-        )}
-        {step === 2 && (
-          <>
-            <Field
-              label="Marque / modèle"
-              value={model}
-              onChange={setModel}
-              placeholder="Yamaha Crux"
-            />
-            <Field
-              label="Immatriculation / N° d’identification"
-              value={plate}
-              onChange={setPlate}
-              placeholder="AB-1234-CI"
-            />
-          </>
-        )}
-
-        {step === 3 && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-            {DOCUMENTS.map((doc) => {
-              const checked = docs.includes(doc);
-              return (
-                <button
-                  key={doc}
-                  type="button"
-                  onClick={() => toggleDoc(doc)}
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 12,
-                    padding: 16,
-                    borderRadius: 18,
-                    cursor: 'pointer',
-                    fontFamily: 'inherit',
-                    textAlign: 'left',
-                    fontSize: 14,
-                    fontWeight: 600,
-                    color: COLORS.navy,
-                    border: checked
-                      ? `1.5px solid ${COLORS.green}`
-                      : `1.5px solid ${COLORS.grayLight}`,
-                    backgroundColor: checked ? '#E9F7F1' : COLORS.white,
-                  }}
-                >
-                  <span style={{ fontSize: 18 }}>{checked ? '✅' : '📄'}</span>
-                  {doc}
-                </button>
-              );
-            })}
-          </div>
-        )}
-
-        <button
-          className="btn-primary"
-          type="button"
-          onClick={next}
-          disabled={!canContinue}
-          style={{
-            marginTop: 24,
-            opacity: canContinue ? 1 : 0.45,
-            cursor: canContinue ? 'pointer' : 'not-allowed',
-          }}
-        >
-          {step === 3 ? 'Envoyer mon dossier' : 'Continuer'}
-        </button>
+          {step < STEPS.length - 1 ? (
+            <button type="button" className="driver-register-next" onClick={next}>
+              Suivant
+            </button>
+          ) : (
+            <button type="button" className="driver-register-submit" onClick={submit}>
+              <UserPlus size={18} />
+              Créer mon compte conducteur
+            </button>
+          )}
+        </div>
       </div>
     </Page>
   );
