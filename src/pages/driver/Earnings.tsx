@@ -1,83 +1,288 @@
+import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+import {
+  Banknote,
+  BarChart3,
+  Minus,
+  Radar,
+  TrendingDown,
+  TrendingUp,
+  UserRound,
+  Wallet,
+} from 'lucide-react';
 import { Page } from '../../components/Page';
-import { Header } from '../../components/Header';
 import { COLORS, COMMISSION_RATE, fcfa } from '../../theme';
 import { useApp } from '../../store/useApp';
+import './Earnings.css';
+
+const MONTHS_SHORT = [
+  'janv.',
+  'févr.',
+  'mars',
+  'avr.',
+  'mai',
+  'juin',
+  'juil.',
+  'août',
+  'sept.',
+  'oct.',
+  'nov.',
+  'déc.',
+];
+
+const WEEKDAYS = ['Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam', 'Dim'];
+
+type EarningsFilter = 'today' | 'week' | 'month';
+
+const FILTERS: { key: EarningsFilter; label: string }[] = [
+  { key: 'today', label: 'Aujourd’hui' },
+  { key: 'week', label: 'Cette semaine' },
+  { key: 'month', label: 'Ce mois' },
+];
+
+/** Parse une date "dd/mm/yyyy". */
+function parseRideDate(value: string): Date | null {
+  const parts = value.split('/');
+  if (parts.length !== 3) return null;
+
+  const day = Number(parts[0]);
+  const month = Number(parts[1]);
+  const year = Number(parts[2]);
+  if (!day || !month || !year) return null;
+
+  return new Date(year, month - 1, day);
+}
+
+/** Jours écoulés depuis une date (0 = aujourd'hui). */
+function daysSince(value: string): number {
+  const rideDate = parseRideDate(value);
+  if (!rideDate) return 0;
+
+  const now = new Date();
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  return Math.round((today.getTime() - rideDate.getTime()) / 86400000);
+}
 
 export default function DriverEarnings() {
+  const navigate = useNavigate();
   const { driverRidesToday, driverRevenue, driverCommission, driverNet } = useApp();
+  const [filter, setFilter] = useState<EarningsFilter>('today');
+
+  const commissionRate = Math.round(COMMISSION_RATE * 100);
+
+  const inPeriod = (days: number) => {
+    if (filter === 'today') return days === 0;
+    if (filter === 'week') return days >= 0 && days <= 6;
+    return days >= 0 && days <= 29;
+  };
+
+  const rides = driverRidesToday.filter((ride) => inPeriod(daysSince(ride.date)));
+
+  const periodGross = rides.reduce((sum, ride) => sum + ride.price, 0);
+  const periodCommission = rides.reduce((sum, ride) => sum + ride.commission, 0);
+
+  // Les totaux du store correspondent à la journée en cours.
+  const gross = filter === 'today' ? driverRevenue : periodGross;
+  const commission = filter === 'today' ? driverCommission : periodCommission;
+  const net = filter === 'today' ? driverNet : periodGross - periodCommission;
+  const average = rides.length > 0 ? net / rides.length : 0;
+
+  // Comparaison avec la période précédente équivalente (si des données existent).
+  const prevRides = driverRidesToday.filter((ride) => {
+    const days = daysSince(ride.date);
+    if (filter === 'today') return days === 1;
+    if (filter === 'week') return days >= 7 && days <= 13;
+    return days >= 30 && days <= 59;
+  });
+  const prevNet = prevRides.reduce((sum, ride) => sum + (ride.price - ride.commission), 0);
+  const prevAverage = prevRides.length > 0 ? prevNet / prevRides.length : 0;
+  const delta =
+    prevAverage > 0 ? Math.round(((average - prevAverage) / prevAverage) * 100) : null;
+
+  // Répartition des gains nets sur les 7 derniers jours (index 6 = aujourd'hui).
+  const chartDays = Array.from({ length: 7 }, (_, index) => {
+    const offset = 6 - index;
+    const total = driverRidesToday
+      .filter((ride) => daysSince(ride.date) === offset)
+      .reduce((sum, ride) => sum + (ride.price - ride.commission), 0);
+
+    const date = new Date();
+    date.setDate(date.getDate() - offset);
+    const label = WEEKDAYS[(date.getDay() + 6) % 7] ?? '';
+    const full = `${date.getDate()} ${MONTHS_SHORT[date.getMonth()] ?? ''}`;
+
+    return { key: `${offset}`, label, full, total, isToday: offset === 0 };
+  });
+  const maxDay = Math.max(...chartDays.map((day) => day.total), 1);
 
   return (
-    <Page nav="driver" background={COLORS.grayLight}>
-      <Header title="Mes revenus" subtitle="Aujourd’hui" variant="navy" />
-      <div style={{ padding: 20 }}>
-        <div
-          style={{
-            padding: 22,
-            borderRadius: 26,
-            background: `linear-gradient(150deg, ${COLORS.navy}, ${COLORS.blue})`,
-            color: COLORS.white,
-          }}
-        >
-          <div style={{ fontSize: 12, opacity: 0.8 }}>REVENU NET À ENCAISSER</div>
-          <div style={{ fontSize: 30, fontWeight: 800, marginTop: 6 }}>{fcfa(driverNet)}</div>
-          <div style={{ fontSize: 12, opacity: 0.85, marginTop: 6 }}>
-            {driverRidesToday.length} courses
-          </div>
-        </div>
+    <Page nav="driver" background={COLORS.white}>
+      <div className="driver-earnings-page">
 
-        <div style={{ display: 'flex', gap: 12, marginTop: 14 }}>
-          <div style={{ flex: 1, backgroundColor: COLORS.white, borderRadius: 20, padding: 16 }}>
-            <div style={{ fontSize: 12, color: COLORS.gray }}>Revenus bruts</div>
-            <div style={{ fontSize: 18, fontWeight: 800, color: COLORS.navy, marginTop: 4 }}>
-              {fcfa(driverRevenue)}
+        {/* Background decoration */}
+        <div className="driver-earnings-orb driver-earnings-orb--orange" />
+        <div className="driver-earnings-orb driver-earnings-orb--green" />
+
+        {/* ===== HEADER ===== */}
+        <header className="driver-earnings-topbar">
+          <div className="driver-earnings-brand">
+            <div className="driver-earnings-logo" aria-hidden="true">
+              <div className="driver-earnings-logo-pin">
+                <Radar size={15} strokeWidth={2.6} />
+              </div>
+              <div className="driver-earnings-logo-wheel driver-earnings-logo-wheel--one" />
+              <div className="driver-earnings-logo-wheel driver-earnings-logo-wheel--two" />
+            </div>
+
+            <div className="driver-earnings-brand-text">
+              <span className="driver-earnings-eyebrow">Taxi Moto</span>
+              <h1 className="driver-earnings-title">Mes gains</h1>
             </div>
           </div>
-          <div style={{ flex: 1, backgroundColor: COLORS.white, borderRadius: 20, padding: 16 }}>
-            <div style={{ fontSize: 12, color: COLORS.gray }}>
-              Commission {Math.round(COMMISSION_RATE * 100)} %
-            </div>
-            <div style={{ fontSize: 18, fontWeight: 800, color: COLORS.orange, marginTop: 4 }}>
-              −{fcfa(driverCommission)}
-            </div>
-          </div>
-        </div>
 
-        <div style={{ marginTop: 20, fontSize: 13, fontWeight: 800, color: COLORS.navy }}>
-          Détail des courses
-        </div>
+          <button
+            type="button"
+            className="driver-earnings-profile"
+            aria-label="Mon profil"
+            onClick={() => navigate('/driver/profile')}
+          >
+            <UserRound size={19} />
+          </button>
+        </header>
 
-        <div style={{ marginTop: 10, display: 'flex', flexDirection: 'column', gap: 10 }}>
-          {driverRidesToday.map((ride) => (
-            <div
-              key={ride.id}
-              style={{
-                display: 'flex',
-                justifyContent: 'space-between',
-                alignItems: 'center',
-                padding: 14,
-                borderRadius: 18,
-                backgroundColor: COLORS.white,
-              }}
+        {/* ===== FILTRES ===== */}
+        <div className="driver-earnings-tabs">
+          {FILTERS.map((item) => (
+            <button
+              key={item.key}
+              type="button"
+              className={`driver-earnings-tab ${
+                filter === item.key ? 'driver-earnings-tab--active' : ''
+              }`}
+              onClick={() => setFilter(item.key)}
             >
-              <div style={{ minWidth: 0 }}>
-                <div style={{ fontSize: 13, fontWeight: 700, color: COLORS.navy }}>
-                  {ride.pickup} → {ride.destination}
-                </div>
-                <div style={{ fontSize: 11, color: COLORS.gray, marginTop: 2 }}>
-                  {ride.time} · {ride.id}
-                </div>
-              </div>
-              <div style={{ textAlign: 'right' }}>
-                <div style={{ fontSize: 13, fontWeight: 800, color: COLORS.navy }}>
-                  {fcfa(ride.price)}
-                </div>
-                <div style={{ fontSize: 11, color: COLORS.green }}>
-                  +{fcfa(ride.price - ride.commission)}
-                </div>
-              </div>
-            </div>
+              {item.label}
+            </button>
           ))}
         </div>
+
+        {/* ===== HÉRO : NET À RECEVOIR ===== */}
+        <section className="driver-earnings-hero">
+          <span className="driver-earnings-hero-badge">
+            <Wallet size={13} />
+            Net à recevoir
+          </span>
+
+          <strong className="driver-earnings-hero-value">{fcfa(net)}</strong>
+
+          <span className="driver-earnings-hero-sub">
+            Après commission Taxi-Moto ({commissionRate} %)
+          </span>
+
+          <div className="driver-earnings-hero-kpis">
+            <div className="driver-earnings-hero-kpi">
+              <strong>{fcfa(gross)}</strong>
+              <span>Brut</span>
+            </div>
+
+            <div className="driver-earnings-hero-kpi">
+              <strong>−{fcfa(commission)}</strong>
+              <span>Commission {commissionRate} %</span>
+            </div>
+
+            <div className="driver-earnings-hero-kpi">
+              <strong>{rides.length}</strong>
+              <span>Courses</span>
+            </div>
+          </div>
+        </section>
+
+        {/* ===== DÉTAIL PAR JOUR (bar chart CSS) ===== */}
+        <section className="driver-earnings-card">
+          <div className="driver-earnings-card-head">
+            <span className="driver-earnings-card-icon">
+              <BarChart3 size={15} />
+            </span>
+            <span className="driver-earnings-card-title">Détail par jour</span>
+            <span className="driver-earnings-card-hint">7 derniers jours</span>
+          </div>
+
+          <div className="driver-earnings-bars">
+            {chartDays.map((day) => (
+              <div key={day.key} className="driver-earnings-bar-col" title={`${day.full} · ${fcfa(day.total)}`}>
+                <span className="driver-earnings-bar-value">
+                  {day.total > 0 ? `${Math.round(day.total / 1000)}k` : ''}
+                </span>
+
+                <span className="driver-earnings-bar-track">
+                  <span
+                    className={`driver-earnings-bar ${
+                      day.isToday ? 'driver-earnings-bar--today' : ''
+                    }`}
+                    style={{ height: `${Math.max(6, Math.round((day.total / maxDay) * 100))}%` }}
+                  />
+                </span>
+
+                <span
+                  className={`driver-earnings-bar-label ${
+                    day.isToday ? 'driver-earnings-bar-label--today' : ''
+                  }`}
+                >
+                  {day.label}
+                </span>
+              </div>
+            ))}
+          </div>
+        </section>
+
+        {/* ===== MOYENNE PAR COURSE ===== */}
+        <section className="driver-earnings-card">
+          <div className="driver-earnings-card-head">
+            <span className="driver-earnings-card-icon">
+              <Banknote size={15} />
+            </span>
+            <span className="driver-earnings-card-title">Moyenne par course</span>
+          </div>
+
+          <div className="driver-earnings-average">
+            <strong className="driver-earnings-average-value">
+              {fcfa(Math.round(average))}
+            </strong>
+
+            {delta === null ? (
+              <span className="driver-earnings-trend driver-earnings-trend--flat">
+                <Minus size={14} />
+                Pas de comparaison
+              </span>
+            ) : (
+              <span
+                className={`driver-earnings-trend ${
+                  delta >= 0 ? 'driver-earnings-trend--up' : 'driver-earnings-trend--down'
+                }`}
+              >
+                {delta >= 0 ? <TrendingUp size={14} /> : <TrendingDown size={14} />}
+                {delta >= 0 ? '+' : ''}
+                {delta} % vs période précédente
+              </span>
+            )}
+          </div>
+        </section>
+
+        {/* ===== RETRAIT (bientôt disponible) ===== */}
+        <div className="driver-earnings-withdraw-wrap">
+          <button
+            type="button"
+            className="driver-earnings-withdraw"
+            disabled
+            title="Bientôt disponible"
+          >
+            <Wallet size={18} />
+            Retirer mes gains
+          </button>
+
+          <span className="driver-earnings-withdraw-hint">Bientôt disponible</span>
+        </div>
+
       </div>
     </Page>
   );
