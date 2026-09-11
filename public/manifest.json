@@ -1,8 +1,13 @@
 {
   "short_name": "Taxi-Moto",
   "name": "Taxi-Moto",
-  "start_url": ".",
+  "start_url": "/",
+  "scope": "/",
   "display": "standalone",
+  "orientation": "portrait",
+  "lang": "fr",
+  "dir": "ltr",
+  "categories": ["transport", "travel"],
   "theme_color": "#062b67",
   "background_color": "#062b67",
   "icons": [

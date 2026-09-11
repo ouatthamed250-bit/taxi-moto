@@ -2,6 +2,7 @@ import { Suspense, lazy } from 'react';
 import { BrowserRouter, Route, Routes } from 'react-router-dom';
 import { AppProvider } from './store/AppProvider';
 import { Loader } from './components/Loader';
+import { InstallPWA } from './components/InstallPWA';
 import Splash from './pages/Splash';
 import Welcome from './pages/Welcome';
 
@@ -55,6 +56,9 @@ function App() {
             <Route path="/admin" element={<AdminDashboard />} />
           </Routes>
         </Suspense>
+
+        {/* Bannière d'installation PWA (Welcome, Login, Home — jamais Splash). */}
+        <InstallPWA />
       </BrowserRouter>
     </AppProvider>
   );
