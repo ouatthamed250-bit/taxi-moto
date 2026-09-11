@@ -1,13 +1,43 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import {
+  ArrowLeft,
+  Bike,
+  Car,
+  MapPin,
+  Radar,
+  UsersRound,
+  Wallet,
+  X,
+} from 'lucide-react';
 import { Page } from '../../components/Page';
 import { COLORS, VEHICLES, estimateFare, fcfa } from '../../theme';
 import { useApp } from '../../store/useApp';
+import type { VehicleType } from '../../types';
+import './Search.css';
+
+const VEHICLE_IMAGES: Record<VehicleType, string> = {
+  moto: '/images/moto.png',
+  tricycle: '/images/tricycle.png',
+};
 
 export default function Searching() {
   const navigate = useNavigate();
-  const { rideStatus, offers, vehicle, passengers, destination, distanceKm, cancelRide } = useApp();
-  const info = VEHICLES[vehicle ?? 'moto'];
+  const {
+    rideStatus,
+    offers,
+    vehicle,
+    passengers,
+    destination,
+    distanceKm,
+    cancelRide,
+  } = useApp();
+
+  // Fallback visuel si le visuel véhicule ne charge pas (badge + icône).
+  const [vehicleImageBroken, setVehicleImageBroken] = useState(false);
+
+  const vehicleKey: VehicleType = vehicle ?? 'moto';
+  const info = VEHICLES[vehicleKey];
   const estimate = estimateFare(distanceKm);
 
   useEffect(() => {
@@ -16,57 +46,132 @@ export default function Searching() {
     }
   }, [rideStatus, offers, navigate]);
 
+  const cancelSearch = () => {
+    cancelRide();
+    navigate('/passenger');
+  };
+
   return (
-    <Page background={COLORS.navy} scroll={false}>
-      <div
-        style={{
-          minHeight: '100%',
-          display: 'flex',
-          flexDirection: 'column',
-          alignItems: 'center',
-          justifyContent: 'center',
-          padding: '32px 24px',
-          color: COLORS.white,
-          textAlign: 'center',
-        }}
-      >
-        <div className="pulse-ring">
-          <span />
-          <span />
-          <span />
-          <strong>{info.emoji}</strong>
-        </div>
-        <div style={{ fontSize: 20, fontWeight: 800, marginTop: 26 }}>
-          Recherche d’un conducteur…
-        </div>
-        <p style={{ fontSize: 14, opacity: 0.8, lineHeight: 1.6, marginTop: 8 }}>
-          {info.label} · 👥 {passengers} passager{passengers > 1 ? 's' : ''}
-          <br />
-          🏁 {destination}
-          <br />
-          Estimation habituelle : {fcfa(estimate.min)} – {fcfa(estimate.max)}
-        </p>
-        <button
-          type="button"
-          onClick={() => {
-            cancelRide();
-            navigate('/passenger');
-          }}
-          style={{
-            marginTop: 30,
-            background: 'transparent',
-            border: '1.5px solid rgba(255,255,255,0.5)',
-            color: COLORS.white,
-            padding: '14px 26px',
-            borderRadius: 16,
-            fontSize: 15,
-            fontWeight: 600,
-            fontFamily: 'inherit',
-            cursor: 'pointer',
-          }}
-        >
+    <Page nav="passenger" background={COLORS.white}>
+      <div className="search-page">
+
+        {/* Background decoration */}
+        <div className="search-bg-orb search-bg-orb--orange" />
+        <div className="search-bg-orb search-bg-orb--blue" />
+
+        {/* ===== HEADER ===== */}
+        <header className="search-topbar">
+          <button
+            type="button"
+            className="search-back"
+            aria-label="Retour"
+            onClick={cancelSearch}
+          >
+            <ArrowLeft size={20} />
+          </button>
+
+          <div className="search-topbar-text">
+            <span className="search-topbar-eyebrow">Taxi Moto</span>
+            <h1 className="search-topbar-title">Recherche</h1>
+          </div>
+
+          <div className="search-logo" aria-hidden="true">
+            <div className="search-logo-pin">
+              <Radar size={16} strokeWidth={2.6} />
+            </div>
+            <div className="search-logo-wheel search-logo-wheel--one" />
+            <div className="search-logo-wheel search-logo-wheel--two" />
+          </div>
+        </header>
+
+        {/* ===== RADAR ===== */}
+        <main className="search-main">
+          <div className="search-radar">
+            <span className="search-radar-ring" />
+            <span className="search-radar-ring" />
+            <span className="search-radar-ring" />
+
+            <span className="search-radar-core">
+              <Radar size={34} />
+            </span>
+          </div>
+
+          <h2 className="search-title">Recherche d’un conducteur…</h2>
+          <p className="search-subtitle">
+            Nous cherchons le meilleur chauffeur près de vous
+          </p>
+        </main>
+
+        {/* ===== CARTE INFO ===== */}
+        <section className="search-card">
+          <div className="search-info-row">
+            <span className="search-info-icon search-info-icon--dest">
+              <MapPin size={17} />
+            </span>
+
+            <div className="search-info-content">
+              <strong>Destination</strong>
+              <span>{destination || 'À définir'}</span>
+            </div>
+          </div>
+
+          <div className="search-info-row">
+            <span className="search-vehicle-badge">
+              {vehicleImageBroken ? (
+                vehicleKey === 'moto' ? (
+                  <Bike size={20} strokeWidth={1.9} />
+                ) : (
+                  <Car size={20} strokeWidth={1.9} />
+                )
+              ) : (
+                <img
+                  className="search-vehicle-img"
+                  src={VEHICLE_IMAGES[vehicleKey]}
+                  alt={info.label}
+                  onError={() => setVehicleImageBroken(true)}
+                />
+              )}
+            </span>
+
+            <div className="search-info-content">
+              <strong>{info.label}</strong>
+              <span>{info.description}</span>
+            </div>
+          </div>
+
+          <div className="search-info-row">
+            <span className="search-info-icon search-info-icon--people">
+              <UsersRound size={17} />
+            </span>
+
+            <div className="search-info-content">
+              <strong>Passagers</strong>
+              <span>
+                {passengers} passager{passengers > 1 ? 's' : ''}
+              </span>
+            </div>
+          </div>
+
+          <div className="search-info-row">
+            <span className="search-info-icon search-info-icon--price">
+              <Wallet size={17} />
+            </span>
+
+            <div className="search-info-content">
+              <strong>Estimation</strong>
+              <span>
+                {fcfa(estimate.min)} – {fcfa(estimate.max)}
+              </span>
+            </div>
+          </div>
+        </section>
+
+        {/* ===== ANNULER ===== */}
+        <button type="button" className="search-cancel" onClick={cancelSearch}>
+          <X size={18} />
           Annuler la recherche
         </button>
+
       </div>
     </Page>
   );
