@@ -1,10 +1,12 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
+  AlertTriangle,
   BellRing,
   Check,
   MapPin,
   Navigation,
+  Plus,
   Power,
   Radar,
   Ruler,
@@ -27,6 +29,9 @@ import {
 import { useApp } from '../../store/useApp';
 import './Dashboard.css';
 
+/** Seuil d'alerte « solde faible » (FCFA). */
+const LOW_BALANCE_THRESHOLD = 1000;
+
 export default function DriverDashboard() {
   const navigate = useNavigate();
   const {
@@ -41,8 +46,33 @@ export default function DriverDashboard() {
     driverRevenue,
     driverCommission,
     driverNet,
+    driverBalance,
   } = useApp();
   const [fare, setFare] = useState(1500);
+
+  const isLowBalance = driverBalance < LOW_BALANCE_THRESHOLD;
+
+  const handleRecharge = () => {
+    // La recharge mobile money sera branchée à l'étape suivante.
+    alert('Recharge mobile money bientôt disponible 🚀');
+  };
+
+  const handleAccept = () => {
+    const lockedFare = Math.max(MIN_FARE, fare);
+    const accepted = acceptIncoming(lockedFare);
+
+    if (accepted) {
+      alert(`Course acceptée à ${fcfa(lockedFare)} — prix verrouillé 🔒`);
+    } else {
+      alert(
+        `Solde insuffisant pour accepter cette course.\n\nSolde actuel : ${fcfa(
+          driverBalance,
+        )}\nCommission requise : ${fcfa(
+          commissionOf(lockedFare),
+        )}\n\nRechargez votre solde pour continuer.`,
+      );
+    }
+  };
 
   useEffect(() => {
     if (!driverOnline || incomingRequest) return;
@@ -120,6 +150,41 @@ export default function DriverDashboard() {
               {driverOnline ? 'Hors ligne' : 'En ligne'}
             </span>
           </button>
+
+          {/* Solde virtuel du conducteur */}
+          <section
+            className={`driver-dashboard-balance${
+              isLowBalance ? ' driver-dashboard-balance--low' : ''
+            }`}
+          >
+            <div className="driver-dashboard-balance-head">
+              <span className="driver-dashboard-balance-icon">
+                <Wallet size={16} />
+              </span>
+              <span className="driver-dashboard-balance-label">Mon solde</span>
+            </div>
+
+            <div className="driver-dashboard-balance-body">
+              <strong className="driver-dashboard-balance-amount">{fcfa(driverBalance)}</strong>
+              <span className="driver-dashboard-balance-hint">Débité à chaque course (10%)</span>
+            </div>
+
+            <button
+              type="button"
+              className="driver-dashboard-balance-recharge"
+              onClick={handleRecharge}
+            >
+              <Plus size={14} />
+              Recharger
+            </button>
+          </section>
+
+          {isLowBalance && (
+            <div className="driver-dashboard-balance-alert" role="alert">
+              <AlertTriangle size={15} />
+              Solde faible, pensez à recharger
+            </div>
+          )}
 
           {/* Gains du jour */}
           <section className="driver-dashboard-earnings">
@@ -234,10 +299,7 @@ export default function DriverDashboard() {
                 <button
                   type="button"
                   className="driver-dashboard-accept"
-                  onClick={() => {
-                    acceptIncoming(Math.max(MIN_FARE, fare));
-                    alert(`Course acceptée à ${fcfa(fare)} — prix verrouillé 🔒`);
-                  }}
+                  onClick={handleAccept}
                 >
                   <Check size={17} />
                   Accepter

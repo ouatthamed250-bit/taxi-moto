@@ -40,6 +40,12 @@ const SAMPLE_REQUEST: RideRequest = {
   distanceKm: 6.1,
 };
 
+/**
+ * Solde virtuel initial du conducteur (FCFA).
+ * 5 000 FCFA permet de tester plusieurs courses (commission 10 %).
+ */
+const INITIAL_DRIVER_BALANCE = 5000;
+
 function buildOffers(vehicle: VehicleType, passengers: number, distanceKm: number): Offer[] {
   const { min, max } = estimateFare(distanceKm);
   return DRIVERS.filter(
@@ -89,6 +95,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [incomingRequest, setIncomingRequest] = useState<RideRequest | null>(null);
   const [driverRidesToday, setDriverRidesToday] = useState<Ride[]>(DRIVER_TODAY_RIDES);
   const [driverApproved, setDriverApproved] = useState(false);
+  const [driverBalance, setDriverBalanceState] = useState(INITIAL_DRIVER_BALANCE);
 
   /* ---- Admin ---- */
   const [adminStats, setAdminStats] = useState<AdminStats>(ADMIN_STATS);
@@ -102,6 +109,32 @@ export function AppProvider({ children }: { children: ReactNode }) {
       if (searchTimer.current !== null) window.clearTimeout(searchTimer.current);
     };
   }, []);
+
+  /* ---- Solde virtuel conducteur ---- */
+  /** Fixe le solde (jamais négatif). */
+  const setDriverBalance = useCallback((amount: number) => {
+    setDriverBalanceState(Math.max(0, Math.round(amount)));
+  }, []);
+
+  /** Crédite le solde (recharge — branchement mobile money à venir). */
+  const creditDriverBalance = useCallback((amount: number) => {
+    setDriverBalanceState((current) => current + Math.max(0, Math.round(amount)));
+  }, []);
+
+  /** Débite le solde ; refusé + warning si insuffisant. */
+  const debitDriverBalance = useCallback(
+    (amount: number) => {
+      const debit = Math.max(0, Math.round(amount));
+      if (driverBalance < debit) {
+        console.warn(
+          `[solde conducteur] Débit refusé : solde ${driverBalance} FCFA < montant ${debit} FCFA.`,
+        );
+        return;
+      }
+      setDriverBalanceState((current) => Math.max(0, current - debit));
+    },
+    [driverBalance],
+  );
 
   const login = useCallback(
     (nextRole: Role, name: string, digits: string, secret = '') => {
@@ -166,8 +199,20 @@ export function AppProvider({ children }: { children: ReactNode }) {
         ridesActive: Math.max(0, stats.ridesActive - 1),
         revenue: stats.revenue + commissionOf(price),
       }));
+
+      // La commission (10 %) est débitée automatiquement du solde conducteur.
+      debitDriverBalance(commissionOf(price));
     }
-  }, [rideStatus, selectedOffer, userName, pickup, destination, distanceKm, vehicle]);
+  }, [
+    rideStatus,
+    selectedOffer,
+    userName,
+    pickup,
+    destination,
+    distanceKm,
+    vehicle,
+    debitDriverBalance,
+  ]);
 
   const cancelRide = useCallback(() => {
     if (searchTimer.current !== null) window.clearTimeout(searchTimer.current);
@@ -199,31 +244,48 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   const rejectIncoming = useCallback(() => setIncomingRequest(null), []);
 
-  const acceptIncoming = useCallback((fare: number) => {
-    const request = SAMPLE_REQUEST;
-    const ride: Ride = {
-      id: `C-${Math.floor(10000 + Math.random() * 89999)}`,
-      passengerName: 'Passager Taxi-Moto',
-      driverName: 'Vous',
-      vehicle: request.vehicle,
-      pickup: request.pickup,
-      destination: request.destination,
-      distanceKm: request.distanceKm,
-      price: fare,
-      commission: commissionOf(fare),
-      status: 'completed',
-      date: nowDate(),
-      time: nowTime(),
-    };
-    setDriverRidesToday((rides) => [ride, ...rides]);
-    setAdminStats((stats) => ({
-      ...stats,
-      ridesCompleted: stats.ridesCompleted + 1,
-      ridesToday: stats.ridesToday + 1,
-      revenue: stats.revenue + commissionOf(fare),
-    }));
-    setIncomingRequest(null);
-  }, []);
+  const acceptIncoming = useCallback(
+    (fare: number): boolean => {
+      const request = SAMPLE_REQUEST;
+      const commission = commissionOf(fare);
+
+      // Blocage : le solde doit couvrir la commission de la course.
+      if (driverBalance < commission) {
+        console.warn(
+          `[solde conducteur] Acceptation refusée : solde ${driverBalance} FCFA < commission ${commission} FCFA.`,
+        );
+        return false;
+      }
+
+      const ride: Ride = {
+        id: `C-${Math.floor(10000 + Math.random() * 89999)}`,
+        passengerName: 'Passager Taxi-Moto',
+        driverName: 'Vous',
+        vehicle: request.vehicle,
+        pickup: request.pickup,
+        destination: request.destination,
+        distanceKm: request.distanceKm,
+        price: fare,
+        commission,
+        status: 'completed',
+        date: nowDate(),
+        time: nowTime(),
+      };
+      setDriverRidesToday((rides) => [ride, ...rides]);
+      setAdminStats((stats) => ({
+        ...stats,
+        ridesCompleted: stats.ridesCompleted + 1,
+        ridesToday: stats.ridesToday + 1,
+        revenue: stats.revenue + commission,
+      }));
+
+      // La commission (10 %) est débitée du solde conducteur.
+      debitDriverBalance(commission);
+      setIncomingRequest(null);
+      return true;
+    },
+    [driverBalance, debitDriverBalance],
+  );
 
   const approveDriver = useCallback(() => setDriverApproved(true), []);
 
@@ -293,6 +355,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
     driverRevenue,
     driverCommission,
     driverNet,
+
+    driverBalance,
+    setDriverBalance,
+    debitDriverBalance,
+    creditDriverBalance,
 
     driverApproved,
     approveDriver,

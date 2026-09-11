@@ -50,12 +50,18 @@ export interface AppContextValue {
   toggleOnline: () => void;
   incomingRequest: RideRequest | null;
   triggerIncoming: () => void;
-  acceptIncoming: (fare: number) => void;
+  acceptIncoming: (fare: number) => boolean;
   rejectIncoming: () => void;
   driverRidesToday: Ride[];
   driverRevenue: number;
   driverCommission: number;
   driverNet: number;
+
+  /* ---- Solde virtuel conducteur ---- */
+  driverBalance: number;
+  setDriverBalance: (amount: number) => void;
+  debitDriverBalance: (amount: number) => void;
+  creditDriverBalance: (amount: number) => void;
 
   /* ---- Inscription conducteur ---- */
   driverApproved: boolean;
