@@ -1,0 +1,690 @@
+/* ==========================================================================
+   Passenger Ride — Taxi-Moto · style premium (cartes glass + boutons 3D)
+   Variables --taxi-* réutilisées (repli intégré). Classes préfixées ride-*.
+   ========================================================================== */
+
+.ride-page {
+  position: relative;
+  min-height: 100%;
+  width: 100%;
+  overflow: hidden;
+  padding: 22px 18px 26px;
+  background:
+    radial-gradient(circle at 88% 0%, rgba(255, 153, 0, 0.12), transparent 30%),
+    linear-gradient(180deg, #ffffff 0%, #f7faff 100%);
+  font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  color: var(--taxi-navy, #062b67);
+}
+
+.ride-page,
+.ride-page * {
+  box-sizing: border-box;
+}
+
+/* ---------- DÉCOR DE FOND ---------- */
+.ride-orb {
+  position: absolute;
+  pointer-events: none;
+  border-radius: 50%;
+}
+
+.ride-orb--orange {
+  width: 200px;
+  height: 200px;
+  top: -110px;
+  right: -80px;
+  background: rgba(255, 153, 0, 0.12);
+}
+
+.ride-orb--blue {
+  width: 180px;
+  height: 180px;
+  bottom: -100px;
+  left: -90px;
+  background: rgba(11, 95, 255, 0.06);
+}
+
+/* ---------- HEADER ---------- */
+.ride-topbar {
+  position: relative;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  margin-bottom: 10px;
+}
+
+.ride-brand {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 6px 14px 6px 7px;
+  border: 1px solid rgba(255, 255, 255, 0.9);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.85);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  box-shadow: 0 10px 24px rgba(6, 43, 103, 0.14);
+}
+
+.ride-logo {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  flex: 0 0 34px;
+  border-radius: 11px;
+  background: linear-gradient(145deg, #0b5fff, #062b67 70%);
+  box-shadow:
+    0 4px 0 rgba(6, 43, 103, 0.18),
+    0 8px 16px rgba(6, 43, 103, 0.22);
+}
+
+.ride-logo-pin {
+  position: relative;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 21px;
+  height: 21px;
+  border-radius: 50%;
+  color: #fff;
+  background: linear-gradient(
+    145deg,
+    var(--taxi-orange-light, #ffb52e),
+    var(--taxi-orange, #ff9900)
+  );
+  box-shadow: 0 3px 8px rgba(255, 153, 0, 0.4);
+}
+
+.ride-logo-wheel {
+  position: absolute;
+  bottom: 6px;
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: #fff;
+}
+
+.ride-logo-wheel--one {
+  left: 7px;
+}
+
+.ride-logo-wheel--two {
+  right: 7px;
+}
+
+.ride-brand-text {
+  color: var(--taxi-navy, #062b67);
+  font-size: 12px;
+  font-weight: 900;
+  letter-spacing: 0.4px;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+/* ---------- SUCCÈS ---------- */
+.ride-hero {
+  position: relative;
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 10px 0 4px;
+  text-align: center;
+}
+
+.ride-done {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 96px;
+  height: 96px;
+}
+
+.ride-done-glow {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background: rgba(0, 158, 96, 0.25);
+  animation: ride-glow 1.8s ease-out infinite;
+}
+
+.ride-done-icon {
+  position: relative;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 84px;
+  height: 84px;
+  border-radius: 50%;
+  color: #fff;
+  background: linear-gradient(135deg, #22c07a, #009e60);
+  box-shadow:
+    0 10px 0 rgba(0, 120, 72, 0.28),
+    0 18px 34px rgba(0, 158, 96, 0.32);
+}
+
+@keyframes ride-glow {
+  0% {
+    transform: scale(0.7);
+    opacity: 0.75;
+  }
+
+  100% {
+    transform: scale(1.45);
+    opacity: 0;
+  }
+}
+
+.ride-title {
+  margin: 20px 0 0;
+  color: var(--taxi-navy, #062b67);
+  font-size: 24px;
+  font-weight: 900;
+  letter-spacing: -0.8px;
+}
+
+.ride-subtitle {
+  margin: 8px 0 0;
+  color: var(--taxi-gray-500, #7a879b);
+  font-size: 13px;
+  font-weight: 500;
+}
+
+/* ---------- RÉCAP (glass) ---------- */
+.ride-recap {
+  position: relative;
+  z-index: 2;
+  margin-top: 18px;
+  padding: 6px 16px;
+  border: 1px solid rgba(255, 255, 255, 0.9);
+  border-radius: 24px;
+  background: rgba(255, 255, 255, 0.85);
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+  box-shadow: var(--taxi-shadow, 0 18px 45px rgba(6, 43, 103, 0.12));
+}
+
+.ride-recap-row {
+  display: flex;
+  align-items: center;
+  gap: 13px;
+  padding: 11px 0;
+  border-bottom: 1px solid var(--taxi-gray-100, #eef2f7);
+}
+
+.ride-recap-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 38px;
+  height: 38px;
+  flex: 0 0 38px;
+  border-radius: 13px;
+}
+
+.ride-recap-icon--dest {
+  color: var(--taxi-orange, #ff9900);
+  background: rgba(255, 153, 0, 0.12);
+}
+
+/* Badge photo blanc du véhicule (absorbe le fond blanc du PNG). */
+.ride-vehicle-badge {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 38px;
+  height: 38px;
+  flex: 0 0 38px;
+  padding: 3px;
+  border-radius: 13px;
+  color: var(--taxi-gray-500, #7a879b);
+  background: #ffffff;
+  box-shadow:
+    0 4px 10px rgba(6, 43, 103, 0.14),
+    inset 0 0 0 1px rgba(6, 43, 103, 0.06);
+}
+
+.ride-vehicle-img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+.ride-avatar {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 38px;
+  height: 38px;
+  flex: 0 0 38px;
+  border-radius: 50%;
+  color: #fff;
+  font-size: 16px;
+  font-weight: 900;
+  background: linear-gradient(145deg, #0b5fff, #062b67 80%);
+  box-shadow: 0 5px 0 rgba(6, 43, 103, 0.18);
+}
+
+.ride-recap-content {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-width: 0;
+}
+
+.ride-recap-content strong {
+  overflow: hidden;
+  color: var(--taxi-navy, #062b67);
+  font-size: 13px;
+  font-weight: 800;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.ride-recap-content span {
+  margin-top: 2px;
+  overflow: hidden;
+  color: var(--taxi-gray-500, #7a879b);
+  font-size: 11px;
+  font-weight: 600;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.ride-recap-total {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 14px 0 4px;
+}
+
+.ride-recap-total span {
+  color: var(--taxi-gray-700, #43516a);
+  font-size: 12px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+}
+
+.ride-recap-total strong {
+  color: var(--taxi-orange, #ff9900);
+  font-size: 24px;
+  font-weight: 900;
+  letter-spacing: -0.8px;
+  white-space: nowrap;
+}
+
+.ride-recap-commission {
+  margin: 0 0 12px;
+  color: var(--taxi-gray-500, #7a879b);
+  font-size: 10px;
+  font-weight: 600;
+}
+
+/* ---------- NOTATION ---------- */
+.ride-rating {
+  position: relative;
+  z-index: 2;
+  margin-top: 14px;
+  padding: 18px 16px;
+  border: 1px solid rgba(255, 255, 255, 0.9);
+  border-radius: 22px;
+  background: rgba(255, 255, 255, 0.85);
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+  box-shadow: 0 14px 34px rgba(6, 43, 103, 0.1);
+  text-align: center;
+}
+
+.ride-rating-title {
+  margin: 0;
+  color: var(--taxi-navy, #062b67);
+  font-size: 15px;
+  font-weight: 900;
+  letter-spacing: -0.3px;
+}
+
+.ride-stars {
+  display: flex;
+  justify-content: center;
+  gap: 6px;
+  margin-top: 14px;
+}
+
+.ride-star {
+  padding: 0;
+  border: none;
+  color: var(--taxi-gray-300, #d9e0ea);
+  background: transparent;
+  line-height: 0;
+  cursor: pointer;
+  transition:
+    transform 0.16s ease,
+    color 0.16s ease;
+}
+
+.ride-star:hover {
+  transform: scale(1.12);
+  color: var(--taxi-orange-light, #ffb52e);
+}
+
+.ride-star--on {
+  color: var(--taxi-orange, #ff9900);
+}
+
+.ride-star--on svg {
+  fill: currentColor;
+  filter: drop-shadow(0 4px 8px rgba(255, 153, 0, 0.4));
+}
+
+.ride-comment {
+  width: 100%;
+  margin-top: 14px;
+  padding: 12px 14px;
+  border: 1.5px solid var(--taxi-gray-100, #eef2f7);
+  border-radius: 16px;
+  color: var(--taxi-navy, #062b67);
+  background: #f8fafd;
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1.5;
+  resize: none;
+  outline: none;
+  transition:
+    border-color 0.2s ease,
+    box-shadow 0.2s ease,
+    background 0.2s ease;
+}
+
+.ride-comment::placeholder {
+  color: var(--taxi-gray-500, #7a879b);
+}
+
+.ride-comment:focus {
+  border-color: var(--taxi-blue, #0b5fff);
+  background: #ffffff;
+  box-shadow: 0 0 0 4px rgba(11, 95, 255, 0.08);
+}
+
+/* ---------- ACTIONS ---------- */
+.ride-actions {
+  position: relative;
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 16px;
+}
+
+.ride-submit {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 9px;
+  width: 100%;
+  padding: 16px;
+  border: none;
+  border-radius: 18px;
+  color: #fff;
+  font-family: inherit;
+  font-size: 15px;
+  font-weight: 900;
+  letter-spacing: -0.2px;
+  background: linear-gradient(135deg, #ffb52e 0%, #ff7a00 100%);
+  box-shadow:
+    0 9px 0 rgba(204, 108, 0, 0.35),
+    0 16px 30px rgba(255, 122, 0, 0.3);
+  cursor: pointer;
+  transition:
+    transform 0.18s ease,
+    box-shadow 0.18s ease;
+}
+
+.ride-submit:hover {
+  transform: translateY(-2px);
+  box-shadow:
+    0 11px 0 rgba(204, 108, 0, 0.35),
+    0 19px 35px rgba(255, 122, 0, 0.32);
+}
+
+.ride-submit:active {
+  transform: translateY(4px);
+  box-shadow:
+    0 4px 0 rgba(204, 108, 0, 0.35),
+    0 8px 18px rgba(255, 122, 0, 0.28);
+}
+
+.ride-skip {
+  width: 100%;
+  padding: 14px;
+  border: none;
+  border-radius: 16px;
+  color: var(--taxi-gray-700, #43516a);
+  background: var(--taxi-gray-100, #eef2f7);
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 800;
+  cursor: pointer;
+  transition: background 0.18s ease;
+}
+
+.ride-skip:hover {
+  background: #e3eaf4;
+}
+
+/* ---------- COURSE EN COURS ---------- */
+.ride-active {
+  position: relative;
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  margin-top: 18px;
+  padding: 20px;
+  border-radius: 24px;
+  color: #fff;
+  background: linear-gradient(140deg, #0b5fff, #062b67 80%);
+  box-shadow: 0 16px 34px rgba(6, 43, 103, 0.28);
+}
+
+.ride-active-status {
+  color: rgba(255, 255, 255, 0.72);
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+}
+
+.ride-active-title {
+  margin-top: 6px;
+  font-size: 19px;
+  font-weight: 900;
+  letter-spacing: -0.4px;
+}
+
+.ride-active-meta {
+  margin-top: 5px;
+  color: rgba(255, 255, 255, 0.85);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.ride-follow {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: 100%;
+  margin-top: 16px;
+  padding: 14px;
+  border: none;
+  border-radius: 16px;
+  color: #fff;
+  font-family: inherit;
+  font-size: 14px;
+  font-weight: 900;
+  background: linear-gradient(135deg, #ffb52e 0%, #ff7a00 100%);
+  box-shadow: 0 7px 0 rgba(204, 108, 0, 0.32);
+  cursor: pointer;
+  transition:
+    transform 0.18s ease,
+    box-shadow 0.18s ease;
+}
+
+.ride-follow:hover {
+  transform: translateY(-2px);
+}
+
+.ride-follow:active {
+  transform: translateY(3px);
+  box-shadow: 0 3px 0 rgba(204, 108, 0, 0.32);
+}
+
+/* ---------- ÉTAT VIDE ---------- */
+.ride-empty {
+  position: relative;
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  margin-top: 18px;
+  padding: 34px 20px;
+  border: 1px solid rgba(255, 255, 255, 0.9);
+  border-radius: 24px;
+  background: rgba(255, 255, 255, 0.85);
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+  box-shadow: var(--taxi-shadow, 0 18px 45px rgba(6, 43, 103, 0.12));
+  text-align: center;
+}
+
+.ride-empty-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 72px;
+  height: 72px;
+  border-radius: 50%;
+  color: var(--taxi-blue, #0b5fff);
+  background: rgba(11, 95, 255, 0.08);
+}
+
+.ride-empty strong {
+  margin-top: 16px;
+  color: var(--taxi-navy, #062b67);
+  font-size: 17px;
+  font-weight: 900;
+  letter-spacing: -0.3px;
+}
+
+.ride-empty p {
+  max-width: 280px;
+  margin: 8px 0 0;
+  color: var(--taxi-gray-500, #7a879b);
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1.55;
+}
+
+.ride-empty-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-top: 18px;
+  padding: 13px 22px;
+  border: none;
+  border-radius: 16px;
+  color: #fff;
+  font-family: inherit;
+  font-size: 14px;
+  font-weight: 900;
+  background: linear-gradient(135deg, #0b5fff 0%, #062b67 100%);
+  box-shadow:
+    0 7px 0 rgba(6, 43, 103, 0.25),
+    0 14px 26px rgba(11, 95, 255, 0.22);
+  cursor: pointer;
+  transition:
+    transform 0.18s ease,
+    box-shadow 0.18s ease;
+}
+
+.ride-empty-button:hover {
+  transform: translateY(-2px);
+}
+
+.ride-empty-button:active {
+  transform: translateY(3px);
+  box-shadow: 0 3px 0 rgba(6, 43, 103, 0.25);
+}
+
+/* ---------- RESPONSIVE ---------- */
+@media (min-width: 600px) {
+  .ride-page {
+    padding: 28px 24px 32px;
+  }
+
+  .ride-title {
+    font-size: 27px;
+  }
+
+  .ride-done {
+    width: 106px;
+    height: 106px;
+  }
+
+  .ride-done-icon {
+    width: 92px;
+    height: 92px;
+  }
+}
+
+@media (max-width: 360px) {
+  .ride-page {
+    padding: 18px 14px 22px;
+  }
+
+  .ride-title {
+    font-size: 21px;
+  }
+
+  .ride-star svg {
+    width: 28px;
+    height: 28px;
+  }
+
+  .ride-recap-total strong {
+    font-size: 21px;
+  }
+
+  .ride-recap-icon,
+  .ride-vehicle-badge,
+  .ride-avatar {
+    width: 34px;
+    height: 34px;
+    flex: 0 0 34px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ride-done-glow {
+    animation: none;
+  }
+
+  .ride-star,
+  .ride-submit,
+  .ride-skip,
+  .ride-follow,
+  .ride-empty-button {
+    transition: none;
+  }
+}
+
+
+
