@@ -1,6 +1,7 @@
 import { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { COLORS } from '../theme';
+import { MapPin } from 'lucide-react';
+import './Splash.css';
 
 export default function Splash() {
   const navigate = useNavigate();
@@ -11,45 +12,40 @@ export default function Splash() {
   }, [navigate]);
 
   return (
-    <div
-      style={{
-        height: '100%',
-        background: `linear-gradient(160deg, ${COLORS.navy} 0%, ${COLORS.blue} 100%)`,
-        display: 'flex',
-        flexDirection: 'column',
-        alignItems: 'center',
-        justifyContent: 'center',
-        gap: 16,
-        color: COLORS.white,
-      }}
-    >
-      <div
-        style={{
-          width: 112,
-          height: 112,
-          borderRadius: 32,
-          backgroundColor: COLORS.white,
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          fontSize: 48,
-          boxShadow: '0 18px 40px rgba(0,0,0,0.28)',
-        }}
-      >
-        🛺
+    <div className="splash-page">
+
+      {/* Background decoration */}
+      <span className="splash-orb splash-orb--blue" />
+      <span className="splash-orb splash-orb--orange" />
+
+      {/* ===== LOGO + MARQUE ===== */}
+      <div className="splash-center">
+        <div className="splash-logo-wrap">
+          <span className="splash-logo-glow" />
+
+          <div className="splash-logo">
+            <div className="splash-logo-pin">
+              <MapPin size={30} strokeWidth={2.8} />
+            </div>
+            <div className="splash-logo-wheel splash-logo-wheel--one" />
+            <div className="splash-logo-wheel splash-logo-wheel--two" />
+          </div>
+        </div>
+
+        <div className="splash-brand">
+          <span className="splash-brand-name">Taxi</span>
+          <span className="splash-brand-taxi">Moto</span>
+        </div>
+
+        <p className="splash-baseline">Le transport de proximité, simplement.</p>
       </div>
-      <div style={{ fontSize: 28, fontWeight: 800, letterSpacing: 1.5 }}>Taxi-Moto</div>
-      <div style={{ fontSize: 14, opacity: 0.9 }}>Le transport de proximité, simplement.</div>
-      <div style={{ marginTop: 8, fontSize: 13, opacity: 0.65 }}>🇨🇮 Côte d’Ivoire</div>
-      <div
-        style={{
-          marginTop: 22,
-          width: 46,
-          height: 5,
-          borderRadius: 99,
-          backgroundColor: COLORS.orange,
-        }}
-      />
+
+      {/* ===== CHARGEMENT ===== */}
+      <div className="splash-footer">
+        <span className="splash-spinner" />
+        <span className="splash-country">🇨🇮 Côte d’Ivoire</span>
+      </div>
     </div>
   );
 }
+

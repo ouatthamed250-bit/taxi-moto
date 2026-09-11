@@ -1,0 +1,307 @@
+/* ==========================================================================
+   Splash — Taxi-Moto · style premium
+   Variables --taxi-* réutilisées (repli intégré). Classes préfixées splash-*.
+   ========================================================================== */
+
+.splash-page {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  /* Remplit la coque applicative (#root, hauteur max 900px) tout en restant
+     plein écran sur les formats réels — équivaut à 100vh sur mobile. */
+  min-height: 100%;
+  width: 100%;
+  overflow: hidden;
+  background:
+    radial-gradient(circle at 80% 12%, rgba(255, 153, 0, 0.22), transparent 42%),
+    linear-gradient(165deg, #062b67 0%, #041c46 55%, #0b5fff 130%);
+  font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  color: #ffffff;
+}
+
+.splash-page,
+.splash-page * {
+  box-sizing: border-box;
+}
+
+/* ---------- DÉCOR ---------- */
+.splash-orb {
+  position: absolute;
+  pointer-events: none;
+  border-radius: 50%;
+  filter: blur(2px);
+}
+
+.splash-orb--blue {
+  width: 260px;
+  height: 260px;
+  top: -120px;
+  right: -110px;
+  background: rgba(11, 95, 255, 0.28);
+}
+
+.splash-orb--orange {
+  width: 220px;
+  height: 220px;
+  bottom: -110px;
+  left: -100px;
+  background: rgba(255, 153, 0, 0.2);
+}
+
+/* ---------- CENTRE ---------- */
+.splash-center {
+  position: relative;
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 0 24px;
+  text-align: center;
+}
+
+/* ---------- LOGO ---------- */
+.splash-logo-wrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 148px;
+  height: 148px;
+  animation: splash-in 0.75s ease-out both;
+}
+
+.splash-logo-glow {
+  position: absolute;
+  inset: 0;
+  border-radius: 40px;
+  background: rgba(255, 153, 0, 0.28);
+  animation: splash-pulse 2.6s ease-out 0.75s infinite;
+}
+
+.splash-logo {
+  position: relative;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 124px;
+  height: 124px;
+  border-radius: 34px;
+  background: linear-gradient(145deg, #0b5fff, #062b67 72%);
+  box-shadow:
+    0 12px 0 rgba(0, 0, 0, 0.22),
+    0 26px 50px rgba(0, 0, 0, 0.35);
+}
+
+.splash-logo-pin {
+  position: relative;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 66px;
+  height: 66px;
+  border-radius: 50%;
+  color: #ffffff;
+  background: linear-gradient(
+    145deg,
+    var(--taxi-orange-light, #ffb52e),
+    var(--taxi-orange, #ff9900)
+  );
+  box-shadow: 0 8px 20px rgba(255, 153, 0, 0.45);
+}
+
+.splash-logo-wheel {
+  position: absolute;
+  bottom: 20px;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: #ffffff;
+}
+
+.splash-logo-wheel--one {
+  left: 24px;
+}
+
+.splash-logo-wheel--two {
+  right: 24px;
+}
+
+/* ---------- MARQUE ---------- */
+.splash-brand {
+  display: flex;
+  align-items: baseline;
+  gap: 9px;
+  margin-top: 24px;
+  animation: splash-fade 0.7s ease-out 0.35s both;
+}
+
+.splash-brand-name,
+.splash-brand-taxi {
+  font-size: 34px;
+  font-weight: 900;
+  letter-spacing: -0.8px;
+}
+
+.splash-brand-name {
+  color: #ffffff;
+}
+
+.splash-brand-taxi {
+  color: var(--taxi-orange, #ff9900);
+}
+
+.splash-baseline {
+  max-width: 280px;
+  margin: 12px 0 0;
+  color: rgba(255, 255, 255, 0.78);
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 1.5;
+  animation: splash-fade 0.7s ease-out 0.5s both;
+}
+
+/* ---------- PIED : CHARGEMENT ---------- */
+.splash-footer {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 48px;
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+  animation: splash-fade 0.7s ease-out 0.7s both;
+}
+
+.splash-spinner {
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  border: 3px solid rgba(255, 255, 255, 0.2);
+  border-top-color: var(--taxi-orange, #ff9900);
+  animation: splash-spin 0.9s linear infinite;
+}
+
+.splash-country {
+  color: rgba(255, 255, 255, 0.6);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.4px;
+}
+
+/* ---------- ANIMATIONS ---------- */
+@keyframes splash-in {
+  from {
+    opacity: 0;
+    transform: scale(0.82);
+  }
+
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes splash-fade {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes splash-pulse {
+  0% {
+    transform: scale(0.9);
+    opacity: 0.75;
+  }
+
+  70% {
+    transform: scale(1.25);
+    opacity: 0;
+  }
+
+  100% {
+    transform: scale(1.25);
+    opacity: 0;
+  }
+}
+
+@keyframes splash-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* ---------- RESPONSIVE ---------- */
+@media (min-width: 600px) {
+  .splash-logo-wrap {
+    width: 168px;
+    height: 168px;
+  }
+
+  .splash-logo {
+    width: 140px;
+    height: 140px;
+    border-radius: 38px;
+  }
+
+  .splash-brand-name,
+  .splash-brand-taxi {
+    font-size: 40px;
+  }
+}
+
+@media (max-width: 360px) {
+  .splash-logo-wrap {
+    width: 128px;
+    height: 128px;
+  }
+
+  .splash-logo {
+    width: 108px;
+    height: 108px;
+    border-radius: 30px;
+  }
+
+  .splash-logo-pin {
+    width: 58px;
+    height: 58px;
+  }
+
+  .splash-brand-name,
+  .splash-brand-taxi {
+    font-size: 30px;
+  }
+
+  .splash-footer {
+    bottom: 36px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .splash-logo-wrap,
+  .splash-brand,
+  .splash-baseline,
+  .splash-footer {
+    animation: none;
+  }
+
+  .splash-logo-glow,
+  .splash-spinner {
+    animation: none;
+  }
+
+  .splash-logo-glow {
+    opacity: 0;
+  }
+}
