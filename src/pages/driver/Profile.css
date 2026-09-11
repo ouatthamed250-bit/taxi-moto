@@ -1,0 +1,612 @@
+/* ==========================================================================
+   Driver Profile — Taxi-Moto · style premium (glass + boutons 3D)
+   Variables --taxi-* réutilisées (repli intégré). Classes driver-profile-*.
+   ========================================================================== */
+
+.driver-profile-page {
+  position: relative;
+  min-height: 100%;
+  width: 100%;
+  overflow: hidden;
+  padding: 22px 18px 28px;
+  background:
+    radial-gradient(circle at 88% 0%, rgba(255, 153, 0, 0.12), transparent 30%),
+    linear-gradient(180deg, #ffffff 0%, #f7faff 100%);
+  font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  color: var(--taxi-navy, #062b67);
+}
+
+.driver-profile-page,
+.driver-profile-page * {
+  box-sizing: border-box;
+}
+
+/* ---------- DÉCOR DE FOND ---------- */
+.driver-profile-orb {
+  position: absolute;
+  pointer-events: none;
+  border-radius: 50%;
+}
+
+.driver-profile-orb--orange {
+  width: 200px;
+  height: 200px;
+  top: -110px;
+  right: -80px;
+  background: rgba(255, 153, 0, 0.12);
+}
+
+.driver-profile-orb--blue {
+  width: 180px;
+  height: 180px;
+  bottom: -100px;
+  left: -90px;
+  background: rgba(11, 95, 255, 0.06);
+}
+
+/* ---------- HEADER ---------- */
+.driver-profile-topbar {
+  position: relative;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 18px;
+}
+
+.driver-profile-back {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 42px;
+  height: 42px;
+  flex: 0 0 42px;
+  border: 1px solid rgba(255, 255, 255, 0.9);
+  border-radius: 14px;
+  color: var(--taxi-navy, #062b67);
+  background: rgba(255, 255, 255, 0.85);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  box-shadow:
+    0 5px 0 rgba(6, 43, 103, 0.12),
+    0 10px 22px rgba(6, 43, 103, 0.14);
+  cursor: pointer;
+  transition:
+    transform 0.18s ease,
+    box-shadow 0.18s ease;
+}
+
+.driver-profile-back:hover {
+  transform: translateY(-2px);
+}
+
+.driver-profile-back:active {
+  transform: translateY(2px);
+  box-shadow: 0 2px 0 rgba(6, 43, 103, 0.12);
+}
+
+.driver-profile-brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.driver-profile-logo {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 42px;
+  height: 42px;
+  flex: 0 0 42px;
+  border-radius: 14px;
+  background: linear-gradient(145deg, #0b5fff, #062b67 70%);
+  box-shadow:
+    0 6px 0 rgba(6, 43, 103, 0.2),
+    0 12px 24px rgba(6, 43, 103, 0.22);
+}
+
+.driver-profile-logo-pin {
+  position: relative;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 25px;
+  height: 25px;
+  border-radius: 50%;
+  color: #fff;
+  background: linear-gradient(
+    145deg,
+    var(--taxi-orange-light, #ffb52e),
+    var(--taxi-orange, #ff9900)
+  );
+  box-shadow: 0 3px 8px rgba(255, 153, 0, 0.4);
+}
+
+.driver-profile-logo-wheel {
+  position: absolute;
+  bottom: 7px;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #fff;
+}
+
+.driver-profile-logo-wheel--one {
+  left: 8px;
+}
+
+.driver-profile-logo-wheel--two {
+  right: 8px;
+}
+
+.driver-profile-brand-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.driver-profile-eyebrow {
+  color: var(--taxi-orange, #ff9900);
+  font-size: 10px;
+  font-weight: 900;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+}
+
+.driver-profile-title {
+  margin: 2px 0 0;
+  color: var(--taxi-navy, #062b67);
+  font-size: 19px;
+  font-weight: 900;
+  letter-spacing: -0.7px;
+  line-height: 1.1;
+}
+
+/* ---------- CARTE UTILISATEUR (glass) ---------- */
+.driver-profile-card {
+  position: relative;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  gap: 15px;
+  padding: 18px;
+  border: 1px solid rgba(255, 255, 255, 0.9);
+  border-radius: 24px;
+  background: rgba(255, 255, 255, 0.85);
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+  box-shadow: var(--taxi-shadow, 0 18px 45px rgba(6, 43, 103, 0.12));
+}
+
+.driver-profile-avatar {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 64px;
+  height: 64px;
+  flex: 0 0 64px;
+  border-radius: 22px;
+  color: #fff;
+  font-size: 26px;
+  font-weight: 900;
+  background: linear-gradient(145deg, #ffb52e, #062b67 85%);
+  box-shadow:
+    0 7px 0 rgba(6, 43, 103, 0.2),
+    0 12px 24px rgba(6, 43, 103, 0.22);
+}
+
+.driver-profile-identity {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-width: 0;
+}
+
+.driver-profile-name {
+  overflow: hidden;
+  color: var(--taxi-navy, #062b67);
+  font-size: 18px;
+  font-weight: 900;
+  letter-spacing: -0.4px;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.driver-profile-phone {
+  margin-top: 3px;
+  color: var(--taxi-gray-500, #7a879b);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.driver-profile-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 9px;
+}
+
+.driver-profile-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 800;
+}
+
+.driver-profile-badge--green {
+  color: #16a765;
+  background: rgba(22, 167, 101, 0.12);
+}
+
+.driver-profile-badge--orange {
+  color: #b26a00;
+  background: rgba(255, 153, 0, 0.14);
+}
+
+.driver-profile-badge--navy {
+  color: #fff;
+  background: linear-gradient(145deg, #062b67, #0b5fff);
+}
+
+/* ---------- PLAQUE + NOTE MOYENNE ---------- */
+.driver-profile-plate {
+  align-self: flex-start;
+  margin-top: 9px;
+  padding: 4px 10px;
+  border: 1px solid rgba(6, 43, 103, 0.14);
+  border-radius: 8px;
+  color: var(--taxi-navy, #062b67);
+  background: #f8fafd;
+  font-size: 11px;
+  font-weight: 900;
+  letter-spacing: 1px;
+}
+
+.driver-profile-rating {
+  position: relative;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 14px;
+  padding: 15px 16px;
+  border: 1px solid rgba(255, 255, 255, 0.9);
+  border-radius: 22px;
+  background: rgba(255, 255, 255, 0.85);
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+  box-shadow: 0 14px 34px rgba(6, 43, 103, 0.1);
+}
+
+.driver-profile-rating-left {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  min-width: 0;
+}
+
+.driver-profile-rating-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 38px;
+  height: 38px;
+  flex: 0 0 38px;
+  border-radius: 13px;
+  color: #f5a623;
+  background: rgba(245, 166, 35, 0.14);
+}
+
+.driver-profile-rating-left div {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.driver-profile-rating-value {
+  color: var(--taxi-navy, #062b67);
+  font-size: 18px;
+  font-weight: 900;
+  letter-spacing: -0.4px;
+  line-height: 1.1;
+}
+
+.driver-profile-rating-label {
+  color: var(--taxi-gray-500, #7a879b);
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+}
+
+.driver-profile-rating-rides {
+  flex: 0 0 auto;
+  padding: 6px 11px;
+  border-radius: 999px;
+  color: var(--taxi-gray-700, #43516a);
+  background: var(--taxi-gray-100, #eef2f7);
+  font-size: 10px;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+/* ---------- STATS (glass) ---------- */
+.driver-profile-stats {
+  position: relative;
+  z-index: 2;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+  margin-top: 14px;
+}
+
+.driver-profile-stat {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 15px 8px;
+  border: 1px solid rgba(255, 255, 255, 0.9);
+  border-radius: 20px;
+  background: rgba(255, 255, 255, 0.85);
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+  box-shadow: 0 12px 28px rgba(6, 43, 103, 0.1);
+  text-align: center;
+}
+
+.driver-profile-stat strong {
+  color: var(--taxi-navy, #062b67);
+  font-size: 16px;
+  font-weight: 900;
+  letter-spacing: -0.4px;
+}
+
+.driver-profile-stat span {
+  color: var(--taxi-gray-500, #7a879b);
+  font-size: 10px;
+  font-weight: 700;
+}
+
+.driver-profile-stat--net {
+  border-color: rgba(255, 153, 0, 0.28);
+  background: linear-gradient(150deg, #fff8ef, #ffffff);
+}
+
+.driver-profile-stat--net strong {
+  color: var(--taxi-orange, #ff9900);
+}
+
+/* ---------- OPTIONS ---------- */
+.driver-profile-menu {
+  position: relative;
+  z-index: 2;
+  margin-top: 14px;
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.9);
+  border-radius: 22px;
+  background: rgba(255, 255, 255, 0.85);
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+  box-shadow: 0 14px 34px rgba(6, 43, 103, 0.1);
+}
+
+.driver-profile-menu-item {
+  display: flex;
+  align-items: center;
+  gap: 13px;
+  width: 100%;
+  padding: 15px 16px;
+  border: none;
+  border-bottom: 1px solid var(--taxi-gray-100, #eef2f7);
+  color: var(--taxi-navy, #062b67);
+  background: transparent;
+  cursor: pointer;
+  font-family: inherit;
+  text-align: left;
+  transition: background 0.18s ease;
+}
+
+.driver-profile-menu-item:last-child {
+  border-bottom: none;
+}
+
+.driver-profile-menu-item:hover {
+  background: rgba(11, 95, 255, 0.05);
+}
+
+.driver-profile-menu-item:active {
+  background: rgba(11, 95, 255, 0.08);
+}
+
+.driver-profile-menu-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  flex: 0 0 40px;
+  border-radius: 13px;
+  color: var(--taxi-blue, #0b5fff);
+  background: rgba(11, 95, 255, 0.08);
+}
+
+.driver-profile-menu-content {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-width: 0;
+}
+
+.driver-profile-menu-content strong {
+  color: var(--taxi-navy, #062b67);
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.driver-profile-menu-content small {
+  margin-top: 2px;
+  overflow: hidden;
+  color: var(--taxi-gray-500, #7a879b);
+  font-size: 10px;
+  font-weight: 600;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.driver-profile-menu-chevron {
+  flex: 0 0 auto;
+  color: #c3ccda;
+}
+
+/* ---------- DÉCONNEXION (rouge 3D) ---------- */
+.driver-profile-logout {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  width: 100%;
+  margin-top: 18px;
+  padding: 15px;
+  border: none;
+  border-radius: 18px;
+  color: #fff;
+  font-family: inherit;
+  font-size: 15px;
+  font-weight: 900;
+  letter-spacing: -0.2px;
+  background: linear-gradient(135deg, #ff6b6b 0%, #e5484d 100%);
+  box-shadow:
+    0 9px 0 rgba(180, 40, 45, 0.35),
+    0 16px 30px rgba(229, 72, 77, 0.28);
+  cursor: pointer;
+  transition:
+    transform 0.18s ease,
+    box-shadow 0.18s ease;
+}
+
+.driver-profile-logout:hover {
+  transform: translateY(-2px);
+  box-shadow:
+    0 11px 0 rgba(180, 40, 45, 0.35),
+    0 19px 35px rgba(229, 72, 77, 0.3);
+}
+
+.driver-profile-logout:active {
+  transform: translateY(4px);
+  box-shadow:
+    0 4px 0 rgba(180, 40, 45, 0.35),
+    0 8px 18px rgba(229, 72, 77, 0.26);
+}
+
+.driver-profile-logout-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  flex: 0 0 30px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.2);
+}
+
+/* ---------- TOAST ---------- */
+.driver-profile-toast {
+  position: fixed;
+  left: 50%;
+  bottom: 110px;
+  z-index: 1300;
+  transform: translateX(-50%);
+  max-width: 80%;
+  padding: 11px 18px;
+  border-radius: 999px;
+  color: #fff;
+  background: rgba(6, 43, 103, 0.94);
+  font-size: 12px;
+  font-weight: 700;
+  text-align: center;
+  box-shadow: 0 12px 28px rgba(6, 43, 103, 0.35);
+  animation: driver-profile-toast-in 0.2s ease-out;
+}
+
+@keyframes driver-profile-toast-in {
+  from {
+    opacity: 0;
+    transform: translate(-50%, 8px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translate(-50%, 0);
+  }
+}
+
+/* ---------- RESPONSIVE ---------- */
+@media (min-width: 600px) {
+  .driver-profile-page {
+    padding: 28px 24px 34px;
+  }
+
+  .driver-profile-title {
+    font-size: 22px;
+  }
+
+  .driver-profile-avatar {
+    width: 72px;
+    height: 72px;
+    flex: 0 0 72px;
+    font-size: 30px;
+  }
+}
+
+@media (max-width: 360px) {
+  .driver-profile-page {
+    padding: 18px 14px 24px;
+  }
+
+  .driver-profile-title {
+    font-size: 16px;
+  }
+
+  .driver-profile-logo {
+    width: 38px;
+    height: 38px;
+    flex: 0 0 38px;
+  }
+
+  .driver-profile-avatar {
+    width: 54px;
+    height: 54px;
+    flex: 0 0 54px;
+    font-size: 22px;
+  }
+
+  .driver-profile-stat strong {
+    font-size: 13px;
+  }
+
+  .driver-profile-menu-content small {
+    display: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .driver-profile-back,
+  .driver-profile-menu-item,
+  .driver-profile-logout {
+    transition: none;
+  }
+
+  .driver-profile-toast {
+    animation: none;
+  }
+}
+
+
