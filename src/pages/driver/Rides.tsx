@@ -253,7 +253,7 @@ export default function DriverRides() {
                   </div>
 
                   <p className="driver-rides-net">
-                    Commission 7 % ({fcfa(ride.commission)}) · Net conducteur :{' '}
+                    Commission 10 % ({fcfa(ride.commission)}) · Net conducteur :{' '}
                     {fcfa(ride.price - ride.commission)}
                   </p>
                 </button>

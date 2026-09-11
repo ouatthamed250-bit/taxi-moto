@@ -148,7 +148,7 @@ export default function DriverDashboard() {
             </div>
 
             <p className="driver-dashboard-commission">
-              Commission plateforme (7 %) : {fcfa(driverCommission)}
+              Commission plateforme (10 %) : {fcfa(driverCommission)}
             </p>
           </section>
 
@@ -225,7 +225,7 @@ export default function DriverDashboard() {
               </div>
 
               <p className="driver-dashboard-net">
-                Prix client : <strong>{fcfa(fare)}</strong> · Commission 7 % (
+                Prix client : <strong>{fcfa(fare)}</strong> · Commission 10 % (
                 {fcfa(commissionOf(fare))}) = Net :{' '}
                 <strong className="driver-dashboard-net-value">{fcfa(netEarnings(fare))}</strong>
               </p>

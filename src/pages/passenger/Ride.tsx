@@ -177,7 +177,7 @@ export default function PassengerRide() {
               </div>
 
               <p className="ride-recap-commission">
-                Commission Taxi-Moto 7 % : {fcfa(commission)}
+                Commission Taxi-Moto 10 % : {fcfa(commission)}
               </p>
             </section>
 

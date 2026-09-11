@@ -220,7 +220,7 @@ export default function Offers() {
                   </div>
 
                   <p className="offers-net">
-                    Commission 7 % ({fcfa(commissionOf(offer.price))}) · Net
+                    Commission 10 % ({fcfa(commissionOf(offer.price))}) · Net
                     chauffeur : {fcfa(netEarnings(offer.price))}
                   </p>
 

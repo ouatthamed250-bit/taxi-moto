@@ -174,7 +174,7 @@ export default function Tracking() {
             </div>
 
             <p className="tracking-net">
-              Commission 7 % ({fcfa(commissionOf(selectedOffer.price))}) · Net chauffeur :{' '}
+              Commission 10 % ({fcfa(commissionOf(selectedOffer.price))}) · Net chauffeur :{' '}
               {fcfa(netEarnings(selectedOffer.price))}
             </p>
 

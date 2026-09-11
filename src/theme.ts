@@ -13,8 +13,8 @@ export const COLORS = {
   red: '#E5484D',
 } as const;
 
-/** Commission plateforme : 7 % de chaque course. */
-export const COMMISSION_RATE = 0.07;
+/** Commission plateforme : 10 % de chaque course. */
+export const COMMISSION_RATE = 0.10;
 
 /** Prix minimum d'une course (FCFA) — le conducteur propose au-delà. */
 export const MIN_FARE = 1000;
@@ -45,7 +45,7 @@ export function estimateFare(distanceKm: number): { min: number; max: number } {
   return { min, max };
 }
 
-/** Commission plateforme (7 %). */
+/** Commission plateforme (10 %). */
 export function commissionOf(price: number): number {
   return Math.round(price * COMMISSION_RATE);
 }
