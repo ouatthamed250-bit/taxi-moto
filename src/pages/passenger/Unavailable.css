@@ -1,0 +1,505 @@
+/* ==========================================================================
+   Passenger Unavailable — Taxi-Moto · style premium (glass + boutons 3D)
+   Variables --taxi-* réutilisées (repli intégré). Classes préfixées unavailable-*.
+   ========================================================================== */
+
+.unavailable-page {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  min-height: 100%;
+  width: 100%;
+  overflow: hidden;
+  padding: 22px 18px 26px;
+  background:
+    radial-gradient(circle at 88% 0%, rgba(255, 153, 0, 0.14), transparent 30%),
+    linear-gradient(180deg, #ffffff 0%, #f7faff 100%);
+  font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  color: var(--taxi-navy, #062b67);
+}
+
+.unavailable-page,
+.unavailable-page * {
+  box-sizing: border-box;
+}
+
+/* ---------- DÉCOR DE FOND ---------- */
+.unavailable-orb {
+  position: absolute;
+  pointer-events: none;
+  border-radius: 50%;
+}
+
+.unavailable-orb--orange {
+  width: 210px;
+  height: 210px;
+  top: -115px;
+  right: -85px;
+  background: rgba(255, 153, 0, 0.14);
+}
+
+.unavailable-orb--blue {
+  width: 180px;
+  height: 180px;
+  bottom: -100px;
+  left: -90px;
+  background: rgba(11, 95, 255, 0.06);
+}
+
+/* ---------- HEADER ---------- */
+.unavailable-topbar {
+  position: relative;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 8px;
+}
+
+.unavailable-back {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 42px;
+  height: 42px;
+  flex: 0 0 42px;
+  border: 1px solid rgba(255, 255, 255, 0.9);
+  border-radius: 14px;
+  color: var(--taxi-navy, #062b67);
+  background: rgba(255, 255, 255, 0.85);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  box-shadow:
+    0 5px 0 rgba(6, 43, 103, 0.12),
+    0 10px 22px rgba(6, 43, 103, 0.14);
+  cursor: pointer;
+  transition:
+    transform 0.18s ease,
+    box-shadow 0.18s ease;
+}
+
+.unavailable-back:hover {
+  transform: translateY(-2px);
+}
+
+.unavailable-back:active {
+  transform: translateY(2px);
+  box-shadow: 0 2px 0 rgba(6, 43, 103, 0.12);
+}
+
+.unavailable-brand {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 6px 14px 6px 7px;
+  border: 1px solid rgba(255, 255, 255, 0.9);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.85);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  box-shadow: 0 10px 24px rgba(6, 43, 103, 0.14);
+}
+
+.unavailable-logo {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  flex: 0 0 34px;
+  border-radius: 11px;
+  background: linear-gradient(145deg, #0b5fff, #062b67 70%);
+  box-shadow:
+    0 4px 0 rgba(6, 43, 103, 0.18),
+    0 8px 16px rgba(6, 43, 103, 0.22);
+}
+
+.unavailable-logo-pin {
+  position: relative;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 21px;
+  height: 21px;
+  border-radius: 50%;
+  color: #fff;
+  background: linear-gradient(
+    145deg,
+    var(--taxi-orange-light, #ffb52e),
+    var(--taxi-orange, #ff9900)
+  );
+  box-shadow: 0 3px 8px rgba(255, 153, 0, 0.4);
+}
+
+.unavailable-logo-wheel {
+  position: absolute;
+  bottom: 6px;
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: #fff;
+}
+
+.unavailable-logo-wheel--one {
+  left: 7px;
+}
+
+.unavailable-logo-wheel--two {
+  right: 7px;
+}
+
+.unavailable-brand-text {
+  color: var(--taxi-navy, #062b67);
+  font-size: 12px;
+  font-weight: 900;
+  letter-spacing: 0.4px;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+/* ---------- HERO (icône + titre) ---------- */
+.unavailable-hero {
+  position: relative;
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 14px 0 4px;
+  text-align: center;
+}
+
+.unavailable-icon {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 104px;
+  height: 104px;
+}
+
+.unavailable-icon-glow {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background: rgba(255, 153, 0, 0.22);
+  animation: unavailable-pulse 2.2s ease-out infinite;
+}
+
+.unavailable-icon-core {
+  position: relative;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 90px;
+  height: 90px;
+  border-radius: 50%;
+  color: #ff8a1f;
+  background: linear-gradient(160deg, #fff4e2, #ffe6c2);
+  box-shadow:
+    0 10px 0 rgba(204, 108, 0, 0.16),
+    0 18px 34px rgba(255, 153, 0, 0.24);
+}
+
+@keyframes unavailable-pulse {
+  0% {
+    transform: scale(0.72);
+    opacity: 0.7;
+  }
+
+  100% {
+    transform: scale(1.4);
+    opacity: 0;
+  }
+}
+
+.unavailable-title {
+  margin: 20px 0 0;
+  color: var(--taxi-navy, #062b67);
+  font-size: 23px;
+  font-weight: 900;
+  letter-spacing: -0.8px;
+  line-height: 1.15;
+}
+
+.unavailable-subtitle {
+  max-width: 320px;
+  margin: 10px 0 0;
+  color: var(--taxi-gray-500, #7a879b);
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 1.6;
+}
+
+.unavailable-subtitle strong {
+  color: var(--taxi-navy, #062b67);
+  font-weight: 800;
+}
+
+/* ---------- CARTE (glass) ---------- */
+.unavailable-card {
+  position: relative;
+  z-index: 2;
+  margin-top: 20px;
+  padding: 16px;
+  border: 1px solid rgba(255, 255, 255, 0.9);
+  border-radius: 24px;
+  background: rgba(255, 255, 255, 0.85);
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+  box-shadow: var(--taxi-shadow, 0 18px 45px rgba(6, 43, 103, 0.12));
+}
+
+.unavailable-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.unavailable-row-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  flex: 0 0 40px;
+  border-radius: 13px;
+  color: var(--taxi-orange, #ff9900);
+  background: rgba(255, 153, 0, 0.14);
+}
+
+.unavailable-row-content {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-width: 0;
+}
+
+.unavailable-row-content strong {
+  color: var(--taxi-navy, #062b67);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.unavailable-row-content span {
+  margin-top: 2px;
+  overflow: hidden;
+  color: var(--taxi-gray-500, #7a879b);
+  font-size: 11px;
+  font-weight: 600;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.unavailable-badge {
+  flex: 0 0 auto;
+  padding: 5px 10px;
+  border-radius: 999px;
+  color: #b26a00;
+  background: linear-gradient(135deg, #fff4e0, #ffe6c2);
+  font-size: 9px;
+  font-weight: 900;
+  letter-spacing: 0.3px;
+  text-transform: uppercase;
+  white-space: nowrap;
+  box-shadow: inset 0 0 0 1px rgba(255, 153, 0, 0.22);
+}
+
+.unavailable-message {
+  margin: 14px 0 0;
+  padding-top: 12px;
+  border-top: 1px dashed var(--taxi-gray-100, #eef2f7);
+  color: var(--taxi-gray-700, #43516a);
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.5;
+}
+
+/* Numéro enregistré (lecture seule) */
+.unavailable-phone {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  margin-top: 12px;
+  padding: 13px 14px;
+  border: 1.5px solid var(--taxi-gray-100, #eef2f7);
+  border-radius: 16px;
+  color: var(--taxi-navy, #062b67);
+  background: #f8fafd;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.unavailable-phone svg {
+  color: var(--taxi-blue, #0b5fff);
+}
+
+/* Champ de saisie du numéro */
+.unavailable-input {
+  width: 100%;
+  margin-top: 12px;
+  padding: 13px 14px;
+  border: 1.5px solid var(--taxi-gray-100, #eef2f7);
+  border-radius: 16px;
+  color: var(--taxi-navy, #062b67);
+  background: #f8fafd;
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 700;
+  outline: none;
+  transition:
+    border-color 0.2s ease,
+    box-shadow 0.2s ease,
+    background 0.2s ease;
+}
+
+.unavailable-input::placeholder {
+  color: var(--taxi-gray-500, #7a879b);
+  font-weight: 600;
+}
+
+.unavailable-input:focus {
+  border-color: var(--taxi-blue, #0b5fff);
+  background: #ffffff;
+  box-shadow: 0 0 0 4px rgba(11, 95, 255, 0.08);
+}
+
+.unavailable-estimate {
+  margin: 12px 0 0;
+  color: var(--taxi-gray-500, #7a879b);
+  font-size: 10px;
+  font-weight: 600;
+  line-height: 1.45;
+}
+
+/* ---------- BOUTON NOTIFIER (3D orange) ---------- */
+.unavailable-notify {
+  position: relative;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 9px;
+  width: 100%;
+  margin-top: 16px;
+  padding: 16px;
+  border: none;
+  border-radius: 18px;
+  color: #fff;
+  font-family: inherit;
+  font-size: 14px;
+  font-weight: 900;
+  letter-spacing: -0.2px;
+  background: linear-gradient(135deg, #ffb52e 0%, #ff7a00 100%);
+  box-shadow:
+    0 9px 0 rgba(204, 108, 0, 0.35),
+    0 16px 30px rgba(255, 122, 0, 0.3);
+  cursor: pointer;
+  transition:
+    transform 0.18s ease,
+    box-shadow 0.18s ease;
+}
+
+.unavailable-notify:hover {
+  transform: translateY(-2px);
+  box-shadow:
+    0 11px 0 rgba(204, 108, 0, 0.35),
+    0 19px 35px rgba(255, 122, 0, 0.32);
+}
+
+.unavailable-notify:active {
+  transform: translateY(4px);
+  box-shadow:
+    0 4px 0 rgba(204, 108, 0, 0.35),
+    0 8px 18px rgba(255, 122, 0, 0.28);
+}
+
+/* ---------- BOUTON RETOUR (gris clair) ---------- */
+.unavailable-home {
+  position: relative;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  margin-top: 10px;
+  padding: 14px;
+  border: none;
+  border-radius: 16px;
+  color: var(--taxi-gray-700, #43516a);
+  background: var(--taxi-gray-100, #eef2f7);
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 800;
+  cursor: pointer;
+  transition: background 0.18s ease;
+}
+
+.unavailable-home:hover {
+  background: #e3eaf4;
+}
+
+/* ---------- RESPONSIVE ---------- */
+@media (min-width: 600px) {
+  .unavailable-page {
+    padding: 28px 24px 32px;
+  }
+
+  .unavailable-title {
+    font-size: 26px;
+  }
+
+  .unavailable-icon {
+    width: 116px;
+    height: 116px;
+  }
+
+  .unavailable-icon-core {
+    width: 100px;
+    height: 100px;
+  }
+}
+
+@media (max-width: 360px) {
+  .unavailable-page {
+    padding: 18px 14px 24px;
+  }
+
+  .unavailable-title {
+    font-size: 20px;
+  }
+
+  .unavailable-icon {
+    width: 92px;
+    height: 92px;
+  }
+
+  .unavailable-icon-core {
+    width: 78px;
+    height: 78px;
+  }
+
+  .unavailable-badge {
+    display: none;
+  }
+
+  .unavailable-notify {
+    font-size: 13px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .unavailable-icon-glow {
+    animation: none;
+  }
+
+  .unavailable-back,
+  .unavailable-notify,
+  .unavailable-home {
+    transition: none;
+  }
+}
+

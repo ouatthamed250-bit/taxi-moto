@@ -1,93 +1,133 @@
-import { useState } from 'react';
-import { Bell } from 'lucide-react';
+import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { ArrowLeft, Bell, MapPin, MapPinOff, Radar, Smartphone } from 'lucide-react';
 import { Page } from '../../components/Page';
 import { COLORS, estimateFare, fcfa } from '../../theme';
 import { useApp } from '../../store/useApp';
+import './Unavailable.css';
 
 export default function Unavailable() {
   const navigate = useNavigate();
-  const { destination, distanceKm } = useApp();
+  const { destination, distanceKm, phone } = useApp();
+
   const [notified, setNotified] = useState(false);
+  const [userPhone, setUserPhone] = useState('');
+
   const estimate = estimateFare(distanceKm);
+  const zone = destination || 'cette zone';
+
+  // Confirmation affichée, puis retour à l'accueil.
+  useEffect(() => {
+    if (!notified) return undefined;
+    const timer = window.setTimeout(() => navigate('/passenger'), 1300);
+    return () => window.clearTimeout(timer);
+  }, [notified, navigate]);
 
   return (
-    <Page background={COLORS.white}>
-      <div
-        style={{
-          minHeight: '100%',
-          padding: '54px 24px 28px',
-          display: 'flex',
-          flexDirection: 'column',
-          alignItems: 'center',
-          textAlign: 'center',
-        }}
-      >
-        <div style={{ fontSize: 56, marginBottom: 16 }}>🛺</div>
-        <div style={{ fontSize: 20, fontWeight: 800, color: COLORS.navy, lineHeight: 1.35 }}>
-          Aucun conducteur disponible dans cette zone pour le moment.
-        </div>
-        <p style={{ color: COLORS.gray, fontSize: 14, lineHeight: 1.6, marginTop: 12 }}>
-          {destination ? `Zone : ${destination}. ` : ''}
-          La disponibilité dépend des conducteurs réellement inscrits. Taxi-Moto couvre
-          progressivement de nouvelles zones.
-        </p>
+    <Page nav="passenger" background={COLORS.white}>
+      <div className="unavailable-page">
 
-        <div
-          style={{
-            marginTop: 20,
-            padding: 16,
-            borderRadius: 20,
-            backgroundColor: COLORS.grayLight,
-            width: '100%',
-            boxSizing: 'border-box',
-            fontSize: 13,
-            color: COLORS.navy,
-            textAlign: 'left',
-          }}
-        >
-          <div style={{ fontWeight: 800, marginBottom: 6 }}>💡 À savoir</div>
-          <div>
+        {/* Background decoration */}
+        <div className="unavailable-orb unavailable-orb--orange" />
+        <div className="unavailable-orb unavailable-orb--blue" />
+
+        {/* ===== HEADER ===== */}
+        <header className="unavailable-topbar">
+          <button
+            type="button"
+            className="unavailable-back"
+            aria-label="Retour"
+            onClick={() => navigate('/passenger')}
+          >
+            <ArrowLeft size={20} />
+          </button>
+
+          <div className="unavailable-brand">
+            <div className="unavailable-logo" aria-hidden="true">
+              <div className="unavailable-logo-pin">
+                <Radar size={14} strokeWidth={2.6} />
+              </div>
+              <div className="unavailable-logo-wheel unavailable-logo-wheel--one" />
+              <div className="unavailable-logo-wheel unavailable-logo-wheel--two" />
+            </div>
+            <span className="unavailable-brand-text">Taxi Moto</span>
+          </div>
+        </header>
+
+        {/* ===== HERO ===== */}
+        <section className="unavailable-hero">
+          <div className="unavailable-icon">
+            <span className="unavailable-icon-glow" />
+            <span className="unavailable-icon-core">
+              <MapPinOff size={38} strokeWidth={2.1} />
+            </span>
+          </div>
+
+          <h1 className="unavailable-title">Zone non couverte pour l’instant</h1>
+
+          <p className="unavailable-subtitle">
+            Taxi-Moto n’est pas encore disponible à <strong>{zone}</strong>. Nous nous
+            étendons rapidement.
+          </p>
+        </section>
+
+        {/* ===== CARTE (glass) ===== */}
+        <section className="unavailable-card">
+          <div className="unavailable-row">
+            <span className="unavailable-row-icon">
+              <MapPin size={17} />
+            </span>
+
+            <div className="unavailable-row-content">
+              <strong>Destination demandée</strong>
+              <span>{zone}</span>
+            </div>
+
+            <span className="unavailable-badge">Bientôt disponible</span>
+          </div>
+
+          <p className="unavailable-message">
+            Laissez-nous votre numéro pour être averti dès l’ouverture.
+          </p>
+
+          {phone ? (
+            <div className="unavailable-phone">
+              <Smartphone size={16} />
+              <span>{phone}</span>
+            </div>
+          ) : (
+            <input
+              className="unavailable-input"
+              type="tel"
+              inputMode="tel"
+              placeholder="Votre numéro (+225)"
+              value={userPhone}
+              onChange={(event) => setUserPhone(event.target.value)}
+            />
+          )}
+
+          <p className="unavailable-estimate">
             Prix habituellement observé en zone couverte : {fcfa(estimate.min)} –{' '}
             {fcfa(estimate.max)}
-          </div>
-          <div style={{ marginTop: 6, color: COLORS.gray }}>
-            Essayez une destination proche d’Abidjan pour trouver un conducteur.
-          </div>
-        </div>
+          </p>
+        </section>
 
+        {/* ===== ACTIONS ===== */}
         <button
           type="button"
-          onClick={() => setNotified((value) => !value)}
-          style={{
-            marginTop: 22,
-            width: '100%',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            gap: 10,
-            padding: 16,
-            borderRadius: 16,
-            fontFamily: 'inherit',
-            fontSize: 15,
-            fontWeight: 700,
-            cursor: 'pointer',
-            border: `1.5px solid ${notified ? COLORS.green : COLORS.navy}`,
-            backgroundColor: notified ? '#E9F7F1' : COLORS.white,
-            color: notified ? COLORS.green : COLORS.navy,
-          }}
+          className="unavailable-notify"
+          onClick={() => setNotified(true)}
         >
-          <Bell size={18} color={notified ? COLORS.green : COLORS.navy} />
+          <Bell size={18} />
           {notified ? 'Alerte activée ✓' : 'M’avertir lorsque le service sera disponible'}
         </button>
 
         <button
-          className="btn-primary"
           type="button"
-          style={{ marginTop: 14 }}
+          className="unavailable-home"
           onClick={() => navigate('/passenger')}
         >
-          Retour à la carte
+          Retour à l’accueil
         </button>
       </div>
     </Page>
