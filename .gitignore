@@ -27,3 +27,12 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Artefacts temporaires / diagnostic (jamais commités)
+dist-test
+dist-test/
+vite.config.test.ts
+*.old
+*.old.*
+*.bak
+*.tmp

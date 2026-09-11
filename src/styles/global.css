@@ -1,4 +1,10 @@
-@import 'leaflet/dist/leaflet.css';
+/*
+ * ⚠️ Ne PAS importer 'leaflet/dist/leaflet.css' ici : global.css est chargé
+ * statiquement au démarrage (main.tsx). Le CSS de Leaflet (~15 ko) serait donc
+ * téléchargé avant le premier rendu, même sur les écrans sans carte.
+ * Il est importé par `components/MapComponent.tsx`, qui vit dans un chunk
+ * paresseux → chargé uniquement à l'ouverture d'un écran avec carte.
+ */
 
 :root {
   --navy: #062B67;
