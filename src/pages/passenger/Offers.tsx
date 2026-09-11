@@ -1,9 +1,34 @@
+import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Star } from 'lucide-react';
+import {
+  ArrowLeft,
+  Bike,
+  Car,
+  MapPin,
+  Radar,
+  RotateCcw,
+  Search,
+  Star,
+  UsersRound,
+  Wallet,
+} from 'lucide-react';
 import { Page } from '../../components/Page';
-import { Header } from '../../components/Header';
-import { COLORS, VEHICLES, estimateFare, fcfa } from '../../theme';
+import {
+  COLORS,
+  VEHICLES,
+  commissionOf,
+  estimateFare,
+  fcfa,
+  netEarnings,
+} from '../../theme';
 import { useApp } from '../../store/useApp';
+import type { VehicleType } from '../../types';
+import './Offers.css';
+
+const VEHICLE_IMAGES: Record<VehicleType, string> = {
+  moto: '/images/moto.png',
+  tricycle: '/images/tricycle.png',
+};
 
 export default function Offers() {
   const navigate = useNavigate();
@@ -17,7 +42,11 @@ export default function Offers() {
     cancelRide,
   } = useApp();
 
-  const info = VEHICLES[vehicle ?? 'moto'];
+  // Fallback visuel si le visuel véhicule ne charge pas (badge + icône).
+  const [vehicleImageBroken, setVehicleImageBroken] = useState(false);
+
+  const vehicleKey: VehicleType = vehicle ?? 'moto';
+  const info = VEHICLES[vehicleKey];
   const estimate = estimateFare(distanceKm);
 
   const pick = (id: string) => {
@@ -27,109 +56,192 @@ export default function Offers() {
     navigate('/passenger/tracking');
   };
 
+  const backToHome = () => {
+    cancelRide();
+    navigate('/passenger');
+  };
+
   return (
-    <Page background={COLORS.grayLight}>
-      <Header
-        title="Propositions des conducteurs"
-        subtitle={`${info.emoji} ${info.label} · 👥 ${passengers} passager${passengers > 1 ? 's' : ''} · ${distanceKm} km`}
-        onBack={() => {
-          cancelRide();
-          navigate('/passenger');
-        }}
-      />
+    <Page nav="passenger" background={COLORS.white}>
+      <div className="offers-page">
 
-      <div style={{ padding: 20 }}>
-        <div
-          style={{
-            padding: '14px 16px',
-            borderRadius: 18,
-            backgroundColor: '#EAF2FF',
-            marginBottom: 16,
-            display: 'flex',
-            justifyContent: 'space-between',
-            alignItems: 'center',
-          }}
-        >
-          <div>
-            <div style={{ fontSize: 12, fontWeight: 700, color: COLORS.blue }}>
-              ESTIMATION Taxi-Moto
-            </div>
-            <div style={{ fontSize: 15, fontWeight: 800, color: COLORS.navy }}>
-              {fcfa(estimate.min)} – {fcfa(estimate.max)}
-            </div>
+        {/* Background decoration */}
+        <div className="offers-bg-orb offers-bg-orb--orange" />
+        <div className="offers-bg-orb offers-bg-orb--blue" />
+
+        {/* ===== HEADER ===== */}
+        <header className="offers-topbar">
+          <button
+            type="button"
+            className="offers-back"
+            aria-label="Retour"
+            onClick={backToHome}
+          >
+            <ArrowLeft size={20} />
+          </button>
+
+          <div className="offers-topbar-text">
+            <span className="offers-topbar-eyebrow">Taxi Moto</span>
+            <h1 className="offers-topbar-title">Offres disponibles</h1>
           </div>
-          <div style={{ fontSize: 12, color: COLORS.gray, textAlign: 'right' }}>
-            Le chauffeur
-            <br />
-            propose son prix
-          </div>
-        </div>
 
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-          {offers.map((offer) => (
-            <div
-              key={offer.id}
-              style={{
-                backgroundColor: COLORS.white,
-                borderRadius: 22,
-                padding: 16,
-                boxShadow: '0 10px 24px rgba(6,43,103,0.08)',
-              }}
-            >
-              <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                <div
-                  style={{
-                    width: 48,
-                    height: 48,
-                    borderRadius: 16,
-                    backgroundColor: COLORS.grayLight,
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    fontSize: 22,
-                  }}
-                >
-                  {VEHICLES[offer.driver.vehicle].emoji}
-                </div>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontWeight: 800, color: COLORS.navy, fontSize: 15 }}>
-                    {offer.driver.name}
-                  </div>
-                  <div
-                    style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: 5,
-                      fontSize: 12,
-                      color: COLORS.gray,
-                      marginTop: 2,
-                    }}
-                  >
-                    <Star size={12} color={COLORS.yellow} fill={COLORS.yellow} />
-                    {offer.driver.rating} · {offer.driver.model} · {offer.driver.plate}
-                  </div>
-                </div>
-                <div style={{ textAlign: 'right' }}>
-                  <div style={{ fontSize: 17, fontWeight: 800, color: COLORS.orange }}>
-                    {fcfa(offer.price)}
-                  </div>
-                </div>
-              </div>
-              <button
-                className="btn-primary"
-                type="button"
-                onClick={() => pick(offer.id)}
-                style={{ marginTop: 14, padding: 13, fontSize: 15 }}
-              >
-                Choisir ce chauffeur
-              </button>
+          <div className="offers-logo" aria-hidden="true">
+            <div className="offers-logo-pin">
+              <Radar size={16} strokeWidth={2.6} />
             </div>
-          ))}
-        </div>
+            <div className="offers-logo-wheel offers-logo-wheel--one" />
+            <div className="offers-logo-wheel offers-logo-wheel--two" />
+          </div>
+        </header>
 
-        <p style={{ textAlign: 'center', fontSize: 12, color: COLORS.gray, marginTop: 16 }}>
-          Destination : {destination}. Le prix accepté dans l’application est verrouillé.
+        <p className="offers-subtitle">
+          {offers.length > 1
+            ? `${offers.length} conducteurs ont proposé un prix`
+            : offers.length === 1
+              ? '1 conducteur a proposé un prix'
+              : 'Aucune proposition pour le moment'}
         </p>
+
+        {/* ===== RÉCAP COURSE ===== */}
+        <section className="offers-recap">
+          <div className="offers-recap-row">
+            <span className="offers-recap-icon offers-recap-icon--dest">
+              <MapPin size={17} />
+            </span>
+
+            <div className="offers-recap-content">
+              <strong>Destination</strong>
+              <span>{destination || 'À définir'}</span>
+            </div>
+          </div>
+
+          <div className="offers-recap-row">
+            <span className="offers-vehicle-badge">
+              {vehicleImageBroken ? (
+                vehicleKey === 'moto' ? (
+                  <Bike size={20} strokeWidth={1.9} />
+                ) : (
+                  <Car size={20} strokeWidth={1.9} />
+                )
+              ) : (
+                <img
+                  className="offers-vehicle-img"
+                  src={VEHICLE_IMAGES[vehicleKey]}
+                  alt={info.label}
+                  onError={() => setVehicleImageBroken(true)}
+                />
+              )}
+            </span>
+
+            <div className="offers-recap-content">
+              <strong>{info.label}</strong>
+              <span>{info.description}</span>
+            </div>
+          </div>
+
+          <div className="offers-recap-row">
+            <span className="offers-recap-icon offers-recap-icon--people">
+              <UsersRound size={17} />
+            </span>
+
+            <div className="offers-recap-content">
+              <strong>Passagers</strong>
+              <span>
+                {passengers} passager{passengers > 1 ? 's' : ''}
+              </span>
+            </div>
+          </div>
+
+          <div className="offers-recap-row">
+            <span className="offers-recap-icon offers-recap-icon--price">
+              <Wallet size={17} />
+            </span>
+
+            <div className="offers-recap-content">
+              <strong>Prix estimé Taxi-Moto</strong>
+              <span>
+                {fcfa(estimate.min)} – {fcfa(estimate.max)}
+              </span>
+            </div>
+          </div>
+        </section>
+
+        {/* ===== LISTE DES OFFRES ===== */}
+        {offers.length === 0 ? (
+          <section className="offers-empty">
+            <span className="offers-empty-icon">
+              <Search size={30} strokeWidth={1.8} />
+            </span>
+
+            <strong>Aucune offre disponible</strong>
+            <p>
+              Les conducteurs près de vous n’ont pas encore répondu.
+              Modifiez votre recherche pour réessayer.
+            </p>
+
+            <button type="button" className="offers-empty-button" onClick={backToHome}>
+              <RotateCcw size={17} />
+              Modifier ma recherche
+            </button>
+          </section>
+        ) : (
+          <div className="offers-list">
+            {offers.map((offer) => {
+              const driver = offer.driver;
+              const initial = driver.name.trim().charAt(0).toUpperCase() || 'C';
+
+              return (
+                <article
+                  key={offer.id}
+                  className={`offers-card offers-card--${driver.vehicle}`}
+                >
+                  <div className="offers-card-head">
+                    <span className="offers-avatar">{initial}</span>
+
+                    <div className="offers-driver">
+                      <strong className="offers-driver-name">{driver.name}</strong>
+
+                      <span className="offers-driver-rating">
+                        <Star size={12} fill="currentColor" />
+                        {driver.rating}
+                        <span className="offers-driver-sep">·</span>
+                        {driver.rides} courses
+                      </span>
+
+                      <span className="offers-driver-vehicle">
+                        {VEHICLES[driver.vehicle].label} · {driver.plate}
+                      </span>
+                    </div>
+
+                    <div className="offers-price">
+                      <strong>{fcfa(offer.price)}</strong>
+                      <span>prix proposé</span>
+                    </div>
+                  </div>
+
+                  <p className="offers-net">
+                    Commission 7 % ({fcfa(commissionOf(offer.price))}) · Net
+                    chauffeur : {fcfa(netEarnings(offer.price))}
+                  </p>
+
+                  <button
+                    type="button"
+                    className="offers-pick"
+                    onClick={() => pick(offer.id)}
+                  >
+                    Choisir ce chauffeur
+                  </button>
+                </article>
+              );
+            })}
+          </div>
+        )}
+
+
+        <p className="offers-footnote">
+          Le prix accepté dans l’application est verrouillé.
+        </p>
+
       </div>
     </Page>
   );
