@@ -1,11 +1,32 @@
+import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import {
+  ArrowRight,
+  Bike,
+  Car,
+  ChevronRight,
+  MapPin,
+  Minus,
+  Navigation,
+  Plus,
+  UserRound,
+  UsersRound,
+} from 'lucide-react';
 import { Page } from '../../components/Page';
 import { MapComponent } from '../../components/MapComponent';
 import type { MapMarker } from '../../components/MapComponent';
-import { PassengerSelector } from '../../components/PassengerSelector';
 import { ABIDJAN_CENTER, COLORS, VEHICLES, estimateFare, fcfa } from '../../theme';
 import { useApp } from '../../store/useApp';
 import { DESTINATIONS, DRIVERS } from '../../data/mock';
+import type { VehicleType } from '../../types';
+import './Home.css';
+
+const MAX_PASSENGERS = 4;
+
+const VEHICLE_IMAGES: Record<VehicleType, string> = {
+  moto: '/images/moto.png',
+  tricycle: '/images/tricycle.png',
+};
 
 export default function PassengerHome() {
   const navigate = useNavigate();
@@ -21,6 +42,13 @@ export default function PassengerHome() {
     setDistanceKm,
     startSearch,
   } = useApp();
+
+  // Fallback visuel : si un visuel véhicule ne charge pas, le badge reste
+  // (fond gris clair + icône véhicule) au lieu d'un rectangle blanc cassé.
+  const [brokenVehicles, setBrokenVehicles] = useState<Record<VehicleType, boolean>>({
+    moto: false,
+    tricycle: false,
+  });
 
   const markers: MapMarker[] = DRIVERS.filter((driver) => driver.online).map((driver, index) => ({
     id: driver.id,
@@ -43,6 +71,10 @@ export default function PassengerHome() {
     setDistanceKm(found ? found.distanceKm : 0);
   };
 
+  const changePassengers = (delta: number) => {
+    setPassengers(Math.min(MAX_PASSENGERS, Math.max(1, passengers + delta)));
+  };
+
   const order = () => {
     if (!destination || !vehicle) return;
     if (selected && !selected.covered) {
@@ -53,200 +85,238 @@ export default function PassengerHome() {
     navigate('/passenger/search');
   };
 
+  const canOrder = Boolean(destination && vehicle);
+
   return (
     <Page nav="passenger" scroll={false} background={COLORS.grayLight}>
-      <div style={{ height: '100%', position: 'relative' }}>
-        <div style={{ position: 'absolute', inset: 0 }}>
+      <div className="home-page">
+
+        {/* ===== CARTE ===== */}
+        <div className="home-map">
           <MapComponent center={ABIDJAN_CENTER} markers={markers} />
         </div>
 
-        <div
-          style={{
-            position: 'absolute',
-            top: 16,
-            left: 16,
-            right: 16,
-            display: 'flex',
-            justifyContent: 'space-between',
-            gap: 10,
-          }}
-        >
-          <div
-            style={{
-              padding: '10px 14px',
-              borderRadius: 99,
-              backgroundColor: COLORS.white,
-              fontSize: 13,
-              fontWeight: 700,
-              color: COLORS.navy,
-              boxShadow: '0 8px 20px rgba(6,43,103,0.15)',
-            }}
-          >
-            👋 {userName || 'Passager'}
-          </div>
-          <div
-            style={{
-              padding: '10px 14px',
-              borderRadius: 99,
-              backgroundColor: COLORS.navy,
-              fontSize: 13,
-              fontWeight: 700,
-              color: COLORS.white,
-              boxShadow: '0 8px 20px rgba(6,43,103,0.25)',
-            }}
-          >
-            🇨🇮 Abidjan
-          </div>
-        </div>
-
-        <div
-          style={{
-            position: 'absolute',
-            left: 0,
-            right: 0,
-            bottom: 0,
-            maxHeight: '64%',
-            overflowY: 'auto',
-            backgroundColor: COLORS.white,
-            borderRadius: '28px 28px 0 0',
-            padding: '22px 20px 122px',
-            boxShadow: '0 -12px 34px rgba(6,43,103,0.18)',
-          }}
-        >
-          <div style={{ fontSize: 20, fontWeight: 800, color: COLORS.navy, marginBottom: 14 }}>
-            Où allez-vous ?
-          </div>
-          <div
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: 10,
-              padding: '14px 16px',
-              borderRadius: 18,
-              backgroundColor: COLORS.grayLight,
-              marginBottom: 10,
-            }}
-          >
-            <span style={{ fontSize: 18 }}>📍</span>
-            <div style={{ flex: 1 }}>
-              <div style={{ fontSize: 11, fontWeight: 700, color: COLORS.gray }}>
-                POSITION ACTUELLE
+        {/* ===== HEADER ===== */}
+        <header className="home-topbar">
+          <div className="home-brand">
+            <div className="home-logo">
+              <div className="home-logo-pin">
+                <MapPin size={15} strokeWidth={2.8} />
               </div>
-              <div style={{ fontSize: 14, fontWeight: 700, color: COLORS.navy }}>Ma position</div>
+              <div className="home-logo-wheel home-logo-wheel--one" />
+              <div className="home-logo-wheel home-logo-wheel--two" />
+            </div>
+
+            <div className="home-brand-text">
+              <span className="home-brand-hello">Bonjour 👋</span>
+              <strong className="home-brand-name">{userName || 'Passager'}</strong>
             </div>
           </div>
 
-          <div
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: 10,
-              padding: '6px 16px',
-              borderRadius: 18,
-              backgroundColor: COLORS.grayLight,
-              marginBottom: 18,
-            }}
-          >
-            <span style={{ fontSize: 18 }}>🏁</span>
-            <select
-              value={destination}
-              onChange={(event) => pickDestination(event.target.value)}
-              style={{
-                flex: 1,
-                border: 'none',
-                background: 'transparent',
-                padding: '14px 0',
-                fontSize: 15,
-                fontWeight: 700,
-                color: COLORS.navy,
-                fontFamily: 'inherit',
-                outline: 'none',
-              }}
+          <div className="home-topbar-right">
+            <span className="home-country">🇨🇮 Abidjan</span>
+
+            <button
+              type="button"
+              className="home-profile"
+              aria-label="Mon profil"
+              onClick={() => navigate('/passenger/profile')}
             >
-              <option value="">Choisir une destination</option>
-              {DESTINATIONS.map((item) => (
-                <option key={item.name} value={item.name}>
-                  {item.name} · {item.distanceKm} km
-                </option>
-              ))}
-            </select>
+              <UserRound size={19} />
+            </button>
+          </div>
+        </header>
+
+        {/* ===== SHEET ===== */}
+        <section className="home-sheet">
+          <span className="home-sheet-handle" />
+
+          <h1 className="home-sheet-title">Où allez-vous ?</h1>
+
+          {/* Itinéraire */}
+          <div className="home-route">
+            <div className="home-route-row">
+              <span className="home-route-icon home-route-icon--pickup">
+                <Navigation size={17} />
+              </span>
+
+              <div className="home-route-content">
+                <strong>Ma position actuelle</strong>
+                <span>Appuyez pour définir votre position</span>
+              </div>
+
+              <ChevronRight size={18} className="home-route-chevron" />
+            </div>
+
+            <div className="home-route-row home-route-row--interactive">
+              <span className="home-route-icon home-route-icon--dest">
+                <MapPin size={17} />
+              </span>
+
+              <div className="home-route-content">
+                <strong>Destination</strong>
+                <span>{destination || 'Choisissez une destination'}</span>
+              </div>
+
+              <ChevronRight size={18} className="home-route-chevron" />
+
+              <select
+                className="home-route-select"
+                aria-label="Choisir une destination"
+                value={destination}
+                onChange={(event) => pickDestination(event.target.value)}
+              >
+                <option value="">Choisir une destination</option>
+                {DESTINATIONS.map((item) => (
+                  <option key={item.name} value={item.name}>
+                    {item.name} · {item.distanceKm} km
+                  </option>
+                ))}
+              </select>
+            </div>
           </div>
 
-          <PassengerSelector count={passengers} setCount={setPassengers} />
+          {/* Passagers */}
+          <div className="home-section-label">
+            <UsersRound size={14} />
+            Combien êtes-vous ?
+          </div>
 
-          <div style={{ display: 'flex', gap: 10, marginTop: 18 }}>
+          <div className="home-stepper">
+            <button
+              type="button"
+              className="home-stepper-btn"
+              aria-label="Retirer un passager"
+              onClick={() => changePassengers(-1)}
+              disabled={passengers <= 1}
+            >
+              <Minus size={18} />
+            </button>
+
+            <div className="home-stepper-value">
+              <strong>{passengers}</strong>
+              <span>{passengers > 1 ? 'passagers' : 'passager'}</span>
+            </div>
+
+            <button
+              type="button"
+              className="home-stepper-btn"
+              aria-label="Ajouter un passager"
+              onClick={() => changePassengers(1)}
+              disabled={passengers >= MAX_PASSENGERS}
+            >
+              <Plus size={18} />
+            </button>
+          </div>
+
+          {/* Véhicules */}
+          <div className="home-vehicles">
             {(['moto', 'tricycle'] as const).map((key) => {
               const allowed = key === 'moto' ? motoAllowed : true;
               const active = vehicle === key;
+
               return (
                 <button
                   key={key}
                   type="button"
                   disabled={!allowed}
                   onClick={() => setVehicle(key)}
-                  style={{
-                    flex: 1,
-                    display: 'flex',
-                    flexDirection: 'column',
-                    alignItems: 'center',
-                    gap: 4,
-                    padding: '14px 8px',
-                    borderRadius: 20,
-                    cursor: allowed ? 'pointer' : 'not-allowed',
-                    opacity: allowed ? 1 : 0.4,
-                    fontFamily: 'inherit',
-                    border: active ? `2px solid ${COLORS.orange}` : `1.5px solid ${COLORS.grayLight}`,
-                    backgroundColor: active ? '#FFF3E6' : COLORS.white,
-                  }}
+                  className={`home-vcard home-vcard--${key} ${
+                    active ? 'home-vcard--active' : ''
+                  }`}
                 >
-                  <span style={{ fontSize: 24 }}>{VEHICLES[key].emoji}</span>
-                  <span style={{ fontWeight: 800, color: COLORS.navy, fontSize: 14 }}>
-                    {VEHICLES[key].label}
-                  </span>
-                  <span style={{ fontSize: 11, color: COLORS.gray }}>
+                  <div
+                    className={`home-vcard-photo ${
+                      brokenVehicles[key] ? 'home-vcard-photo--fallback' : ''
+                    }`}
+                  >
+                    {brokenVehicles[key] ? (
+                      key === 'moto' ? (
+                        <Bike size={30} strokeWidth={1.9} />
+                      ) : (
+                        <Car size={30} strokeWidth={1.9} />
+                      )
+                    ) : (
+                      <img
+                        className="home-vcard-img"
+                        src={VEHICLE_IMAGES[key]}
+                        alt={VEHICLES[key].label}
+                        onError={() =>
+                          setBrokenVehicles((prev) => ({ ...prev, [key]: true }))
+                        }
+                      />
+                    )}
+                  </div>
+
+                  <strong className="home-vcard-label">{VEHICLES[key].label}</strong>
+                  <small className="home-vcard-desc">
                     {allowed ? VEHICLES[key].description : 'Capacité insuffisante'}
-                  </span>
+                  </small>
+
+                  {active && <span className="home-vcard-check">✓</span>}
                 </button>
               );
             })}
           </div>
 
+          {/* Estimation */}
           {estimate && (
-            <div
-              style={{
-                marginTop: 16,
-                padding: 16,
-                borderRadius: 20,
-                background: `linear-gradient(140deg, ${COLORS.navy}, ${COLORS.blue})`,
-                color: COLORS.white,
-                display: 'flex',
-                justifyContent: 'space-between',
-                alignItems: 'center',
-              }}
-            >
-              <div>
-                <div style={{ fontSize: 12, opacity: 0.8 }}>Estimation Taxi-Moto</div>
-                <div style={{ fontSize: 17, fontWeight: 800 }}>
+            <div className="home-estimate">
+              <div className="home-estimate-head">
+                <span>Estimation Taxi-Moto</span>
+                <span className="home-estimate-range">
                   {fcfa(estimate.min)} – {fcfa(estimate.max)}
+                </span>
+              </div>
+
+              <div className="home-estimate-rows">
+                <div className="home-estimate-row">
+                  <span>Prix minimum</span>
+                  <strong>{fcfa(estimate.min)}</strong>
                 </div>
-                <div style={{ fontSize: 11, opacity: 0.8, marginTop: 2 }}>
-                  {distanceKm} km · le prix final est proposé par le chauffeur
+
+                <div className="home-estimate-row">
+                  <span>Distance</span>
+                  <strong>{distanceKm} km</strong>
+                </div>
+
+                <div className="home-estimate-row home-estimate-row--total">
+                  <span>Prix total estimé</span>
+                  <strong>{fcfa(estimate.max)}</strong>
                 </div>
               </div>
-              <div style={{ fontSize: 28 }}>🛺</div>
+
+              <p className="home-estimate-note">
+                Le prix final est proposé par le chauffeur.
+              </p>
             </div>
           )}
 
+          {/* Commander */}
           <button
-            className="btn-primary"
             type="button"
+            className="home-order"
             onClick={order}
-            disabled={!destination || !vehicle}
-            style={{ marginTop: 16, opacity: destination && vehicle ? 1 : 0.45 }}
+            disabled={!canOrder}
           >
-            Commander
+            <span className="home-order-content">
+              Commander
+              <small>
+                {canOrder && vehicle
+                  ? `Course ${VEHICLES[vehicle].label} · ${passengers} ${
+                      passengers > 1 ? 'passagers' : 'passager'
+                    }`
+                  : 'Choisissez une destination et un véhicule'}
+              </small>
+            </span>
+
+            <span className="home-order-arrow">
+              <ArrowRight size={20} />
+            </span>
           </button>
-        </div>
+
+        </section>
+
       </div>
     </Page>
   );
