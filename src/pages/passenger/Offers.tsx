@@ -26,8 +26,8 @@ import type { VehicleType } from '../../types';
 import './Offers.css';
 
 const VEHICLE_IMAGES: Record<VehicleType, string> = {
-  moto: '/images/moto.png',
-  tricycle: '/images/tricycle.png',
+  moto: '/images/moto.jpg',
+  tricycle: '/images/tricycle.jpg',
 };
 
 export default function Offers() {

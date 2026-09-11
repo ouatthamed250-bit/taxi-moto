@@ -8,8 +8,8 @@ import type { VehicleType } from '../../types';
 import './History.css';
 
 const VEHICLE_IMAGES: Record<VehicleType, string> = {
-  moto: '/images/moto.png',
-  tricycle: '/images/tricycle.png',
+  moto: '/images/moto.jpg',
+  tricycle: '/images/tricycle.jpg',
 };
 
 const MONTHS_SHORT = [

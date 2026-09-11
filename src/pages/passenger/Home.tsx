@@ -24,8 +24,8 @@ import './Home.css';
 const MAX_PASSENGERS = 4;
 
 const VEHICLE_IMAGES: Record<VehicleType, string> = {
-  moto: '/images/moto.png',
-  tricycle: '/images/tricycle.png',
+  moto: '/images/moto.jpg',
+  tricycle: '/images/tricycle.jpg',
 };
 
 /** Message d'accueil dynamique selon l'heure (avant 12h · 12h–18h · après 18h). */

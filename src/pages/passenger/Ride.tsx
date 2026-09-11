@@ -17,8 +17,8 @@ import type { VehicleType } from '../../types';
 import './Ride.css';
 
 const VEHICLE_IMAGES: Record<VehicleType, string> = {
-  moto: '/images/moto.png',
-  tricycle: '/images/tricycle.png',
+  moto: '/images/moto.jpg',
+  tricycle: '/images/tricycle.jpg',
 };
 
 /** États « sur la route » (avant la notation). */

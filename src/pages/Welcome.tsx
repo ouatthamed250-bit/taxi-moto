@@ -122,7 +122,7 @@ export default function Welcome() {
                   ) : (
                     <img
                       className="welcome-vcard-img"
-                      src="/images/tricycle.png"
+                      src="/images/tricycle.jpg"
                       alt="Tricycle"
                       onError={() =>
                         setBrokenVehicles((prev) => ({ ...prev, tricycle: true }))
@@ -165,7 +165,7 @@ export default function Welcome() {
                   ) : (
                     <img
                       className="welcome-vcard-img"
-                      src="/images/moto.png"
+                      src="/images/moto.jpg"
                       alt="Moto"
                       onError={() =>
                         setBrokenVehicles((prev) => ({ ...prev, moto: true }))
