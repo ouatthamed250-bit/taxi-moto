@@ -68,6 +68,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [role, setRole] = useState<Role>('guest');
   const [userName, setUserName] = useState('');
   const [phone, setPhone] = useState('');
+  const [password, setPassword] = useState('');
 
   /* ---- Réservation ---- */
   const [passengers, setPassengers] = useState(1);
@@ -102,16 +103,21 @@ export function AppProvider({ children }: { children: ReactNode }) {
     };
   }, []);
 
-  const login = useCallback((nextRole: Role, name: string, digits: string) => {
-    setRole(nextRole);
-    setUserName(name);
-    setPhone(digits);
-  }, []);
+  const login = useCallback(
+    (nextRole: Role, name: string, digits: string, secret = '') => {
+      setRole(nextRole);
+      setUserName(name);
+      setPhone(digits);
+      setPassword(secret);
+    },
+    [],
+  );
 
   const logout = useCallback(() => {
     setRole('guest');
     setUserName('');
     setPhone('');
+    setPassword('');
   }, []);
 
   const startSearch = useCallback(() => {
@@ -250,6 +256,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     role,
     userName,
     phone,
+    password,
     login,
     logout,
 

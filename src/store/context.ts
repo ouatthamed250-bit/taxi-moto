@@ -16,7 +16,8 @@ export interface AppContextValue {
   role: Role;
   userName: string;
   phone: string;
-  login: (role: Role, name: string, phone: string) => void;
+  password: string;
+  login: (role: Role, name: string, phone: string, password?: string) => void;
   logout: () => void;
 
   /* ---- Réservation passager ---- */
