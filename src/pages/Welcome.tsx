@@ -75,18 +75,7 @@ export default function Welcome() {
 
           <header className="welcome-hero-top">
             <div className="welcome-brand">
-              <div className="welcome-logo">
-                <div className="welcome-logo-pin">
-                  <MapPin size={18} strokeWidth={2.8} />
-                </div>
-                <div className="welcome-logo-wheel welcome-logo-wheel--one" />
-                <div className="welcome-logo-wheel welcome-logo-wheel--two" />
-              </div>
-
-              <div>
-                <div className="welcome-brand-name">Taxi</div>
-                <div className="welcome-brand-taxi">Moto</div>
-              </div>
+              <img className="welcome-logo-img" src="/images/logo.png" alt="Taxi-Moto" />
             </div>
 
             <div className="welcome-country">

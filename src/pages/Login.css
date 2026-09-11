@@ -99,6 +99,15 @@
   margin-bottom: 30px;
 }
 
+/* Logo image — PNG transparent (RGBA) : aucun arrondi nécessaire,
+   le drop-shadow suit la forme du logo grâce au canal alpha. */
+.login-logo-img {
+  width: 64px;
+  height: 64px;
+  object-fit: contain;
+  filter: drop-shadow(0 6px 14px rgba(6, 43, 103, 0.18));
+}
+
 .login-logo {
   position: relative;
   width: 52px;

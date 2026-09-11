@@ -71,6 +71,15 @@
   gap: 10px;
 }
 
+/* Logo image — PNG transparent (RGBA) : aucun arrondi nécessaire,
+   le drop-shadow suit la forme du logo grâce au canal alpha. */
+.welcome-logo-img {
+  width: 72px;
+  height: 72px;
+  object-fit: contain;
+  filter: drop-shadow(0 6px 16px rgba(0, 0, 0, 0.4));
+}
+
 .welcome-logo {
   position: relative;
   width: 44px;

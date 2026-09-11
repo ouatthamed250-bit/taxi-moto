@@ -70,18 +70,7 @@ export default function Login() {
 
           {/* Brand */}
           <header className="login-brand">
-            <div className="login-logo">
-              <div className="login-logo-pin">
-                <MapPin size={22} strokeWidth={2.8} />
-              </div>
-              <div className="login-logo-wheel login-logo-wheel--one" />
-              <div className="login-logo-wheel login-logo-wheel--two" />
-            </div>
-
-            <div>
-              <div className="login-brand-name">Taxi</div>
-              <div className="login-brand-taxi">Moto</div>
-            </div>
+            <img className="login-logo-img" src="/images/logo.png" alt="Taxi-Moto" />
           </header>
 
           {/* Hero */}

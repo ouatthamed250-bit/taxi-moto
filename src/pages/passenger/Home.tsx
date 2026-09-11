@@ -37,6 +37,20 @@ function getGreeting(): string {
   return 'Bonsoir';
 }
 
+/** Distance approximative (km, 1 décimale) entre deux points — pour l'affichage. */
+function distanceKmFrom(from: [number, number], to: [number, number]): number {
+  const earthRadiusKm = 6371;
+  const dLat = ((to[0] - from[0]) * Math.PI) / 180;
+  const dLng = ((to[1] - from[1]) * Math.PI) / 180;
+  const a =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos((from[0] * Math.PI) / 180) *
+      Math.cos((to[0] * Math.PI) / 180) *
+      Math.sin(dLng / 2) ** 2;
+
+  return Math.round(2 * earthRadiusKm * Math.asin(Math.sqrt(a)) * 10) / 10;
+}
+
 export default function PassengerHome() {
   const navigate = useNavigate();
   const {
@@ -59,16 +73,23 @@ export default function PassengerHome() {
     tricycle: false,
   });
 
-  const markers: MapMarker[] = DRIVERS.filter((driver) => driver.online).map((driver, index) => ({
-    id: driver.id,
-    position: [
+  const markers: MapMarker[] = DRIVERS.filter((driver) => driver.online).map((driver, index) => {
+    const position: [number, number] = [
       ABIDJAN_CENTER[0] + (index - 1) * 0.009,
       ABIDJAN_CENTER[1] + (index - 1) * 0.011,
-    ] as [number, number],
-    emoji: VEHICLES[driver.vehicle].emoji,
-    label: `${driver.name} · ${VEHICLES[driver.vehicle].label} · ⭐ ${driver.rating}`,
-    color: driver.vehicle === 'moto' ? COLORS.orange : COLORS.green,
-  }));
+    ];
+
+    return {
+      id: driver.id,
+      position,
+      emoji: VEHICLES[driver.vehicle].emoji,
+      label: driver.name,
+      color: driver.vehicle === 'moto' ? COLORS.orange : COLORS.green,
+      badge: VEHICLES[driver.vehicle].label,
+      rating: driver.rating,
+      distanceKm: distanceKmFrom(ABIDJAN_CENTER, position),
+    };
+  });
 
   const selected = DESTINATIONS.find((item) => item.name === destination);
   const estimate = distanceKm > 0 ? estimateFare(distanceKm) : null;
@@ -102,7 +123,7 @@ export default function PassengerHome() {
 
         {/* ===== CARTE ===== */}
         <div className="home-map">
-          <MapComponent center={ABIDJAN_CENTER} markers={markers} />
+          <MapComponent center={ABIDJAN_CENTER} markers={markers} zoneRadius={2000} />
         </div>
 
         {/* ===== HEADER ===== */}

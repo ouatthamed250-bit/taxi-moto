@@ -1,6 +1,5 @@
 import { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { MapPin } from 'lucide-react';
 import './Splash.css';
 
 export default function Splash() {
@@ -23,18 +22,7 @@ export default function Splash() {
         <div className="splash-logo-wrap">
           <span className="splash-logo-glow" />
 
-          <div className="splash-logo">
-            <div className="splash-logo-pin">
-              <MapPin size={30} strokeWidth={2.8} />
-            </div>
-            <div className="splash-logo-wheel splash-logo-wheel--one" />
-            <div className="splash-logo-wheel splash-logo-wheel--two" />
-          </div>
-        </div>
-
-        <div className="splash-brand">
-          <span className="splash-brand-name">Taxi</span>
-          <span className="splash-brand-taxi">Moto</span>
+          <img className="splash-logo-img" src="/images/logo.png" alt="Taxi-Moto" />
         </div>
 
         <p className="splash-baseline">Le transport de proximité, simplement.</p>

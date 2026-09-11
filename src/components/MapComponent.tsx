@@ -1,7 +1,8 @@
 import { useEffect } from 'react';
 import type { FC } from 'react';
-import { MapContainer, Marker, Popup, TileLayer, useMap } from 'react-leaflet';
+import { Circle, MapContainer, Marker, Popup, TileLayer, useMap } from 'react-leaflet';
 import L from 'leaflet';
+import { Star } from 'lucide-react';
 import 'leaflet/dist/leaflet.css';
 import { COLORS } from '../theme';
 
@@ -11,6 +12,12 @@ export interface MapMarker {
   emoji: string;
   label: string;
   color?: string;
+  /** Badge affiché sous le marqueur (ex. « Moto », « Tricycle »). */
+  badge?: string;
+  /** Note du conducteur — active le popup enrichi. */
+  rating?: number;
+  /** Distance depuis le passager (km) — affichée dans le popup enrichi. */
+  distanceKm?: number;
 }
 
 interface MapProps {
@@ -19,6 +26,8 @@ interface MapProps {
   me?: boolean;
   meLabel?: string;
   markers?: MapMarker[];
+  /** Rayon (en mètres) du cercle de zone autour du point « me ». 0 = masqué. */
+  zoneRadius?: number;
 }
 
 const meIcon = L.divIcon({
@@ -28,12 +37,16 @@ const meIcon = L.divIcon({
   iconAnchor: [9, 9],
 });
 
-function vehicleIcon(emoji: string, color: string): L.DivIcon {
+function vehicleIcon(emoji: string, color: string, badge?: string): L.DivIcon {
+  const badgeHtml = badge
+    ? `<span style="margin-top:3px;padding:2px 8px;border-radius:99px;background:${COLORS.navy};color:#fff;font-size:9px;font-weight:800;letter-spacing:0.3px;white-space:nowrap;box-shadow:0 3px 8px rgba(6,43,103,0.35)">${badge}</span>`
+    : '';
+
   return L.divIcon({
     className: '',
-    html: `<div style="width:38px;height:38px;border-radius:50%;background:${color};display:flex;align-items:center;justify-content:center;font-size:17px;border:2px solid #fff;box-shadow:0 6px 16px rgba(6,43,103,0.35)">${emoji}</div>`,
-    iconSize: [38, 38],
-    iconAnchor: [19, 19],
+    html: `<div style="display:flex;flex-direction:column;align-items:center"><div style="width:38px;height:38px;border-radius:50%;background:${color};display:flex;align-items:center;justify-content:center;font-size:17px;border:2px solid #fff;box-shadow:0 6px 16px rgba(6,43,103,0.35)">${emoji}</div>${badgeHtml}</div>`,
+    iconSize: [72, badge ? 60 : 38],
+    iconAnchor: [36, 19],
   });
 }
 
@@ -51,6 +64,7 @@ export const MapComponent: FC<MapProps> = ({
   me = true,
   meLabel = 'Vous êtes ici',
   markers = [],
+  zoneRadius = 2000,
 }) => (
   <MapContainer
     center={center}
@@ -64,19 +78,67 @@ export const MapComponent: FC<MapProps> = ({
       url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
     />
     <Recenter lat={center[0]} lng={center[1]} zoom={zoom} />
+
+    {/* Cercle de zone de couverture autour de la position « me ». */}
+    {me && zoneRadius > 0 && (
+      <Circle
+        center={center}
+        radius={zoneRadius}
+        pathOptions={{
+          color: COLORS.orange,
+          weight: 1.5,
+          opacity: 0.75,
+          dashArray: '6 8',
+          fillColor: COLORS.orange,
+          fillOpacity: 0.07,
+        }}
+      />
+    )}
+
     {me && (
       <Marker position={center} icon={meIcon}>
         <Popup>{meLabel}</Popup>
       </Marker>
     )}
-    {markers.map((marker) => (
-      <Marker
-        key={marker.id}
-        position={marker.position}
-        icon={vehicleIcon(marker.emoji, marker.color ?? COLORS.orange)}
-      >
-        <Popup>{marker.label}</Popup>
-      </Marker>
-    ))}
+
+    {markers.map((marker) => {
+      const enriched = marker.rating !== undefined || marker.distanceKm !== undefined;
+      const rounded = Math.round(marker.rating ?? 0);
+
+      return (
+        <Marker
+          key={marker.id}
+          position={marker.position}
+          icon={vehicleIcon(marker.emoji, marker.color ?? COLORS.orange, marker.badge)}
+        >
+          <Popup>
+            {enriched ? (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 4, minWidth: 132 }}>
+                <strong style={{ fontSize: 13, fontWeight: 800, color: COLORS.navy }}>
+                  {marker.label}
+                </strong>
+
+                <span style={{ display: 'flex', alignItems: 'center', gap: 2, color: '#f5a623' }}>
+                  {[1, 2, 3, 4, 5].map((value) => (
+                    <Star key={value} size={11} fill={value <= rounded ? 'currentColor' : 'none'} />
+                  ))}
+                  <strong style={{ marginLeft: 4, color: COLORS.navy, fontSize: 11 }}>
+                    {marker.rating ?? '—'}
+                  </strong>
+                </span>
+
+                {marker.distanceKm !== undefined && (
+                  <span style={{ fontSize: 11, color: COLORS.gray }}>
+                    À {marker.distanceKm} km
+                  </span>
+                )}
+              </div>
+            ) : (
+              marker.label
+            )}
+          </Popup>
+        </Marker>
+      );
+    })}
   </MapContainer>
 );
