@@ -28,6 +28,15 @@ const VEHICLE_IMAGES: Record<VehicleType, string> = {
   tricycle: '/images/tricycle.png',
 };
 
+/** Message d'accueil dynamique selon l'heure (avant 12h · 12h–18h · après 18h). */
+function getGreeting(): string {
+  const hours = new Date().getHours();
+
+  if (hours < 12) return 'Bonjour';
+  if (hours < 18) return 'Bon après-midi';
+  return 'Bonsoir';
+}
+
 export default function PassengerHome() {
   const navigate = useNavigate();
   const {
@@ -108,8 +117,8 @@ export default function PassengerHome() {
             </div>
 
             <div className="home-brand-text">
-              <span className="home-brand-hello">Bonjour 👋</span>
-              <strong className="home-brand-name">{userName || 'Passager'}</strong>
+              <span className="home-brand-hello">{getGreeting()}</span>
+              <strong className="home-brand-name">{userName || 'Passager'} 👋</strong>
             </div>
           </div>
 
