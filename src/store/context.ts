@@ -3,6 +3,7 @@ import type {
   AdminStats,
   DriverProfile,
   Offer,
+  RechargeRequest,
   Ride,
   RideRequest,
   RideStatus,
@@ -62,6 +63,13 @@ export interface AppContextValue {
   setDriverBalance: (amount: number) => void;
   debitDriverBalance: (amount: number) => void;
   creditDriverBalance: (amount: number) => void;
+
+  /* ---- Recharges mobile money ---- */
+  rechargeRequests: RechargeRequest[];
+  submitRechargeRequest: (
+    request: Omit<RechargeRequest, 'id' | 'status' | 'createdAt'>,
+  ) => void;
+  validateRechargeRequest: (id: string, approved: boolean) => void;
 
   /* ---- Inscription conducteur ---- */
   driverApproved: boolean;

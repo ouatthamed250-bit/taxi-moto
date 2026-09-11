@@ -4,6 +4,7 @@ import {
   AlertTriangle,
   BellRing,
   Check,
+  Clock,
   MapPin,
   Navigation,
   Plus,
@@ -47,14 +48,20 @@ export default function DriverDashboard() {
     driverCommission,
     driverNet,
     driverBalance,
+    phone,
+    rechargeRequests,
   } = useApp();
   const [fare, setFare] = useState(1500);
 
   const isLowBalance = driverBalance < LOW_BALANCE_THRESHOLD;
 
+  const myDriverId = phone || 'driver-local';
+  const pendingRecharges = rechargeRequests.filter(
+    (request) => request.driverId === myDriverId && request.status === 'pending',
+  );
+
   const handleRecharge = () => {
-    // La recharge mobile money sera branchée à l'étape suivante.
-    alert('Recharge mobile money bientôt disponible 🚀');
+    navigate('/driver/recharge');
   };
 
   const handleAccept = () => {
@@ -184,6 +191,33 @@ export default function DriverDashboard() {
               <AlertTriangle size={15} />
               Solde faible, pensez à recharger
             </div>
+          )}
+
+          {/* Demandes de recharge en attente de validation */}
+          {pendingRecharges.length > 0 && (
+            <section className="driver-dashboard-recharges">
+              <div className="driver-dashboard-recharges-head">
+                <span>Demandes de recharge en attente</span>
+                <strong>{pendingRecharges.length}</strong>
+              </div>
+
+              {pendingRecharges.map((request) => (
+                <div key={request.id} className="driver-dashboard-recharge">
+                  <span className="driver-dashboard-recharge-icon">
+                    <Clock size={15} />
+                  </span>
+
+                  <div className="driver-dashboard-recharge-info">
+                    <strong>{fcfa(request.amount)}</strong>
+                    <span>
+                      {request.method} · {request.phone}
+                    </span>
+                  </div>
+
+                  <span className="driver-dashboard-recharge-badge">En attente</span>
+                </div>
+              ))}
+            </section>
           )}
 
           {/* Gains du jour */}

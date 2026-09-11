@@ -505,6 +505,106 @@
   }
 }
 
+/* ---------- DEMANDES DE RECHARGE EN ATTENTE ---------- */
+.driver-dashboard-recharges {
+  position: relative;
+  z-index: 2;
+  margin-top: 12px;
+  padding: 16px;
+  border: 1px solid rgba(255, 255, 255, 0.9);
+  border-radius: 22px;
+  background: rgba(255, 255, 255, 0.85);
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+  box-shadow: 0 14px 34px rgba(6, 43, 103, 0.1);
+}
+
+.driver-dashboard-recharges-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+
+.driver-dashboard-recharges-head span {
+  color: var(--taxi-gray-500, #7a879b);
+  font-size: 10px;
+  font-weight: 900;
+  letter-spacing: 1.1px;
+  text-transform: uppercase;
+}
+
+.driver-dashboard-recharges-head strong {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 22px;
+  height: 22px;
+  padding: 0 7px;
+  border-radius: 999px;
+  color: #b26a00;
+  background: linear-gradient(135deg, #fff4e0, #ffe6c2);
+  font-size: 11px;
+  font-weight: 900;
+}
+
+.driver-dashboard-recharge {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 11px 4px;
+  border-top: 1px solid var(--taxi-gray-100, #eef2f7);
+}
+
+.driver-dashboard-recharge:first-of-type {
+  border-top: none;
+}
+
+.driver-dashboard-recharge-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  flex: 0 0 32px;
+  border-radius: 10px;
+  color: var(--taxi-orange, #ff9900);
+  background: rgba(255, 153, 0, 0.12);
+}
+
+.driver-dashboard-recharge-info {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-width: 0;
+}
+
+.driver-dashboard-recharge-info strong {
+  color: var(--taxi-navy, #062b67);
+  font-size: 14px;
+  font-weight: 900;
+}
+
+.driver-dashboard-recharge-info span {
+  margin-top: 1px;
+  color: var(--taxi-gray-500, #7a879b);
+  font-size: 10px;
+  font-weight: 600;
+}
+
+.driver-dashboard-recharge-badge {
+  flex: 0 0 auto;
+  padding: 5px 10px;
+  border-radius: 999px;
+  color: #b26a00;
+  background: linear-gradient(135deg, #fff4e0, #ffe6c2);
+  font-size: 9px;
+  font-weight: 900;
+  letter-spacing: 0.3px;
+  text-transform: uppercase;
+}
+
 /* ---------- DEMANDE ENTRANTE ---------- */
 .driver-dashboard-request {
   position: relative;

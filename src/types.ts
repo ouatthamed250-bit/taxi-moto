@@ -82,3 +82,20 @@ export interface AdminStats {
   ridesCompleted: number;
   revenue: number;
 }
+
+/** Statut d'une demande de recharge mobile money. */
+export type RechargeStatus = 'pending' | 'approved' | 'rejected';
+
+/** Demande de recharge mobile money d'un conducteur (validation admin). */
+export interface RechargeRequest {
+  id: string;
+  driverId: string;
+  driverName: string;
+  amount: number;
+  method: string;
+  phone: string;
+  /** Capture d'écran du paiement, encodée en base64 (data URL). */
+  screenshot: string;
+  status: RechargeStatus;
+  createdAt: number;
+}

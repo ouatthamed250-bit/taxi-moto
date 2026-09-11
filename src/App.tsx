@@ -25,6 +25,7 @@ const DriverDashboard = lazy(() => import('./pages/driver/Dashboard'));
 const DriverRides = lazy(() => import('./pages/driver/Rides'));
 const DriverEarnings = lazy(() => import('./pages/driver/Earnings'));
 const DriverProfile = lazy(() => import('./pages/driver/Profile'));
+const DriverRecharge = lazy(() => import('./pages/driver/Recharge'));
 const AdminDashboard = lazy(() => import('./pages/admin/Dashboard'));
 
 function App() {
@@ -52,6 +53,7 @@ function App() {
             <Route path="/driver/rides" element={<DriverRides />} />
             <Route path="/driver/earnings" element={<DriverEarnings />} />
             <Route path="/driver/profile" element={<DriverProfile />} />
+            <Route path="/driver/recharge" element={<DriverRecharge />} />
 
             <Route path="/admin" element={<AdminDashboard />} />
           </Routes>

@@ -6,6 +6,7 @@ import type {
   AdminStats,
   DriverProfile,
   Offer,
+  RechargeRequest,
   Ride,
   RideRequest,
   RideStatus,
@@ -96,6 +97,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [driverRidesToday, setDriverRidesToday] = useState<Ride[]>(DRIVER_TODAY_RIDES);
   const [driverApproved, setDriverApproved] = useState(false);
   const [driverBalance, setDriverBalanceState] = useState(INITIAL_DRIVER_BALANCE);
+  const [rechargeRequests, setRechargeRequests] = useState<RechargeRequest[]>([]);
 
   /* ---- Admin ---- */
   const [adminStats, setAdminStats] = useState<AdminStats>(ADMIN_STATS);
@@ -134,6 +136,41 @@ export function AppProvider({ children }: { children: ReactNode }) {
       setDriverBalanceState((current) => Math.max(0, current - debit));
     },
     [driverBalance],
+  );
+
+  /* ---- Recharges mobile money ---- */
+  /** Enregistre une demande de recharge (statut initial : « pending »). */
+  const submitRechargeRequest = useCallback(
+    (request: Omit<RechargeRequest, 'id' | 'status' | 'createdAt'>) => {
+      const entry: RechargeRequest = {
+        ...request,
+        id: `RC-${Math.floor(100000 + Math.random() * 899999)}`,
+        status: 'pending',
+        createdAt: Date.now(),
+      };
+      setRechargeRequests((list) => [entry, ...list]);
+    },
+    [],
+  );
+
+  /** Valide ou rejette une demande ; crédite le solde si approuvée. */
+  const validateRechargeRequest = useCallback(
+    (id: string, approved: boolean) => {
+      if (approved) {
+        const request = rechargeRequests.find((item) => item.id === id);
+        if (request && request.status === 'pending') {
+          creditDriverBalance(request.amount);
+        }
+      }
+      setRechargeRequests((list) =>
+        list.map((request) =>
+          request.id === id
+            ? { ...request, status: approved ? 'approved' : 'rejected' }
+            : request,
+        ),
+      );
+    },
+    [rechargeRequests, creditDriverBalance],
   );
 
   const login = useCallback(
@@ -360,6 +397,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setDriverBalance,
     debitDriverBalance,
     creditDriverBalance,
+
+    rechargeRequests,
+    submitRechargeRequest,
+    validateRechargeRequest,
 
     driverApproved,
     approveDriver,
