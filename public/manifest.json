@@ -1,0 +1,8 @@
+{
+  "short_name": "Taxi-Moto",
+  "name": "Taxi-Moto CI",
+  "start_url": ".",
+  "display": "standalone",
+  "theme_color": "#062B67",
+  "background_color": "#ffffff"
+}

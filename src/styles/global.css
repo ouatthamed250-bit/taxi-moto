@@ -1,0 +1,117 @@
+@import 'leaflet/dist/leaflet.css';
+
+:root {
+  --navy: #062B67;
+  --blue: #0B5FFF;
+  --orange: #FF7A00;
+  --white: #FFFFFF;
+  --gray-light: #F5F5F7;
+}
+
+body {
+  margin: 0;
+  font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  background-color: #e0e0e0;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 100vh;
+}
+
+#root {
+  width: 100%;
+  max-width: 480px;
+  height: 100vh;
+  max-height: 900px;
+  background-color: var(--white);
+  position: relative;
+  overflow: hidden;
+  box-shadow: 0 0 50px rgba(0, 0, 0, 0.2);
+}
+
+@media (max-width: 480px) {
+  #root {
+    max-width: 100%;
+    max-height: 100%;
+    box-shadow: none;
+  }
+  body {
+    background-color: var(--white);
+  }
+}
+
+.leaflet-container {
+  width: 100%;
+  height: 100%;
+  z-index: 1;
+}
+
+.btn-primary {
+  background-color: var(--navy);
+  color: white;
+  border: none;
+  padding: 16px;
+  border-radius: 16px;
+  font-size: 18px;
+  font-weight: bold;
+  width: 100%;
+  cursor: pointer;
+  text-decoration: none;
+  display: inline-block;
+  text-align: center;
+  box-sizing: border-box;
+  font-family: inherit;
+}
+
+.btn-primary:active {
+  transform: scale(0.98);
+}
+
+/* Animation de recherche de conducteur */
+.pulse-ring {
+  position: relative;
+  width: 120px;
+  height: 120px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.pulse-ring span {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background-color: rgba(255, 122, 0, 0.45);
+  animation: trois-roue-pulse 2.1s ease-out infinite;
+}
+
+.pulse-ring span:nth-child(2) {
+  animation-delay: 0.7s;
+}
+
+.pulse-ring span:nth-child(3) {
+  animation-delay: 1.4s;
+}
+
+.pulse-ring strong {
+  position: relative;
+  z-index: 2;
+  font-size: 44px;
+}
+
+@keyframes trois-roue-pulse {
+  0% {
+    transform: scale(0.7);
+    opacity: 0.9;
+  }
+  100% {
+    transform: scale(2.2);
+    opacity: 0;
+  }
+}
+
+/* Barre de défilement discrète (rendu mobile) */
+::-webkit-scrollbar {
+  width: 0;
+  height: 0;
+}
