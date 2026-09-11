@@ -443,58 +443,210 @@
   background: var(--taxi-gray-100, #eef2f7);
 }
 
-/* ---------- RETRAIT DES GAINS ---------- */
-.driver-earnings-withdraw-wrap {
+/* ---------- SOLDE ACTUEL ---------- */
+.driver-earnings-balance {
   position: relative;
   z-index: 2;
   display: flex;
   flex-direction: column;
-  align-items: center;
-  gap: 8px;
-  margin-top: 16px;
+  gap: 3px;
+  margin-top: 14px;
+  padding: 18px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 22px;
+  background:
+    radial-gradient(circle at 90% -20%, rgba(255, 153, 0, 0.22), transparent 55%),
+    linear-gradient(150deg, #062b67, #0b3a86 92%);
+  box-shadow: 0 16px 34px rgba(6, 43, 103, 0.28);
 }
 
-.driver-earnings-withdraw {
+.driver-earnings-balance-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.driver-earnings-balance-icon {
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 9px;
-  width: 100%;
-  padding: 16px;
-  border: none;
-  border-radius: 18px;
+  width: 30px;
+  height: 30px;
+  flex: 0 0 30px;
+  border-radius: 10px;
   color: #fff;
-  font-family: inherit;
-  font-size: 15px;
+  background: rgba(255, 255, 255, 0.16);
+}
+
+.driver-earnings-balance-label {
+  color: rgba(255, 255, 255, 0.72);
+  font-size: 10px;
   font-weight: 900;
-  letter-spacing: -0.2px;
-  background: linear-gradient(135deg, #ffb52e 0%, #ff7a00 100%);
-  box-shadow:
-    0 9px 0 rgba(204, 108, 0, 0.35),
-    0 16px 30px rgba(255, 122, 0, 0.3);
-  cursor: pointer;
-  transition:
-    transform 0.18s ease,
-    box-shadow 0.18s ease,
-    opacity 0.2s ease;
+  letter-spacing: 1.2px;
+  text-transform: uppercase;
 }
 
-.driver-earnings-withdraw:hover:not(:disabled) {
-  transform: translateY(-2px);
+.driver-earnings-balance-amount {
+  margin-top: 8px;
+  color: #fff;
+  font-size: 28px;
+  font-weight: 900;
+  letter-spacing: -0.8px;
 }
 
-.driver-earnings-withdraw:active:not(:disabled) {
-  transform: translateY(4px);
-  box-shadow: 0 4px 0 rgba(204, 108, 0, 0.35);
+.driver-earnings-balance-hint {
+  color: rgba(255, 255, 255, 0.66);
+  font-size: 11px;
+  font-weight: 600;
 }
 
-.driver-earnings-withdraw:disabled {
-  cursor: not-allowed;
-  opacity: 0.5;
-  box-shadow: 0 5px 0 rgba(6, 43, 103, 0.15);
+/* ---------- HISTORIQUE DES COURSES ---------- */
+.driver-earnings-history {
+  display: flex;
+  flex-direction: column;
+  margin-top: 10px;
 }
 
-.driver-earnings-withdraw-hint {
+.driver-earnings-history-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 11px 2px;
+  border-top: 1px solid var(--taxi-gray-100, #eef2f7);
+}
+
+.driver-earnings-history-item:first-child {
+  border-top: none;
+}
+
+.driver-earnings-history-avatar {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  flex: 0 0 36px;
+  border-radius: 50%;
+  color: #fff;
+  background: linear-gradient(145deg, #0b5fff, #062b67 75%);
+  font-size: 14px;
+  font-weight: 900;
+}
+
+.driver-earnings-history-info {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-width: 0;
+}
+
+.driver-earnings-history-info strong {
+  overflow: hidden;
+  color: var(--taxi-navy, #062b67);
+  font-size: 13px;
+  font-weight: 900;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.driver-earnings-history-info span {
+  margin-top: 2px;
+  color: var(--taxi-gray-500, #7a879b);
+  font-size: 10px;
+  font-weight: 600;
+}
+
+.driver-earnings-history-amount {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  flex: 0 0 auto;
+}
+
+.driver-earnings-history-amount strong {
+  color: var(--taxi-orange, #ff9900);
+  font-size: 13px;
+  font-weight: 900;
+  white-space: nowrap;
+}
+
+.driver-earnings-history-amount span {
+  margin-top: 1px;
+  color: var(--taxi-gray-500, #7a879b);
+  font-size: 9px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.driver-earnings-history-empty {
+  margin: 12px 0 0;
+  color: var(--taxi-gray-500, #7a879b);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+/* ---------- RECHARGEMENT CADEAU ---------- */
+.driver-earnings-gift {
+  position: relative;
+  z-index: 2;
+  margin-top: 16px;
+  padding: 18px;
+  border: 1px solid rgba(255, 153, 0, 0.28);
+  border-radius: 22px;
+  background: linear-gradient(150deg, #fff8ef, #ffffff);
+  box-shadow: 0 14px 30px rgba(255, 153, 0, 0.14);
+}
+
+.driver-earnings-gift-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.driver-earnings-gift-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  flex: 0 0 36px;
+  border-radius: 12px;
+  color: #fff;
+  background: linear-gradient(145deg, #ffb52e, #ff9900);
+  box-shadow: 0 4px 10px rgba(255, 153, 0, 0.4);
+}
+
+.driver-earnings-gift-title {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.driver-earnings-gift-title strong {
+  color: var(--taxi-navy, #062b67);
+  font-size: 14px;
+  font-weight: 900;
+}
+
+.driver-earnings-gift-title small {
+  margin-top: 1px;
+  color: var(--taxi-gray-500, #7a879b);
+  font-size: 10px;
+  font-weight: 600;
+}
+
+.driver-earnings-gift-value {
+  display: block;
+  margin-top: 14px;
+  color: var(--taxi-orange, #ff9900);
+  font-size: 26px;
+  font-weight: 900;
+  letter-spacing: -0.8px;
+}
+
+.driver-earnings-gift-hint {
+  display: block;
+  margin-top: 4px;
   color: var(--taxi-gray-500, #7a879b);
   font-size: 10px;
   font-weight: 700;
@@ -550,13 +702,20 @@
     padding: 9px 13px;
     font-size: 11px;
   }
+
+  .driver-earnings-balance-amount {
+    font-size: 24px;
+  }
+
+  .driver-earnings-gift-value {
+    font-size: 22px;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {
   .driver-earnings-tab,
   .driver-earnings-profile,
-  .driver-earnings-bar,
-  .driver-earnings-withdraw {
+  .driver-earnings-bar {
     transition: none;
   }
 }

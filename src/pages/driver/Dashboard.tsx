@@ -31,7 +31,7 @@ import { useApp } from '../../store/useApp';
 import './Dashboard.css';
 
 /** Seuil d'alerte « solde faible » (FCFA). */
-const LOW_BALANCE_THRESHOLD = 1000;
+const LOW_BALANCE_THRESHOLD = 200;
 
 export default function DriverDashboard() {
   const navigate = useNavigate();

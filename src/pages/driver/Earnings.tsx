@@ -3,6 +3,8 @@ import { useNavigate } from 'react-router-dom';
 import {
   Banknote,
   BarChart3,
+  Gift,
+  History,
   Minus,
   Radar,
   TrendingDown,
@@ -65,10 +67,18 @@ function daysSince(value: string): number {
 
 export default function DriverEarnings() {
   const navigate = useNavigate();
-  const { driverRidesToday, driverRevenue, driverCommission, driverNet } = useApp();
+  const {
+    driverRidesToday,
+    driverRevenue,
+    driverCommission,
+    driverNet,
+    driverBalance,
+    driverGifts,
+  } = useApp();
   const [filter, setFilter] = useState<EarningsFilter>('today');
 
   const commissionRate = Math.round(COMMISSION_RATE * 100);
+  const giftTotal = driverGifts.reduce((sum, gift) => sum + gift.amount, 0);
 
   const inPeriod = (days: number) => {
     if (filter === 'today') return days === 0;
@@ -197,6 +207,21 @@ export default function DriverEarnings() {
           </div>
         </section>
 
+        {/* ===== SOLDE ACTUEL ===== */}
+        <section className="driver-earnings-balance">
+          <div className="driver-earnings-balance-head">
+            <span className="driver-earnings-balance-icon">
+              <Wallet size={16} />
+            </span>
+            <span className="driver-earnings-balance-label">Solde actuel</span>
+          </div>
+
+          <strong className="driver-earnings-balance-amount">{fcfa(driverBalance)}</strong>
+          <span className="driver-earnings-balance-hint">
+            Commission {commissionRate} % débitée à chaque course
+          </span>
+        </section>
+
         {/* ===== DÉTAIL PAR JOUR (bar chart CSS) ===== */}
         <section className="driver-earnings-card">
           <div className="driver-earnings-card-head">
@@ -268,20 +293,64 @@ export default function DriverEarnings() {
           </div>
         </section>
 
-        {/* ===== RETRAIT (bientôt disponible) ===== */}
-        <div className="driver-earnings-withdraw-wrap">
-          <button
-            type="button"
-            className="driver-earnings-withdraw"
-            disabled
-            title="Bientôt disponible"
-          >
-            <Wallet size={18} />
-            Retirer mes gains
-          </button>
+        {/* ===== HISTORIQUE DES COURSES ===== */}
+        <section className="driver-earnings-card">
+          <div className="driver-earnings-card-head">
+            <span className="driver-earnings-card-icon">
+              <History size={15} />
+            </span>
+            <span className="driver-earnings-card-title">Historique des courses</span>
+            <span className="driver-earnings-card-hint">{driverRidesToday.length}</span>
+          </div>
 
-          <span className="driver-earnings-withdraw-hint">Bientôt disponible</span>
-        </div>
+          {driverRidesToday.length === 0 ? (
+            <p className="driver-earnings-history-empty">Aucune course pour le moment.</p>
+          ) : (
+            <div className="driver-earnings-history">
+              {driverRidesToday.map((ride) => (
+                <div key={ride.id} className="driver-earnings-history-item">
+                  <span className="driver-earnings-history-avatar">
+                    {ride.passengerName.trim().charAt(0).toUpperCase() || 'P'}
+                  </span>
+
+                  <div className="driver-earnings-history-info">
+                    <strong>{ride.destination}</strong>
+                    <span>
+                      {ride.date} · {ride.time} · {ride.distanceKm} km
+                    </span>
+                  </div>
+
+                  <div className="driver-earnings-history-amount">
+                    <strong>{fcfa(ride.price)}</strong>
+                    <span>net {fcfa(ride.price - ride.commission)}</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </section>
+
+        {/* ===== RECHARGEMENT CADEAU ===== */}
+        <section className="driver-earnings-gift">
+          <div className="driver-earnings-gift-head">
+            <span className="driver-earnings-gift-icon">
+              <Gift size={17} />
+            </span>
+            <div className="driver-earnings-gift-title">
+              <strong>Rechargement cadeau</strong>
+              <small>Offert par l'administration Taxi-Moto</small>
+            </div>
+          </div>
+
+          <strong className="driver-earnings-gift-value">{fcfa(giftTotal)}</strong>
+          <span className="driver-earnings-gift-hint">
+            {driverGifts.length === 0
+              ? 'Aucun cadeau pour le moment'
+              : `${driverGifts.length} cadeau${driverGifts.length > 1 ? 'x' : ''} reçu${
+                  driverGifts.length > 1 ? 's' : ''
+                }`}
+          </span>
+        </section>
 
       </div>
     </Page>

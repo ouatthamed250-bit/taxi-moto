@@ -1,6 +1,7 @@
 import { createContext } from 'react';
 import type {
   AdminStats,
+  DriverGift,
   DriverProfile,
   Offer,
   RechargeRequest,
@@ -70,6 +71,10 @@ export interface AppContextValue {
     request: Omit<RechargeRequest, 'id' | 'status' | 'createdAt'>,
   ) => void;
   validateRechargeRequest: (id: string, approved: boolean) => void;
+
+  /* ---- Cadeaux de recharge (offerts par l'admin) ---- */
+  driverGifts: DriverGift[];
+  addDriverGift: (amount: number, driverId?: string) => void;
 
   /* ---- Inscription conducteur ---- */
   driverApproved: boolean;

@@ -99,3 +99,12 @@ export interface RechargeRequest {
   status: RechargeStatus;
   createdAt: number;
 }
+
+/** Cadeau de recharge offert par l'admin à un conducteur. */
+export interface DriverGift {
+  id: string;
+  driverId: string;
+  driverName: string;
+  amount: number;
+  createdAt: number;
+}

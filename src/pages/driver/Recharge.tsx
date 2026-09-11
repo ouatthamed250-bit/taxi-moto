@@ -19,9 +19,9 @@ import { useApp } from '../../store/useApp';
 import './Recharge.css';
 
 /** Montants rapides proposés (FCFA). */
-const PRESET_AMOUNTS = [1000, 2000, 5000, 10000, 20000];
+const PRESET_AMOUNTS = [500, 1000, 2000, 3000, 5000];
 const MIN_RECHARGE = 500;
-const MAX_RECHARGE = 500000;
+const MAX_RECHARGE = 5000;
 const MAX_FILE_MB = 5;
 
 type OperatorTone = 'orange' | 'wave' | 'mtn' | 'moov';
@@ -32,11 +32,11 @@ interface MobileOperator {
   phone: string;
   tone: OperatorTone;
   available: boolean;
-  /** Deep link vers l'app mobile money (peut ne pas être installée). */
-  deepLink: string;
-  /** Lien web de secours si l'app n'est pas installée. */
+  /** Code USSD (tel:) — ouvre le composeur du téléphone. */
+  ussd: string;
+  /** Lien web de secours. */
   webLink: string;
-  /** Libellé court du bouton « Ouvrir … ». */
+  /** Libellé court du bouton. */
   action: string;
 }
 
@@ -47,7 +47,7 @@ const OPERATORS: MobileOperator[] = [
     phone: '0749883981',
     tone: 'orange',
     available: true,
-    deepLink: 'orange-money://',
+    ussd: 'tel:#144#',
     webLink: 'https://orange.ci/',
     action: 'Orange Money',
   },
@@ -57,7 +57,7 @@ const OPERATORS: MobileOperator[] = [
     phone: '0554233234',
     tone: 'wave',
     available: true,
-    deepLink: 'wave://',
+    ussd: 'tel:*9113#',
     webLink: 'https://wave.com/',
     action: 'Wave',
   },
@@ -67,7 +67,7 @@ const OPERATORS: MobileOperator[] = [
     phone: '0554233234',
     tone: 'mtn',
     available: true,
-    deepLink: 'mtn-momo://',
+    ussd: 'tel:*133#',
     webLink: 'https://mtn.ci/',
     action: 'MTN',
   },
@@ -77,21 +77,19 @@ const OPERATORS: MobileOperator[] = [
     phone: '—',
     tone: 'moov',
     available: false,
-    deepLink: '',
+    ussd: '',
     webLink: '',
     action: 'Moov',
   },
 ];
 
 /**
- * Ouvre le lien de l'opérateur : deep link d'abord (app mobile money),
- * sinon lien web de secours. Sur le web, `Linking.openURL` (React Native)
- * n'existe pas → on utilise window.open.
+ * Ouvre le composeur téléphonique avec le code USSD de l'opérateur
+ * (Orange #144#, Wave *9113#, MTN *133#).
  */
 function openOperatorLink(operator: MobileOperator): void {
-  if (!operator.deepLink) return;
-  const popup = window.open(operator.deepLink, '_blank', 'noopener,noreferrer');
-  if (!popup) window.location.href = operator.webLink || operator.deepLink;
+  if (!operator.ussd) return;
+  window.location.href = operator.ussd;
 }
 
 export default function DriverRecharge() {
@@ -246,7 +244,7 @@ export default function DriverRecharge() {
               <span className="driver-recharge-custom-suffix">FCFA</span>
             </div>
             <small className="driver-recharge-custom-hint">
-              Minimum 500 FCFA · Maximum 500 000 FCFA
+              Minimum 500 FCFA · Maximum 5 000 FCFA
             </small>
           </label>
         </section>
