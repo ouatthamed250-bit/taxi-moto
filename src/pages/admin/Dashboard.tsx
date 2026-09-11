@@ -1,191 +1,282 @@
-import type { CSSProperties } from 'react';
+import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { COLORS, COMMISSION_RATE, VEHICLES, fcfa } from '../../theme';
+import {
+  Activity,
+  AlertTriangle,
+  Coins,
+  LockKeyhole,
+  LogOut,
+  MapPin,
+  Radar,
+  RefreshCw,
+  ShieldCheck,
+  Star,
+  TrendingUp,
+  UserRound,
+  Users,
+  Wallet,
+} from 'lucide-react';
+import { COMMISSION_RATE, MIN_FARE, VEHICLES, fcfa } from '../../theme';
 import { useApp } from '../../store/useApp';
 import { ADMIN_RIDES } from '../../data/mock';
+import './Dashboard.css';
 
-const STATUS_LABELS: Record<string, string> = {
-  idle: 'EN ATTENTE',
-  searching: 'RECHERCHE CONDUCTEUR',
-  offers: 'OFFRES ENVOYÉES',
-  driver_found: 'CONDUCTEUR TROUVÉ',
-  driver_arriving: 'CONDUCTEUR EN ROUTE',
-  driver_arrived: 'CONDUCTEUR ARRIVÉ',
-  in_progress: 'COURSE EN COURS',
-  completed: 'TERMINÉE',
-  cancelled: 'ANNULÉE',
-};
-
-const STATUS_COLORS: Record<string, string> = {
-  completed: COLORS.green,
-  cancelled: COLORS.red,
-  in_progress: COLORS.blue,
-  searching: COLORS.orange,
-  offers: COLORS.orange,
-  driver_found: COLORS.blue,
-  driver_arriving: COLORS.blue,
-  driver_arrived: COLORS.blue,
-  idle: COLORS.gray,
-};
-
-const panel = {
-  backgroundColor: COLORS.white,
-  borderRadius: 20,
-  padding: 20,
-  marginTop: 18,
-} as const;
-
-const th: CSSProperties = {
-  padding: '10px 12px',
-  fontSize: 12,
-  fontWeight: 700,
-  color: COLORS.gray,
-  textAlign: 'left',
-};
-
-const td: CSSProperties = {
-  padding: '12px',
-  fontSize: 13,
-  color: COLORS.navy,
-  verticalAlign: 'middle',
+const STATUS_META: Record<string, { label: string; tone: string }> = {
+  idle: { label: 'En attente', tone: 'gray' },
+  searching: { label: 'Recherche', tone: 'orange' },
+  offers: { label: 'Offres envoyées', tone: 'orange' },
+  driver_found: { label: 'Conducteur trouvé', tone: 'blue' },
+  driver_arriving: { label: 'En route', tone: 'blue' },
+  driver_arrived: { label: 'Arrivé', tone: 'blue' },
+  in_progress: { label: 'En cours', tone: 'blue' },
+  completed: { label: 'Terminée', tone: 'green' },
+  cancelled: { label: 'Annulée', tone: 'red' },
 };
 
 export default function AdminDashboard() {
   const navigate = useNavigate();
-  const { adminStats, zoneRules, updateZoneRule, adminDrivers, toggleDriverStatus } = useApp();
+  const {
+    role,
+    login,
+    logout,
+    adminStats,
+    zoneRules,
+    updateZoneRule,
+    adminDrivers,
+    toggleDriverStatus,
+  } = useApp();
 
-  const stats = [
-    { label: 'Passagers', value: adminStats.passengers.toLocaleString('fr-FR'), icon: '🧍' },
-    { label: 'Conducteurs', value: adminStats.drivers.toString(), icon: '🛺' },
-    { label: 'Conducteurs en ligne', value: adminStats.driversOnline.toString(), icon: '🟢' },
-    { label: 'Courses aujourd’hui', value: adminStats.ridesToday.toString(), icon: '📅' },
-    { label: 'Courses en cours', value: adminStats.ridesActive.toString(), icon: '⏱️' },
-    { label: 'Courses terminées', value: adminStats.ridesCompleted.toString(), icon: '✅' },
-    { label: 'Chiffre généré', value: fcfa(adminStats.revenue), icon: '💰' },
+  const [drafts, setDrafts] = useState<Record<string, string>>({});
+  const [zoneErrors, setZoneErrors] = useState<Record<string, string>>({});
+  const [refreshedAt, setRefreshedAt] = useState(() => new Date());
+
+  // PROTECTION : l'écran admin n'est accessible qu'avec le rôle administrateur.
+  if (role !== 'admin') {
+    return (
+      <div className="admin-page">
+        <div className="admin-lock">
+          <span className="admin-lock-icon">
+            <LockKeyhole size={34} strokeWidth={2.1} />
+          </span>
+
+          <strong className="admin-lock-title">Accès réservé</strong>
+
+          <p className="admin-lock-text">
+            Cet espace est réservé à l’administration Taxi-Moto. Connectez-vous avec un compte
+            administrateur pour continuer.
+          </p>
+
+          <div className="admin-lock-actions">
+            <button type="button" className="admin-lock-back" onClick={() => navigate('/login')}>
+              Retour à la connexion
+            </button>
+
+            <button
+              type="button"
+              className="admin-lock-demo"
+              onClick={() => login('admin', 'Administrateur', '')}
+            >
+              Accès démonstration
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  const driversOnline = adminDrivers.filter((driver) => driver.online).length;
+  const averageRating =
+    adminDrivers.length > 0
+      ? (
+          adminDrivers.reduce((sum, driver) => sum + driver.rating, 0) / adminDrivers.length
+        ).toFixed(1)
+      : '—';
+
+  const kpis = [
     {
+      key: 'rides',
+      icon: Coins,
+      label: 'Courses totales',
+      value: adminStats.ridesCompleted.toLocaleString('fr-FR'),
+    },
+    { key: 'revenue', icon: Wallet, label: 'Revenu brut total', value: fcfa(adminStats.revenue) },
+    {
+      key: 'commission',
+      icon: TrendingUp,
       label: `Commission ${Math.round(COMMISSION_RATE * 100)} %`,
       value: fcfa(Math.round(adminStats.revenue * COMMISSION_RATE)),
-      icon: '🏦',
     },
+    {
+      key: 'drivers',
+      icon: Users,
+      label: 'Conducteurs actifs',
+      value: `${driversOnline} / ${adminStats.drivers}`,
+    },
+    {
+      key: 'passengers',
+      icon: UserRound,
+      label: 'Passagers inscrits',
+      value: adminStats.passengers.toLocaleString('fr-FR'),
+    },
+    {
+      key: 'active',
+      icon: Activity,
+      label: 'Courses en cours',
+      value: adminStats.ridesActive.toString(),
+    },
+    { key: 'zones', icon: MapPin, label: 'Zones couvertes', value: zoneRules.length.toString() },
+    { key: 'rating', icon: Star, label: 'Note moyenne', value: averageRating },
   ];
 
-  return (
-    <div style={{ position: 'fixed', inset: 0, overflowY: 'auto', backgroundColor: '#EEF1F7' }}>
-      <div
-        style={{
-          backgroundColor: COLORS.navy,
-          color: COLORS.white,
-          padding: '22px 28px',
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-          gap: 16,
-        }}
-      >
-        <div>
-          <div style={{ fontSize: 20, fontWeight: 800 }}>Taxi-Moto · Administration</div>
-          <div style={{ fontSize: 13, opacity: 0.75 }}>
-            Supervision temps réel · Côte d’Ivoire 🇨🇮
-          </div>
-        </div>
-        <button
-          type="button"
-          onClick={() => navigate('/')}
-          style={{
-            padding: '12px 20px',
-            borderRadius: 14,
-            border: 'none',
-            backgroundColor: COLORS.orange,
-            color: COLORS.white,
-            fontWeight: 700,
-            fontFamily: 'inherit',
-            fontSize: 14,
-            cursor: 'pointer',
-          }}
-        >
-          Quitter
-        </button>
-      </div>
+  const saveZone = (zone: string, current: number) => {
+    const raw = drafts[zone] ?? String(current);
+    const value = Number(raw);
 
-      <div style={{ maxWidth: 1200, margin: '0 auto', padding: 28 }}>
-        <div
-          style={{
-            display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fit, minmax(190px, 1fr))',
-            gap: 14,
-          }}
-        >
-          {stats.map((item) => (
-            <div
-              key={item.label}
-              style={{ backgroundColor: COLORS.white, borderRadius: 18, padding: 16 }}
-            >
-              <div style={{ fontSize: 20 }}>{item.icon}</div>
-              <div style={{ fontSize: 21, fontWeight: 800, color: COLORS.navy, marginTop: 6 }}>
-                {item.value}
+    if (!Number.isFinite(value) || value < MIN_FARE) {
+      setZoneErrors((prev) => ({ ...prev, [zone]: `Minimum ${fcfa(MIN_FARE)} requis.` }));
+      return;
+    }
+
+    updateZoneRule(zone, { min: value });
+    setZoneErrors((prev) => ({ ...prev, [zone]: '' }));
+    setDrafts((prev) => {
+      const next = { ...prev };
+      delete next[zone];
+      return next;
+    });
+  };
+
+  return (
+    <div className="admin-page">
+      <div className="admin-shell">
+
+        {/* ===== HEADER ===== */}
+        <header className="admin-header">
+          <div className="admin-brand">
+            <div className="admin-logo" aria-hidden="true">
+              <div className="admin-logo-pin">
+                <Radar size={16} strokeWidth={2.6} />
               </div>
-              <div style={{ fontSize: 12, color: COLORS.gray }}>{item.label}</div>
+              <div className="admin-logo-wheel admin-logo-wheel--one" />
+              <div className="admin-logo-wheel admin-logo-wheel--two" />
             </div>
-          ))}
-        </div>
-        <div style={panel}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <div style={{ fontSize: 16, fontWeight: 800, color: COLORS.navy }}>
-              Gestion des conducteurs
+
+            <div className="admin-brand-text">
+              <span className="admin-eyebrow">Taxi Moto · Côte d’Ivoire 🇨🇮</span>
+              <h1 className="admin-title">Tableau de bord</h1>
             </div>
-            <div style={{ fontSize: 12, color: COLORS.gray }}>
-              {adminDrivers.filter((driver) => driver.online).length} en ligne · Moto / Tricycle
-            </div>
+
+            <span className="admin-handle">
+              <ShieldCheck size={12} />
+              Administration
+            </span>
           </div>
-          <div style={{ overflowX: 'auto' }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse', marginTop: 12 }}>
+
+          <div className="admin-header-actions">
+            <button type="button" className="admin-ghost" onClick={() => navigate('/')}>
+              Retour au site
+            </button>
+
+            <button
+              type="button"
+              className="admin-logout"
+              onClick={() => {
+                logout();
+                navigate('/');
+              }}
+            >
+              <LogOut size={16} />
+              Déconnexion
+            </button>
+          </div>
+        </header>
+
+        {/* ===== VUE D'ENSEMBLE ===== */}
+        <section className="admin-section">
+          <div className="admin-section-head">
+            <span className="admin-section-icon">
+              <TrendingUp size={16} />
+            </span>
+            <h2 className="admin-section-title">Vue d’ensemble</h2>
+            <span className="admin-section-count">Données temps réel</span>
+          </div>
+
+          <div className="admin-kpis">
+            {kpis.map((item) => {
+              const Icon = item.icon;
+
+              return (
+                <article key={item.key} className="admin-kpi">
+                  <span className="admin-kpi-icon">
+                    <Icon size={17} />
+                  </span>
+                  <strong className="admin-kpi-value">{item.value}</strong>
+                  <span className="admin-kpi-label">{item.label}</span>
+                </article>
+              );
+            })}
+          </div>
+        </section>
+
+        {/* ===== GESTION DES CONDUCTEURS ===== */}
+        <section className="admin-section">
+          <div className="admin-section-head">
+            <span className="admin-section-icon">
+              <Users size={16} />
+            </span>
+            <h2 className="admin-section-title">Gestion des conducteurs</h2>
+            <span className="admin-section-count">
+              {driversOnline} en ligne · {adminDrivers.length} au total
+            </span>
+          </div>
+
+          <div className="admin-table-wrap">
+            <table className="admin-table">
               <thead>
                 <tr>
-                  <th style={th}>Conducteur</th>
-                  <th style={th}>Véhicule</th>
-                  <th style={th}>Zone</th>
-                  <th style={th}>Note</th>
-                  <th style={th}>Statut</th>
-                  <th style={th}>Action</th>
+                  <th>Conducteur</th>
+                  <th>Véhicule</th>
+                  <th>Zone</th>
+                  <th>Note</th>
+                  <th>Statut</th>
+                  <th>Action</th>
                 </tr>
               </thead>
               <tbody>
                 {adminDrivers.map((driver) => (
-                  <tr key={driver.id} style={{ borderTop: `1px solid ${COLORS.grayLight}` }}>
-                    <td style={td}>
-                      <div style={{ fontWeight: 700 }}>{driver.name}</div>
-                      <div style={{ fontSize: 11, color: COLORS.gray }}>{driver.plate}</div>
+                  <tr key={driver.id}>
+                    <td>
+                      <div className="admin-driver">
+                        <span className="admin-avatar">
+                          {driver.name.trim().charAt(0).toUpperCase() || 'C'}
+                        </span>
+                        <div>
+                          <strong className="admin-driver-name">{driver.name}</strong>
+                          <span className="admin-driver-plate">{driver.plate}</span>
+                        </div>
+                      </div>
                     </td>
-                    <td style={td}>
+                    <td>
                       {VEHICLES[driver.vehicle].emoji} {VEHICLES[driver.vehicle].label}
                     </td>
-                    <td style={td}>{driver.zone}</td>
-                    <td style={td}>⭐ {driver.rating}</td>
-                    <td style={td}>
+                    <td>{driver.zone}</td>
+                    <td>⭐ {driver.rating}</td>
+                    <td>
                       <span
-                        style={{
-                          fontWeight: 700,
-                          color: driver.online ? COLORS.green : COLORS.gray,
-                        }}
+                        className={`admin-pill ${
+                          driver.online ? 'admin-pill--green' : 'admin-pill--gray'
+                        }`}
                       >
-                        {driver.online ? '🟢 En ligne' : '⚪ Hors ligne'}
+                        {driver.online ? 'Actif' : 'Suspendu'}
                       </span>
                     </td>
-                    <td style={td}>
+                    <td>
                       <button
                         type="button"
+                        className={`admin-toggle ${
+                          driver.online ? 'admin-toggle--suspend' : 'admin-toggle--restore'
+                        }`}
                         onClick={() => toggleDriverStatus(driver.id)}
-                        style={{
-                          padding: '9px 14px',
-                          borderRadius: 12,
-                          border: 'none',
-                          fontFamily: 'inherit',
-                          fontSize: 12,
-                          fontWeight: 700,
-                          cursor: 'pointer',
-                          backgroundColor: driver.online ? '#FDEBEC' : '#E9F7F1',
-                          color: driver.online ? COLORS.red : COLORS.green,
-                        }}
                       >
                         {driver.online ? 'Suspendre' : 'Réactiver'}
                       </button>
@@ -195,123 +286,147 @@ export default function AdminDashboard() {
               </tbody>
             </table>
           </div>
-        </div>
+        </section>
 
-        <div style={panel}>
-          <div style={{ fontSize: 16, fontWeight: 800, color: COLORS.navy }}>
-            Règles tarifaires par zone
+
+        {/* ===== RÈGLES TARIFAIRES ===== */}
+        <section className="admin-section">
+          <div className="admin-section-head">
+            <span className="admin-section-icon">
+              <MapPin size={16} />
+            </span>
+            <h2 className="admin-section-title">Règles tarifaires par zone</h2>
+            <span className="admin-section-count">Minimum {fcfa(MIN_FARE)}</span>
           </div>
-          <div style={{ fontSize: 12, color: COLORS.gray, marginTop: 4 }}>
-            Le conducteur propose son prix (minimum 1 000 FCFA). L’admin encadre par zone et suit
-            les prix réellement observés.
-          </div>
-          <div style={{ overflowX: 'auto' }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse', marginTop: 12 }}>
+
+          <p className="admin-section-note">
+            Le conducteur propose son prix. L’admin encadre le minimum par zone et suit les prix
+            réellement observés.
+          </p>
+
+          <div className="admin-table-wrap">
+            <table className="admin-table">
               <thead>
                 <tr>
-                  <th style={th}>Zone</th>
-                  <th style={th}>Minimum (FCFA)</th>
-                  <th style={th}>Tarif généralement observé</th>
-                  <th style={th}>Courses</th>
-                  <th style={th}>Prix moyen</th>
+                  <th>Zone</th>
+                  <th>Minimum (FCFA)</th>
+                  <th>Prix observé</th>
+                  <th>Courses</th>
+                  <th>Prix moyen</th>
+                  <th>Action</th>
                 </tr>
               </thead>
               <tbody>
                 {zoneRules.map((rule) => (
-                  <tr key={rule.zone} style={{ borderTop: `1px solid ${COLORS.grayLight}` }}>
-                    <td style={td}>{rule.zone}</td>
-                    <td style={td}>
+                  <tr key={rule.zone}>
+                    <td>{rule.zone}</td>
+                    <td>
                       <input
                         type="number"
-                        value={rule.min}
+                        className="admin-zone-input"
+                        min={MIN_FARE}
+                        value={drafts[rule.zone] ?? String(rule.min)}
                         onChange={(event) =>
-                          updateZoneRule(rule.zone, { min: Number(event.target.value) })
+                          setDrafts((prev) => ({ ...prev, [rule.zone]: event.target.value }))
                         }
-                        style={{
-                          width: 96,
-                          padding: '9px 12px',
-                          borderRadius: 12,
-                          border: `1px solid ${COLORS.grayLight}`,
-                          backgroundColor: COLORS.grayLight,
-                          fontFamily: 'inherit',
-                          fontSize: 13,
-                          fontWeight: 700,
-                          color: COLORS.navy,
-                          outline: 'none',
-                        }}
                       />
+
+                      {zoneErrors[rule.zone] && (
+                        <span className="admin-zone-error">
+                          <AlertTriangle size={12} />
+                          {zoneErrors[rule.zone]}
+                        </span>
+                      )}
                     </td>
-                    <td style={td}>{rule.observed}</td>
-                    <td style={td}>{rule.courses.toLocaleString('fr-FR')}</td>
-                    <td style={td}>{fcfa(rule.average)}</td>
+                    <td>{rule.observed}</td>
+                    <td>{rule.courses.toLocaleString('fr-FR')}</td>
+                    <td>{fcfa(rule.average)}</td>
+                    <td>
+                      <button
+                        type="button"
+                        className="admin-zone-save"
+                        onClick={() => saveZone(rule.zone, rule.min)}
+                      >
+                        Enregistrer
+                      </button>
+                    </td>
                   </tr>
                 ))}
               </tbody>
             </table>
           </div>
-        </div>
-        <div style={panel}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <div style={{ fontSize: 16, fontWeight: 800, color: COLORS.navy }}>
-              Courses en temps réel
-            </div>
-            <div style={{ fontSize: 12, color: COLORS.gray }}>
-              {ADMIN_RIDES.length} courses suivies
-            </div>
-          </div>
-          <div style={{ overflowX: 'auto' }}>
-            <table
-              style={{ width: '100%', borderCollapse: 'collapse', marginTop: 12, minWidth: 940 }}
+        </section>
+
+
+        {/* ===== COURSES EN TEMPS RÉEL ===== */}
+        <section className="admin-section">
+          <div className="admin-section-head">
+            <span className="admin-section-icon">
+              <Activity size={16} />
+            </span>
+            <h2 className="admin-section-title">Courses en temps réel</h2>
+
+            <span className="admin-section-count">
+              {ADMIN_RIDES.length} suivies · actualisé à {refreshedAt.toLocaleTimeString('fr-FR')}
+            </span>
+
+            <button
+              type="button"
+              className="admin-refresh"
+              onClick={() => setRefreshedAt(new Date())}
             >
+              <RefreshCw size={15} />
+              Actualiser
+            </button>
+          </div>
+
+          <div className="admin-table-wrap">
+            <table className="admin-table admin-table--rides">
               <thead>
                 <tr>
-                  <th style={th}>ID</th>
-                  <th style={th}>Passager</th>
-                  <th style={th}>Conducteur</th>
-                  <th style={th}>Véhicule</th>
-                  <th style={th}>Trajet</th>
-                  <th style={th}>Distance</th>
-                  <th style={th}>Prix</th>
-                  <th style={th}>Commission</th>
-                  <th style={th}>Statut</th>
-                  <th style={th}>Date</th>
+                  <th>ID</th>
+                  <th>Passager</th>
+                  <th>Conducteur</th>
+                  <th>Véhicule</th>
+                  <th>Trajet</th>
+                  <th>Distance</th>
+                  <th>Prix</th>
+                  <th>Commission</th>
+                  <th>Statut</th>
+                  <th>Date</th>
                 </tr>
               </thead>
               <tbody>
-                {ADMIN_RIDES.map((ride) => (
-                  <tr key={ride.id} style={{ borderTop: `1px solid ${COLORS.grayLight}` }}>
-                    <td style={td}>{ride.id}</td>
-                    <td style={td}>{ride.passengerName}</td>
-                    <td style={td}>{ride.driverName}</td>
-                    <td style={td}>
-                      {VEHICLES[ride.vehicle].emoji} {VEHICLES[ride.vehicle].label}
-                    </td>
-                    <td style={td}>
-                      {ride.pickup} → {ride.destination}
-                    </td>
-                    <td style={td}>{ride.distanceKm} km</td>
-                    <td style={td}>{ride.price ? fcfa(ride.price) : '—'}</td>
-                    <td style={td}>{ride.commission ? fcfa(ride.commission) : '—'}</td>
-                    <td style={td}>
-                      <span
-                        style={{
-                          fontSize: 11,
-                          fontWeight: 800,
-                          color: STATUS_COLORS[ride.status] ?? COLORS.gray,
-                        }}
-                      >
-                        {STATUS_LABELS[ride.status] ?? ride.status}
-                      </span>
-                    </td>
-                    <td style={td}>
-                      {ride.date} · {ride.time}
-                    </td>
-                  </tr>
-                ))}
+                {ADMIN_RIDES.map((ride) => {
+                  const meta = STATUS_META[ride.status] ?? { label: ride.status, tone: 'gray' };
+
+                  return (
+                    <tr key={ride.id}>
+                      <td>{ride.id}</td>
+                      <td>{ride.passengerName}</td>
+                      <td>{ride.driverName}</td>
+                      <td>
+                        {VEHICLES[ride.vehicle].emoji} {VEHICLES[ride.vehicle].label}
+                      </td>
+                      <td>
+                        {ride.pickup} → {ride.destination}
+                      </td>
+                      <td>{ride.distanceKm} km</td>
+                      <td>{ride.price ? fcfa(ride.price) : '—'}</td>
+                      <td>{ride.commission ? fcfa(ride.commission) : '—'}</td>
+                      <td>
+                        <span className={`admin-pill admin-pill--${meta.tone}`}>{meta.label}</span>
+                      </td>
+                      <td>
+                        {ride.date} · {ride.time}
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
-        </div>
+        </section>
 
 
       </div>
