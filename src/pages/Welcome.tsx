@@ -1,21 +1,43 @@
-import { MapPinned, Navigation, Phone, ShieldCheck } from 'lucide-react';
+import { useState } from 'react';
+import {
+  ArrowRight,
+  Bike,
+  Car,
+  ChevronRight,
+  Headphones,
+  MapPin,
+  MapPinned,
+  ShieldCheck,
+  UserPlus,
+  UserRound,
+  UsersRound,
+  Zap,
+} from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { Page } from '../components/Page';
 import { COLORS, VEHICLES } from '../theme';
 import { useApp } from '../store/useApp';
 import { DESTINATIONS } from '../data/mock';
 import type { VehicleType } from '../types';
+import './Welcome.css';
 
 const ADVANTAGES = [
-  { icon: ShieldCheck, label: 'Conducteurs vérifiés' },
-  { icon: Navigation, label: 'Rapide' },
-  { icon: MapPinned, label: 'Selon votre zone' },
-  { icon: Phone, label: 'Assistance' },
+  { icon: ShieldCheck, title: 'Sécurisé', text: 'Conducteurs vérifiés', tone: 'blue' },
+  { icon: Zap, title: 'Rapide', text: 'En quelques minutes', tone: 'orange' },
+  { icon: MapPinned, title: 'Partout', text: "En Côte d'Ivoire", tone: 'green' },
+  { icon: Headphones, title: 'Assistance', text: 'Toujours à votre écoute', tone: 'blue' },
 ];
 
 export default function Welcome() {
   const navigate = useNavigate();
   const { role, vehicle, setVehicle, destination, setDestination, setDistanceKm } = useApp();
+
+  // Fallback visuel : si un visuel PNG ne charge pas, on garde le badge blanc
+  // (fond gris clair + icône véhicule) au lieu du rectangle blanc cassé.
+  const [brokenVehicles, setBrokenVehicles] = useState<Record<VehicleType, boolean>>({
+    moto: false,
+    tricycle: false,
+  });
 
   const pickDestination = (name: string) => {
     setDestination(name);
@@ -31,178 +53,235 @@ export default function Welcome() {
     navigate('/passenger');
   };
 
+  const chooseVehicle = (key: VehicleType) => {
+    setVehicle(key);
+    start();
+  };
+
   return (
-    <Page background={COLORS.white} padBottom={28}>
-      <div
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          padding: '20px 20px 12px',
-        }}
-      >
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          <div
-            style={{
-              width: 40,
-              height: 40,
-              borderRadius: 14,
-              backgroundColor: COLORS.navy,
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              fontSize: 20,
-            }}
-          >
-            🛺
+    <Page background={COLORS.white}>
+      <div className="welcome-page">
+
+        {/* ===== 1. HERO ===== */}
+        <section className="welcome-hero">
+          <div className="welcome-hero-media">
+            <img
+              className="welcome-hero-img"
+              src="/images/abidjan-hero.jpg"
+              alt="Abidjan, Côte d'Ivoire"
+            />
+            <div className="welcome-hero-overlay" />
           </div>
-          <div style={{ fontWeight: 800, color: COLORS.navy, fontSize: 17 }}>Taxi-Moto</div>
-        </div>
-        <div
-          style={{
-            padding: '8px 14px',
-            borderRadius: 99,
-            backgroundColor: COLORS.grayLight,
-            fontSize: 13,
-            fontWeight: 600,
-            color: COLORS.navy,
-          }}
-        >
-          Côte d’Ivoire 🇨🇮
-        </div>
-      </div>
 
-      <div
-        style={{
-          margin: '4px 20px 20px',
-          borderRadius: 28,
-          padding: '26px 22px',
-          background: `linear-gradient(150deg, ${COLORS.navy} 0%, ${COLORS.blue} 100%)`,
-          color: COLORS.white,
-        }}
-      >
-        <div style={{ fontSize: 44, marginBottom: 10 }}>🛺 🏍️</div>
-        <div style={{ fontSize: 23, fontWeight: 800, lineHeight: 1.25 }}>
-          Votre déplacement, simplement.
-        </div>
-        <p style={{ margin: '10px 0 0', fontSize: 14, opacity: 0.9, lineHeight: 1.5 }}>
-          Trouvez rapidement une moto ou un tricycle près de vous.
-        </p>
-      </div>
-
-      <div style={{ display: 'flex', gap: 12, padding: '0 20px' }}>
-        {(['tricycle', 'moto'] as VehicleType[]).map((key) => {
-          const info = VEHICLES[key];
-          const active = vehicle === key;
-          return (
-            <button
-              key={key}
-              type="button"
-              onClick={() => setVehicle(key)}
-              style={{
-                flex: 1,
-                textAlign: 'left',
-                padding: 16,
-                borderRadius: 22,
-                cursor: 'pointer',
-                fontFamily: 'inherit',
-                border: active ? `2px solid ${COLORS.orange}` : `1.5px solid ${COLORS.grayLight}`,
-                backgroundColor: active ? '#FFF3E6' : COLORS.white,
-                boxShadow: '0 8px 22px rgba(6,43,103,0.07)',
-              }}
-            >
-              <div style={{ fontSize: 30 }}>{info.emoji}</div>
-              <div style={{ fontWeight: 800, color: COLORS.navy, marginTop: 8 }}>
-                {info.label.toUpperCase()}
+          <header className="welcome-hero-top">
+            <div className="welcome-brand">
+              <div className="welcome-logo">
+                <div className="welcome-logo-pin">
+                  <MapPin size={18} strokeWidth={2.8} />
+                </div>
+                <div className="welcome-logo-wheel welcome-logo-wheel--one" />
+                <div className="welcome-logo-wheel welcome-logo-wheel--two" />
               </div>
-              <div style={{ fontSize: 12, color: COLORS.gray, marginTop: 2 }}>
-                {info.description}
+
+              <div>
+                <div className="welcome-brand-name">Taxi</div>
+                <div className="welcome-brand-taxi">Moto</div>
+              </div>
+            </div>
+
+            <div className="welcome-country">
+              <MapPin size={13} />
+              Côte d'Ivoire
+            </div>
+          </header>
+
+          <div className="welcome-hero-bottom">
+            <h1>Abidjan</h1>
+            <p className="welcome-hero-sub">et partout en Côte d'Ivoire</p>
+            <p className="welcome-hero-tagline">
+              Le transport de proximité, simplement.
+            </p>
+          </div>
+        </section>
+
+        {/* ===== 2. VEHICULES ===== */}
+        <section className="welcome-sheet">
+          <div className="welcome-eyebrow">
+            <span className="welcome-eyebrow-bar" />
+            Trouvez votre course en quelques clics
+          </div>
+
+          <h2 className="welcome-title">Choisissez votre véhicule</h2>
+
+          <div className="welcome-vehicles">
+
+            <button
+              type="button"
+              className={`welcome-vcard welcome-vcard--tricycle ${
+                vehicle === 'tricycle' ? 'welcome-vcard--active' : ''
+              }`}
+              onClick={() => chooseVehicle('tricycle')}
+            >
+              <div className="welcome-vcard-media">
+                <div
+                  className={`welcome-vcard-photo ${
+                    brokenVehicles.tricycle ? 'welcome-vcard-photo--fallback' : ''
+                  }`}
+                >
+                  {brokenVehicles.tricycle ? (
+                    <Car size={34} strokeWidth={1.9} />
+                  ) : (
+                    <img
+                      className="welcome-vcard-img"
+                      src="/images/tricycle.png"
+                      alt="Tricycle"
+                      onError={() =>
+                        setBrokenVehicles((prev) => ({ ...prev, tricycle: true }))
+                      }
+                    />
+                  )}
+                </div>
+              </div>
+
+              <div className="welcome-vcard-body">
+                <strong>{VEHICLES.tricycle.label}</strong>
+                <small>{VEHICLES.tricycle.description}</small>
+              </div>
+
+              <div className="welcome-vcard-foot">
+                <span className="welcome-vcard-icon">
+                  <UsersRound size={18} />
+                </span>
+                <span className="welcome-vcard-go">
+                  <ArrowRight size={18} />
+                </span>
               </div>
             </button>
-          );
-        })}
-      </div>
-      {/* PART2 */}
-      <div
-        style={{
-          margin: '18px 20px',
-          padding: 18,
-          borderRadius: 22,
-          backgroundColor: COLORS.grayLight,
-        }}
-      >
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
-          <Navigation size={16} color={COLORS.blue} />
-          <div style={{ fontSize: 14, fontWeight: 600, color: COLORS.navy }}>
-            Ma position actuelle
-          </div>
-        </div>
-        <select
-          value={destination}
-          onChange={(event) => pickDestination(event.target.value)}
-          style={{
-            width: '100%',
-            boxSizing: 'border-box',
-            padding: '15px',
-            borderRadius: 16,
-            border: 'none',
-            fontSize: 15,
-            fontWeight: 600,
-            color: COLORS.navy,
-            backgroundColor: COLORS.white,
-            fontFamily: 'inherit',
-          }}
-        >
-          <option value="">🏁 Où allez-vous ?</option>
-          {DESTINATIONS.map((item) => (
-            <option key={item.name} value={item.name}>
-              {item.name} · {item.distanceKm} km
-            </option>
-          ))}
-        </select>
-      </div>
 
-      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, padding: '0 20px 20px' }}>
-        {ADVANTAGES.map((item) => {
-          const Icon = item.icon;
-          return (
-            <div
-              key={item.label}
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: 6,
-                padding: '9px 12px',
-                borderRadius: 99,
-                backgroundColor: '#EAF2FF',
-                fontSize: 12,
-                fontWeight: 600,
-                color: COLORS.navy,
-              }}
+            <button
+              type="button"
+              className={`welcome-vcard welcome-vcard--moto ${
+                vehicle === 'moto' ? 'welcome-vcard--active' : ''
+              }`}
+              onClick={() => chooseVehicle('moto')}
             >
-              <Icon size={14} color={COLORS.green} />
-              {item.label}
-            </div>
-          );
-        })}
-      </div>
+              <div className="welcome-vcard-media">
+                <div
+                  className={`welcome-vcard-photo ${
+                    brokenVehicles.moto ? 'welcome-vcard-photo--fallback' : ''
+                  }`}
+                >
+                  {brokenVehicles.moto ? (
+                    <Bike size={34} strokeWidth={1.9} />
+                  ) : (
+                    <img
+                      className="welcome-vcard-img"
+                      src="/images/moto.png"
+                      alt="Moto"
+                      onError={() =>
+                        setBrokenVehicles((prev) => ({ ...prev, moto: true }))
+                      }
+                    />
+                  )}
+                </div>
+              </div>
 
-      <div style={{ padding: '0 20px', display: 'flex', flexDirection: 'column', gap: 12 }}>
-        <button className="btn-primary" type="button" onClick={start}>
-          Commander une course
-        </button>
+              <div className="welcome-vcard-body">
+                <strong>{VEHICLES.moto.label}</strong>
+                <small>{VEHICLES.moto.description}</small>
+              </div>
+
+              <div className="welcome-vcard-foot">
+                <span className="welcome-vcard-icon">
+                  <UserRound size={18} />
+                </span>
+                <span className="welcome-vcard-go">
+                  <ArrowRight size={18} />
+                </span>
+              </div>
+            </button>
+
+          </div>
+        </section>
+
+        {/* ===== 3. POSITION & DESTINATION ===== */}
+        <section className="welcome-route">
+
+          <div className="welcome-row">
+            <div className="welcome-row-icon">
+              <MapPin size={18} />
+            </div>
+            <div className="welcome-row-content">
+              <strong>Ma position actuelle</strong>
+              <span>Appuyez pour définir votre position</span>
+            </div>
+            <ChevronRight size={18} className="welcome-row-chevron" />
+          </div>
+
+          <div className="welcome-row welcome-row--interactive">
+            <div className="welcome-row-icon">
+              <MapPin size={18} />
+            </div>
+            <div className="welcome-row-content">
+              <strong>Destination</strong>
+              <span>{destination || 'Où allez-vous ?'}</span>
+            </div>
+            <ChevronRight size={18} className="welcome-row-chevron" />
+
+            <select
+              className="welcome-row-select"
+              aria-label="Choisir une destination"
+              value={destination}
+              onChange={(event) => pickDestination(event.target.value)}
+            >
+              <option value="">Où allez-vous ?</option>
+              {DESTINATIONS.map((item) => (
+                <option key={item.name} value={item.name}>
+                  {item.name} · {item.distanceKm} km
+                </option>
+              ))}
+            </select>
+          </div>
+
+        </section>
+
+        {/* ===== 4. AVANTAGES ===== */}
+        <section className="welcome-features">
+          {ADVANTAGES.map((item) => {
+            const Icon = item.icon;
+
+            return (
+              <div key={item.title} className="welcome-feature">
+                <div className={`welcome-feature-icon welcome-feature-icon--${item.tone}`}>
+                  <Icon size={18} />
+                </div>
+                <strong>{item.title}</strong>
+                <span>{item.text}</span>
+              </div>
+            );
+          })}
+        </section>
+
+        {/* ===== 5. DEVENIR CONDUCTEUR ===== */}
         <button
-          className="btn-primary"
           type="button"
+          className="welcome-driver"
           onClick={() => navigate('/register/driver')}
-          style={{
-            backgroundColor: COLORS.white,
-            color: COLORS.navy,
-            border: `1.5px solid ${COLORS.navy}`,
-          }}
         >
-          Devenir conducteur
+          <span className="welcome-driver-icon">
+            <UserPlus size={22} />
+          </span>
+
+          <span className="welcome-driver-content">
+            <strong>Devenir conducteur</strong>
+            <small>Rejoignez notre réseau et gagnez vos revenus</small>
+          </span>
+
+          <span className="welcome-driver-arrow">
+            <ArrowRight size={20} />
+          </span>
         </button>
+
       </div>
     </Page>
   );
