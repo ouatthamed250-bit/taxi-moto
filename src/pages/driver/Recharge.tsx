@@ -32,8 +32,8 @@ interface MobileOperator {
   phone: string;
   tone: OperatorTone;
   available: boolean;
-  /** Code USSD (tel:) — ouvre le composeur du téléphone. */
-  ussd: string;
+  /** Gabarit du code USSD — `{amount}` est remplacé par le montant choisi. */
+  ussdTemplate: string;
   /** Lien web de secours. */
   webLink: string;
   /** Libellé court du bouton. */
@@ -47,7 +47,7 @@ const OPERATORS: MobileOperator[] = [
     phone: '0749883981',
     tone: 'orange',
     available: true,
-    ussd: 'tel:#144#',
+    ussdTemplate: '#144*1*1*0749883981*{amount}*1#',
     webLink: 'https://orange.ci/',
     action: 'Orange Money',
   },
@@ -57,7 +57,7 @@ const OPERATORS: MobileOperator[] = [
     phone: '0554233234',
     tone: 'wave',
     available: true,
-    ussd: 'tel:*9113#',
+    ussdTemplate: '*9113*0554233234*{amount}*1#',
     webLink: 'https://wave.com/',
     action: 'Wave',
   },
@@ -67,7 +67,7 @@ const OPERATORS: MobileOperator[] = [
     phone: '0554233234',
     tone: 'mtn',
     available: true,
-    ussd: 'tel:*133#',
+    ussdTemplate: '*133*1*1*0554233234*{amount}*1#',
     webLink: 'https://mtn.ci/',
     action: 'MTN',
   },
@@ -77,19 +77,34 @@ const OPERATORS: MobileOperator[] = [
     phone: '—',
     tone: 'moov',
     available: false,
-    ussd: '',
+    ussdTemplate: '',
     webLink: '',
     action: 'Moov',
   },
 ];
 
+/** Frais de dépôt mobile money applicables selon le montant (FCFA). */
+function getDepositFee(amount: number): number {
+  if (amount < 1000) return 50;
+  if (amount < 5000) return 75;
+  return 100;
+}
+
+/** Construit le code USSD complet (numéro de réception + montant). */
+function buildUssdCode(operator: MobileOperator, amount: number): string {
+  if (!operator.ussdTemplate) return '';
+  return operator.ussdTemplate.replace('{amount}', String(amount));
+}
+
 /**
- * Ouvre le composeur téléphonique avec le code USSD de l'opérateur
- * (Orange #144#, Wave *9113#, MTN *133#).
+ * Ouvre le composeur téléphonique avec le code USSD complet
+ * (numéro + montant pré-remplis). Le code PIN n'est jamais inclus :
+ * le conducteur le saisit lui-même sur son téléphone.
  */
-function openOperatorLink(operator: MobileOperator): void {
-  if (!operator.ussd) return;
-  window.location.href = operator.ussd;
+function openOperatorLink(operator: MobileOperator, amount: number): void {
+  const code = buildUssdCode(operator, amount);
+  if (!code) return;
+  window.location.href = `tel:${code}`;
 }
 
 export default function DriverRecharge() {
@@ -110,6 +125,10 @@ export default function DriverRecharge() {
   const amountValid =
     amount !== null && Number.isFinite(amount) && amount >= MIN_RECHARGE && amount <= MAX_RECHARGE;
   const canContinue = amountValid && operator?.available === true;
+
+  const depositFee = getDepositFee(amount ?? 0);
+  const totalToSend = (amount ?? 0) + depositFee;
+  const ussdCode = operator ? buildUssdCode(operator, amount ?? 0) : '';
 
   const choosePreset = (value: number) => {
     setPreset(value);
@@ -335,6 +354,14 @@ export default function DriverRecharge() {
                   <strong>{fcfa(amount ?? 0)}</strong>
                 </div>
                 <div className="driver-recharge-recap-row">
+                  <span>Frais de dépôt</span>
+                  <strong>{fcfa(depositFee)}</strong>
+                </div>
+                <div className="driver-recharge-recap-row driver-recharge-recap-row--total">
+                  <span>Total débité</span>
+                  <strong>{fcfa(totalToSend)}</strong>
+                </div>
+                <div className="driver-recharge-recap-row">
                   <span>Numéro destinataire</span>
                   <strong>{operator.phone}</strong>
                 </div>
@@ -344,18 +371,23 @@ export default function DriverRecharge() {
                 <>
                   <p className="driver-recharge-instructions">
                     Envoyez <strong>{fcfa(amount ?? 0)}</strong> au{' '}
-                    <strong>{operator.phone}</strong> via {operator.name}. Les frais de dépôt sont à
-                    votre charge.
+                    <strong>{operator.phone}</strong> via {operator.name}. Les frais de dépôt (
+                    {fcfa(depositFee)}) sont à votre charge. Le code PIN se saisit sur votre
+                    téléphone.
                   </p>
 
                   <button
                     type="button"
                     className="driver-recharge-open"
-                    onClick={() => openOperatorLink(operator)}
+                    onClick={() => openOperatorLink(operator, amount ?? 0)}
                   >
                     <ExternalLink size={16} />
                     Ouvrir {operator.action}
                   </button>
+
+                  <p className="driver-recharge-ussd">
+                    Code USSD : <code>{ussdCode}</code>
+                  </p>
 
                   <a
                     className="driver-recharge-weblink"

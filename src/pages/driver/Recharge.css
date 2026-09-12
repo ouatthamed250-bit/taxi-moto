@@ -612,6 +612,37 @@
   font-weight: 900;
 }
 
+.driver-recharge-recap-row--total {
+  padding-top: 10px;
+  border-top: 1px dashed rgba(6, 43, 103, 0.14);
+}
+
+.driver-recharge-recap-row--total strong {
+  color: var(--taxi-orange, #ff9900);
+  font-size: 16px;
+}
+
+.driver-recharge-ussd {
+  margin: 12px 0 0;
+  color: var(--taxi-gray-500, #7a879b);
+  font-size: 10px;
+  font-weight: 700;
+  text-align: center;
+}
+
+.driver-recharge-ussd code {
+  display: inline-block;
+  margin-left: 4px;
+  padding: 3px 8px;
+  border-radius: 8px;
+  color: var(--taxi-navy, #062b67);
+  background: rgba(6, 43, 103, 0.06);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 10px;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
 .driver-recharge-instructions {
   margin: 14px 0 0;
   color: var(--taxi-gray-700, #43516a);
