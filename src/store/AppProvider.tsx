@@ -86,6 +86,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [vehicle, setVehicle] = useState<VehicleType | null>(restoredUser?.vehicle ?? null);
   const [pickup, setPickup] = useState('Ma position actuelle');
   const [destination, setDestination] = useState('');
+  /** Slug du quartier choisi dans la base (vide si saisie libre / hors zone). */
+  const [destinationId, setDestinationId] = useState('');
   /** Secteur du quartier choisi (vide si saisie libre). */
   const [destinationSecteur, setDestinationSecteur] = useState('');
   /** true = destination hors base de quartiers (saisie libre du client). */
@@ -340,6 +342,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setOffers([]);
     setSelectedOffer(null);
     setDestination('');
+    setDestinationId('');
     setDestinationSecteur('');
     setDestinationLibre(false);
     setDistanceKm(0);
@@ -349,11 +352,13 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   /**
    * Sélectionne une destination complète.
+   * `id` → slug du quartier de la base (source de vérité de la couverture).
    * `libre: true` → lieu hors base (tapé par le client) : accepté quand même,
    * le chauffeur pourra contacter le client pour confirmer.
    */
   const setDestinationLieu = useCallback((lieu: DestinationLieu) => {
     setDestination(lieu.nom);
+    setDestinationId(lieu.id ?? '');
     setDestinationSecteur(lieu.secteur ?? '');
     setDestinationLibre(Boolean(lieu.libre));
   }, []);
@@ -494,6 +499,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setPickup,
     destination,
     setDestination,
+    destinationId,
     destinationSecteur,
     destinationLibre,
     setDestinationLieu,

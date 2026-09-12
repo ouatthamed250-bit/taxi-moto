@@ -63,7 +63,9 @@ export default function Offers() {
 
   // Aucune offre réelle (moteur d'offres à venir) → écran « aucun conducteur ».
   useEffect(() => {
-    if (offers.length === 0) navigate('/passenger/unavailable');
+    if (offers.length === 0) {
+      navigate('/passenger/unavailable', { state: { reason: 'no-driver' } });
+    }
   }, [offers, navigate]);
 
   const backToHome = () => {

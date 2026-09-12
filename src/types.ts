@@ -97,6 +97,11 @@ export interface Quartier {
 
 /** Destination choisie par le client : quartier de la base ou saisie libre. */
 export interface DestinationLieu {
+  /**
+   * Slug du quartier de la base (`QUARTIERS[].id`).
+   * Source de vérité pour la couverture : un id connu = destination couverte.
+   */
+  id?: string;
   /** Nom du lieu (quartier de la base ou texte tapé par le client). */
   nom: string;
   /** Secteur d'appartenance (vide si saisie libre). */

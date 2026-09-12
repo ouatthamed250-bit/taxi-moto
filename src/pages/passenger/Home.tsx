@@ -18,13 +18,14 @@ import type { MapMarker } from '../../components/MapComponent';
 import { ABIDJAN_CENTER, COLORS, VEHICLES, estimateFare, fcfa } from '../../theme';
 import { useApp } from '../../store/useApp';
 import { useGeolocation } from '../../hooks/useGeolocation';
-import { DESTINATIONS, DESTINATIONS_HORS_ZONE } from '../../data/mock';
+import { DESTINATIONS_HORS_ZONE } from '../../data/mock';
 import {
   DISTANCE_ZONE_MOYENNE_KM,
   QUARTIERS_PAR_SECTEUR,
-  findQuartierByLabel,
+  findQuartierById,
   labelQuartier,
 } from '../../data/quartiers';
+import { resolveCoverage } from '../../data/coverage';
 import type { VehicleType } from '../../types';
 import './Home.css';
 
@@ -56,6 +57,7 @@ export default function PassengerHome() {
     vehicle,
     setVehicle,
     destination,
+    destinationId,
     destinationLibre,
     setDestinationLieu,
     distanceKm,
@@ -84,7 +86,6 @@ export default function PassengerHome() {
 
   const showGeoBanner = geo.permission !== 'granted' || Boolean(geo.error);
 
-  const selected = DESTINATIONS.find((item) => item.name === destination);
   const estimate = distanceKm > 0 ? estimateFare(distanceKm) : null;
   const motoAllowed = passengers <= VEHICLES.moto.max;
 
@@ -92,7 +93,10 @@ export default function PassengerHome() {
   const [autreSelected, setAutreSelected] = useState(false);
   const [lieuLibre, setLieuLibre] = useState('');
 
-  /** Sélection dans la liste : quartier couvert, hors zone, ou saisie libre. */
+  /**
+   * Sélection dans la liste : quartier couvert (valeur = slug du quartier),
+   * ville hors zone (valeur = nom), ou saisie libre.
+   */
   const pickDestination = (value: string) => {
     if (value === AUTRE_DESTINATION) {
       setAutreSelected(true);
@@ -105,18 +109,23 @@ export default function PassengerHome() {
     setAutreSelected(false);
     setLieuLibre('');
 
-    const quartier = findQuartierByLabel(value);
+    // 1) Quartier de la base (identifié par son slug) → zone couverte.
+    const quartier = findQuartierById(value);
 
     if (quartier) {
-      // Quartier de la base → zone couverte, estimation sur distance moyenne.
-      setDestinationLieu({ nom: value, secteur: quartier.secteur });
+      setDestinationLieu({
+        id: quartier.id,
+        nom: labelQuartier(quartier),
+        secteur: quartier.secteur,
+      });
       setDistanceKm(DISTANCE_ZONE_MOYENNE_KM);
       return;
     }
 
-    const found = DESTINATIONS.find((item) => item.name === value);
+    // 2) Ville hors zone (Bingerville, Grand-Bassam…) → commande refusée.
+    const horsZone = DESTINATIONS_HORS_ZONE.find((item) => item.name === value);
     setDestinationLieu({ nom: value });
-    setDistanceKm(found ? found.distanceKm : DISTANCE_ZONE_MOYENNE_KM);
+    setDistanceKm(horsZone ? horsZone.distanceKm : DISTANCE_ZONE_MOYENNE_KM);
   };
 
   /** Saisie libre : acceptée même si le lieu n'est pas dans la base. */
@@ -134,12 +143,28 @@ export default function PassengerHome() {
 
   const order = () => {
     if (!destination || !vehicle) return;
-    if (selected && !selected.covered) {
-      navigate('/passenger/unavailable');
+
+    /*
+     * Couverture décidée par le SLUG du quartier (puis libellé normalisé /
+     * saisie libre) — jamais par une comparaison de texte fragile.
+     */
+    const coverage = resolveCoverage({
+      id: destinationId,
+      nom: destination,
+      libre: destinationLibre,
+    });
+
+    if (!coverage.covered) {
+      navigate('/passenger/unavailable', { state: { reason: 'zone' } });
       return;
     }
+
+    // Zone couverte : on cherche un conducteur réellement disponible.
     const available = startSearch();
-    navigate(available ? '/passenger/search' : '/passenger/unavailable');
+    navigate(
+      available ? '/passenger/search' : '/passenger/unavailable',
+      available ? undefined : { state: { reason: 'no-driver' } },
+    );
   };
 
   const canOrder = Boolean(destination && vehicle);
@@ -252,7 +277,7 @@ export default function PassengerHome() {
               <select
                 className="home-route-select"
                 aria-label="Choisir une destination"
-                value={autreSelected ? AUTRE_DESTINATION : destination}
+                value={autreSelected ? AUTRE_DESTINATION : destinationId || destination}
                 onChange={(event) => pickDestination(event.target.value)}
               >
                 <option value="">Choisir une destination</option>
@@ -260,7 +285,7 @@ export default function PassengerHome() {
                 {QUARTIERS_PAR_SECTEUR.map(({ secteur, quartiers }) => (
                   <optgroup key={secteur} label={`Zone couverte · ${secteur}`}>
                     {quartiers.map((quartier) => (
-                      <option key={quartier.id} value={labelQuartier(quartier)}>
+                      <option key={quartier.id} value={quartier.id}>
                         {labelQuartier(quartier)}
                       </option>
                     ))}

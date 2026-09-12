@@ -42,6 +42,8 @@ export interface AppContextValue {
   setPickup: (s: string) => void;
   destination: string;
   setDestination: (s: string) => void;
+  /** Slug du quartier choisi dans la base (vide si saisie libre / hors zone). */
+  destinationId: string;
   /** Secteur du quartier choisi (vide si destination saisie librement). */
   destinationSecteur: string;
   /** true = destination hors base, tapée manuellement par le client. */

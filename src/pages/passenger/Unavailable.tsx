@@ -1,17 +1,56 @@
 import { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { ArrowLeft, Bell, MapPin, MapPinOff, Radar, Smartphone } from 'lucide-react';
 import { Page } from '../../components/Page';
 import { COLORS, estimateFare, fcfa } from '../../theme';
 import { useApp } from '../../store/useApp';
 import './Unavailable.css';
 
+/**
+ * Raison de l'indisponibilité :
+ *  - 'zone'      : la destination est HORS zone de couverture ;
+ *  - 'no-driver' : destination couverte, mais aucun conducteur disponible.
+ * ⚠️ Ne jamais afficher « zone non couverte » pour une destination couverte
+ * (bug : un quartier de la base comme « Gonzagueville — Éléphant » pouvait
+ * être annoncé comme non couvert).
+ */
+type UnavailableReason = 'zone' | 'no-driver';
+
+const COPY: Record<
+  UnavailableReason,
+  { title: string; subtitleStart: string; subtitleEnd: string; badge: string; notify: string }
+> = {
+  zone: {
+    title: 'Zone non couverte pour l’instant',
+    subtitleStart: 'Taxi-Moto n’est pas encore disponible à',
+    subtitleEnd: 'Nous nous étendons rapidement.',
+    badge: 'Bientôt disponible',
+    notify: 'M’avertir lorsque le service sera disponible',
+  },
+  'no-driver': {
+    title: 'Aucun conducteur disponible',
+    subtitleStart: 'Aucun chauffeur en ligne autour de',
+    subtitleEnd:
+      'Votre destination est bien dans la zone couverte : réessayez dans quelques minutes.',
+    badge: 'Réessayer bientôt',
+    notify: 'M’avertir dès qu’un conducteur sera disponible',
+  },
+};
+
 export default function Unavailable() {
   const navigate = useNavigate();
+  const location = useLocation();
   const { destination, distanceKm, phone } = useApp();
 
   const [notified, setNotified] = useState(false);
   const [userPhone, setUserPhone] = useState('');
+
+  /* La raison vient de Home/Search/Offers (state de navigation) ou de l'URL. */
+  const stateReason = (location.state as { reason?: UnavailableReason } | null)?.reason;
+  const queryReason = new URLSearchParams(location.search).get('reason');
+  const reason: UnavailableReason =
+    stateReason ?? (queryReason === 'zone' ? 'zone' : 'no-driver');
+  const copy = COPY[reason];
 
   const estimate = estimateFare(distanceKm);
   const zone = destination || 'cette zone';
@@ -63,11 +102,10 @@ export default function Unavailable() {
             </span>
           </div>
 
-          <h1 className="unavailable-title">Zone non couverte pour l’instant</h1>
+          <h1 className="unavailable-title">{copy.title}</h1>
 
           <p className="unavailable-subtitle">
-            Taxi-Moto n’est pas encore disponible à <strong>{zone}</strong>. Nous nous
-            étendons rapidement.
+            {copy.subtitleStart} <strong>{zone}</strong>. {copy.subtitleEnd}
           </p>
         </section>
 
@@ -83,7 +121,7 @@ export default function Unavailable() {
               <span>{zone}</span>
             </div>
 
-            <span className="unavailable-badge">Bientôt disponible</span>
+            <span className="unavailable-badge">{copy.badge}</span>
           </div>
 
           <p className="unavailable-message">
@@ -119,7 +157,7 @@ export default function Unavailable() {
           onClick={() => setNotified(true)}
         >
           <Bell size={18} />
-          {notified ? 'Alerte activée ✓' : 'M’avertir lorsque le service sera disponible'}
+          {notified ? 'Alerte activée ✓' : copy.notify}
         </button>
 
         <button

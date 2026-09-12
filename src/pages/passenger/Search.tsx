@@ -42,16 +42,23 @@ export default function Searching() {
   const info = VEHICLES[vehicleKey];
   const estimate = estimateFare(distanceKm);
 
+  /** Raison de l'indisponibilité affichée : zone non couverte ou aucun conducteur. */
   useEffect(() => {
     if (rideStatus === 'offers') {
-      navigate(offers.length > 0 ? '/passenger/offers' : '/passenger/unavailable');
+      navigate(
+        offers.length > 0 ? '/passenger/offers' : '/passenger/unavailable',
+        offers.length > 0 ? undefined : { state: { reason: 'no-driver' } },
+      );
       return;
     }
 
     if (rideStatus !== 'searching') return;
 
     // Aucun moteur d'offres réel pour l'instant → repli propre vers Unavailable.
-    const timer = window.setTimeout(() => navigate('/passenger/unavailable'), 2200);
+    const timer = window.setTimeout(
+      () => navigate('/passenger/unavailable', { state: { reason: 'no-driver' } }),
+      2200,
+    );
     return () => window.clearTimeout(timer);
   }, [rideStatus, offers, navigate]);
 
