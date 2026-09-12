@@ -14,43 +14,66 @@ const CLIENT_COLOR = '#0B5FFF';
 export default function LiveMap() {
   const [drivers] = useState(() => listDrivers());
   const [passengers] = useState(() => listPassengers());
-  const { passengerPosition, driverPosition } = useApp();
+  const { passengerPosition, driverPosition, liveDriverPositions, livePassengerPositions, onlineDriverIds } =
+    useApp();
 
   /*
-   * Positions réelles uniquement : le conducteur publie la sienne (store +
-   * localStorage) et le client la sienne pendant sa session. Aucune position
-   * fictive n'est générée.
+   * Positions réelles uniquement : chaque appareil publie sa position sur la
+   * Realtime Database (`/positions/...`) → la carte se met à jour en direct.
+   * Aucune position fictive n'est générée.
    */
   const markers: MapMarker[] = [];
 
-  if (driverPosition) {
+  Object.entries(liveDriverPositions).forEach(([driverId, position]) => {
     markers.push({
-      id: 'driver-live',
-      position: [driverPosition.latitude, driverPosition.longitude],
+      id: `driver-${driverId}`,
+      position: [position.latitude, position.longitude],
       emoji: '🏍️',
       label: 'Conducteur · position live',
       color: ONLINE_COLOR,
-      badge: 'En ligne',
+      badge: onlineDriverIds.includes(driverId) ? 'En ligne' : 'Hors ligne',
     });
-  }
+  });
 
-  if (passengerPosition) {
+  Object.entries(livePassengerPositions).forEach(([passengerId, position]) => {
     markers.push({
-      id: 'passenger-live',
-      position: [passengerPosition.latitude, passengerPosition.longitude],
+      id: `passenger-${passengerId}`,
+      position: [position.latitude, position.longitude],
       emoji: '👤',
       label: 'Client · position live',
       color: CLIENT_COLOR,
       badge: 'Client',
     });
+  });
+
+  /* Repli hors-ligne (Firebase non configuré) : positions de la session. */
+  if (markers.length === 0) {
+    if (driverPosition) {
+      markers.push({
+        id: 'driver-session',
+        position: [driverPosition.latitude, driverPosition.longitude],
+        emoji: '🏍️',
+        label: 'Conducteur · position live',
+        color: ONLINE_COLOR,
+        badge: 'En ligne',
+      });
+    }
+
+    if (passengerPosition) {
+      markers.push({
+        id: 'passenger-session',
+        position: [passengerPosition.latitude, passengerPosition.longitude],
+        emoji: '👤',
+        label: 'Client · position live',
+        color: CLIENT_COLOR,
+        badge: 'Client',
+      });
+    }
   }
 
   const hasPositions = markers.length > 0;
-  const mapCenter: [number, number] = driverPosition
-    ? [driverPosition.latitude, driverPosition.longitude]
-    : passengerPosition
-      ? [passengerPosition.latitude, passengerPosition.longitude]
-      : ABIDJAN_CENTER;
+  const firstMarker = markers[0]?.position;
+  const mapCenter: [number, number] = firstMarker ?? ABIDJAN_CENTER;
 
   const driversActive = drivers.filter((driver) => !driver.blocked).length;
   const driversSuspended = drivers.length - driversActive;
@@ -63,7 +86,7 @@ export default function LiveMap() {
           <p className="admin-page-subtitle">
             {drivers.length} conducteur{drivers.length > 1 ? 's' : ''} · {passengers.length} client
             {passengers.length > 1 ? 's' : ''} · {markers.length} position
-            {markers.length > 1 ? 's' : ''} en direct
+            {markers.length > 1 ? 's' : ''} en direct · {onlineDriverIds.length} en ligne
           </p>
         </div>
       </div>

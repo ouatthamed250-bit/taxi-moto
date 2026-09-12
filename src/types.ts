@@ -67,6 +67,10 @@ export interface Ride {
   date: string;
   time: string;
   rating?: number;
+  /** uid du client (compte Firebase) — filtres Firestore. */
+  passengerId?: string;
+  /** uid du conducteur (compte Firebase) — filtres Firestore. */
+  driverId?: string;
 }
 
 export interface ZonePriceRule {

@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
 import { AppContext } from './context';
 import type { AppContextValue } from './context';
@@ -25,16 +25,53 @@ import type {
 } from '../types';
 import { ADMIN_STATS } from '../data/mock';
 import { commissionOf, netEarnings } from '../theme';
+import { getCurrentUser } from '../services/authLocal';
 import {
-  getCurrentUser,
+  isCloudEnabled,
   listDrivers,
   login as authLogin,
   logout as authLogout,
+  onSessionChange,
   registerDriver as authRegisterDriver,
   registerPassenger as authRegisterPassenger,
-} from '../services/authLocal';
+  replaceUserCache,
+  restoreSession,
+} from '../services/authService';
+import {
+  createGift,
+  createRechargeRequest,
+  createRide,
+  subscribeToGifts,
+  subscribeToRechargeRequests,
+  subscribeToRides,
+  subscribeToUsers,
+  updateRechargeRequest,
+} from '../services/firestore';
+import {
+  publishDriverPosition,
+  publishOnlineStatus,
+  publishPassengerPosition,
+  publishRideRequest,
+  removeRideRequest,
+  subscribeToAllPositions,
+  subscribeToOnlineDrivers,
+  subscribeToRideRequests,
+} from '../services/realtimeDb';
+import type { LivePosition } from '../services/realtimeDb';
+import { playAlertSound, unlockAudio } from '../services/notification';
 import { readAppSettings, writeAppSettings } from '../services/settingsLocal';
 import { isAdminAuthenticated } from '../services/adminAuth';
+
+/** Convertit une carte de positions RTDB en positions simples (sans horodatage). */
+function toGeoMap(positions: Record<string, LivePosition>): Record<string, GeoPosition> {
+  const result: Record<string, GeoPosition> = {};
+
+  for (const [id, value] of Object.entries(positions)) {
+    result[id] = { latitude: value.latitude, longitude: value.longitude };
+  }
+
+  return result;
+}
 
 /** Ordre du suivi de course. */
 const RIDE_ORDER: RideStatus[] = [
@@ -127,6 +164,23 @@ export function AppProvider({ children }: { children: ReactNode }) {
     }
   });
 
+  /* ---- Temps réel (Firebase) ---- */
+  const [liveDriverPositions, setLiveDriverPositions] = useState<
+    Record<string, GeoPosition>
+  >({});
+  const [livePassengerPositions, setLivePassengerPositions] = useState<
+    Record<string, GeoPosition>
+  >({});
+  const [onlineDriverIds, setOnlineDriverIds] = useState<string[]>([]);
+  /** Dernière demande vue → évite de rejouer le son d'alerte en boucle. */
+  const lastRequestId = useRef('');
+  /** Demande publiée par le client (retirée à l'annulation). */
+  const activeRequestId = useRef('');
+  /** uids en ligne (lu par d'autres abonnements sans re-souscription). */
+  const onlineIdsRef = useRef<string[]>([]);
+  /** uid du compte connecté (identifiant temps réel des positions/présence). */
+  const liveUserId = currentUser?.id ?? '';
+
   /* ---- Solde virtuel conducteur ---- */
   /** Fixe le solde (jamais négatif). */
   const setDriverBalance = useCallback((amount: number) => {
@@ -164,6 +218,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
         createdAt: Date.now(),
       };
       setRechargeRequests((list) => [entry, ...list]);
+
+      // Persistance cloud (Firestore) — sans bloquer l'interface.
+      void createRechargeRequest(entry);
     },
     [],
   );
@@ -184,6 +241,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
             : request,
         ),
       );
+
+      // Synchronisation cloud du statut de la demande.
+      void updateRechargeRequest(id, {
+        status: approved ? 'approved' : 'rejected',
+      });
     },
     [rechargeRequests, creditDriverBalance],
   );
@@ -205,6 +267,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
       };
       setDriverGifts((list) => [entry, ...list]);
       creditDriverBalance(value);
+
+      // Persistance cloud du cadeau (Firestore).
+      void createGift(entry);
     },
     [userName, creditDriverBalance],
   );
@@ -219,8 +284,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const login = useCallback(
-    (digits: string, secret: string): AuthResult => {
-      const result = authLogin(digits, secret);
+    async (digits: string, secret: string): Promise<AuthResult> => {
+      const result = await authLogin(digits, secret);
       if (result.success && result.user) applyUser(result.user);
       return result;
     },
@@ -228,8 +293,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
   );
 
   const registerPassenger = useCallback(
-    (input: PassengerRegisterInput): AuthResult => {
-      const result = authRegisterPassenger(input);
+    async (input: PassengerRegisterInput): Promise<AuthResult> => {
+      const result = await authRegisterPassenger(input);
       if (result.success && result.user) applyUser(result.user);
       return result;
     },
@@ -237,8 +302,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
   );
 
   const registerDriver = useCallback(
-    (input: DriverRegisterInput): AuthResult => {
-      const result = authRegisterDriver(input);
+    async (input: DriverRegisterInput): Promise<AuthResult> => {
+      const result = await authRegisterDriver(input);
       if (result.success && result.user) applyUser(result.user);
       return result;
     },
@@ -252,8 +317,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setPhone('');
   }, []);
 
-  const logout = useCallback(() => {
-    authLogout();
+  const logout = useCallback(async (): Promise<void> => {
+    await authLogout();
     setCurrentUser(null);
     setRole('guest');
     setUserName('');
@@ -271,8 +336,41 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
     const available = listDrivers().some((driver) => !driver.blocked);
     setRideStatus(available ? 'searching' : 'idle');
+
+    /*
+     * Publication de la demande sur la Realtime Database : les conducteurs
+     * en ligne la reçoivent instantanément (son d'alerte + carte).
+     */
+    if (available && isCloudEnabled()) {
+      const requestId = `REQ-${Date.now().toString(36)}`;
+      activeRequestId.current = requestId;
+
+      void publishRideRequest({
+        id: requestId,
+        passengers,
+        vehicle: vehicle ?? 'moto',
+        pickup,
+        destination,
+        distanceKm,
+        destinationLibre,
+        passengerId: currentUser?.id,
+        passengerName: userName || 'Passager',
+        passengerPhone: phone,
+      });
+    }
+
     return available;
-  }, []);
+  }, [
+    passengers,
+    vehicle,
+    pickup,
+    destination,
+    distanceKm,
+    destinationLibre,
+    currentUser,
+    userName,
+    phone,
+  ]);
 
   const chooseOffer = useCallback((offer: Offer) => {
     setSelectedOffer(offer);
@@ -300,9 +398,14 @@ export function AppProvider({ children }: { children: ReactNode }) {
         status: 'completed',
         date: nowDate(),
         time: nowTime(),
+        passengerId: liveUserId,
+        driverId: selectedOffer?.driver.id,
       };
       setLastRide(ride);
       setPassengerHistory((history) => [ride, ...history]);
+
+      // Archivage cloud de la course terminée (Firestore).
+      void createRide(ride);
       setAdminStats((stats) => ({
         ...stats,
         ridesCompleted: stats.ridesCompleted + 1,
@@ -322,12 +425,19 @@ export function AppProvider({ children }: { children: ReactNode }) {
     distanceKm,
     vehicle,
     debitDriverBalance,
+    liveUserId,
   ]);
 
   const cancelRide = useCallback(() => {
     setRideStatus('cancelled');
     setOffers([]);
     setSelectedOffer(null);
+
+    // Retire la demande de la Realtime Database (plus visible par les conducteurs).
+    if (activeRequestId.current) {
+      void removeRideRequest(activeRequestId.current);
+      activeRequestId.current = '';
+    }
   }, []);
 
   const rateRide = useCallback((rating: number) => {
@@ -348,7 +458,28 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setDistanceKm(0);
     setVehicle(null);
     setPassengers(1);
+
+    // Retire la demande publiée (elle n'est plus d'actualité).
+    if (activeRequestId.current) {
+      void removeRideRequest(activeRequestId.current);
+      activeRequestId.current = '';
+    }
   }, []);
+
+  /**
+   * Bascule le statut en ligne du conducteur.
+   * Publie l'état sur la Realtime Database (`/online/drivers/{uid}`) et débloque
+   * l'audio (obligatoire sur mobile pour le son d'alerte des nouvelles courses).
+   */
+  const toggleOnline = useCallback(() => {
+    const next = !driverOnline;
+    setDriverOnline(next);
+    unlockAudio();
+
+    if (isCloudEnabled() && liveUserId) {
+      void publishOnlineStatus(liveUserId, next);
+    }
+  }, [driverOnline, liveUserId]);
 
   /**
    * Sélectionne une destination complète.
@@ -362,8 +493,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setDestinationSecteur(lieu.secteur ?? '');
     setDestinationLibre(Boolean(lieu.libre));
   }, []);
-
-  const toggleOnline = useCallback(() => setDriverOnline((online) => !online), []);
 
   const rejectIncoming = useCallback(() => setIncomingRequest(null), []);
 
@@ -384,7 +513,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
       const ride: Ride = {
         id: `C-${Math.floor(10000 + Math.random() * 89999)}`,
-        passengerName: 'Passager Taxi-Moto',
+        passengerName: request.passengerName ?? 'Passager Taxi-Moto',
         driverName: 'Vous',
         vehicle: request.vehicle,
         pickup: request.pickup,
@@ -395,6 +524,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
         status: 'completed',
         date: nowDate(),
         time: nowTime(),
+        passengerId: request.passengerId,
+        driverId: liveUserId || phone,
       };
       setDriverRidesToday((rides) => [ride, ...rides]);
       setAdminStats((stats) => ({
@@ -407,9 +538,15 @@ export function AppProvider({ children }: { children: ReactNode }) {
       // La commission (10 %) est débitée du solde conducteur.
       debitDriverBalance(commission);
       setIncomingRequest(null);
+
+      // Course acceptée : archivage Firestore + retrait de la demande publiée.
+      void createRide(ride);
+      void removeRideRequest(request.id);
+      if (activeRequestId.current === request.id) activeRequestId.current = '';
+
       return true;
     },
-    [incomingRequest, driverBalance, debitDriverBalance],
+    [incomingRequest, driverBalance, debitDriverBalance, liveUserId, phone],
   );
 
   const approveDriver = useCallback(() => setDriverApproved(true), []);
@@ -448,24 +585,161 @@ export function AppProvider({ children }: { children: ReactNode }) {
   }, []);
 
   /* ---- Géolocalisation ---- */
-  const setPassengerPosition = useCallback((position: GeoPosition | null) => {
-    setPassengerPositionState(position);
-  }, []);
+  const setPassengerPosition = useCallback(
+    (position: GeoPosition | null) => {
+      setPassengerPositionState(position);
 
-  /** Position conducteur : conservée en mémoire + localStorage (partage prototype). */
-  const setDriverPosition = useCallback((position: GeoPosition | null) => {
-    setDriverPositionState(position);
-
-    try {
-      if (position) {
-        window.localStorage.setItem('taxi-moto:driver-position', JSON.stringify(position));
-      } else {
-        window.localStorage.removeItem('taxi-moto:driver-position');
+      // Publication temps réel (le conducteur/ l'admin voit le client bouger).
+      if (position && isCloudEnabled() && liveUserId) {
+        void publishPassengerPosition(liveUserId, position);
       }
-    } catch {
-      // Navigation privée / quota : on ignore.
-    }
+    },
+    [liveUserId],
+  );
+
+  /**
+   * Position du conducteur : mémoire + publication Realtime Database
+   * (partagée en direct avec les clients et l'admin). Le miroir localStorage
+   * n'est utilisé qu'en mode local (Firebase non configuré).
+   */
+  const setDriverPosition = useCallback(
+    (position: GeoPosition | null) => {
+      setDriverPositionState(position);
+
+      if (isCloudEnabled()) {
+        // On ne partage la position que lorsque le conducteur est en ligne.
+        if (position && liveUserId && driverOnline) {
+          void publishDriverPosition(liveUserId, position);
+        }
+        return;
+      }
+
+      try {
+        if (position) {
+          window.localStorage.setItem('taxi-moto:driver-position', JSON.stringify(position));
+        } else {
+          window.localStorage.removeItem('taxi-moto:driver-position');
+        }
+      } catch {
+        // Navigation privée / quota : on ignore.
+      }
+    },
+    [liveUserId, driverOnline],
+  );
+
+  /* ================================================================
+   *  TEMPS RÉEL — Firebase Firestore (données) + Realtime DB (positions)
+   * ================================================================ */
+
+  /** Restaure la session Firebase puis suit les changements de session. */
+  useEffect(() => {
+    if (!isCloudEnabled()) return undefined;
+
+    void restoreSession().then((user) => {
+      if (user) applyUser(user);
+    });
+
+    return onSessionChange((user) => {
+      if (user) applyUser(user);
+    });
+  }, [applyUser]);
+
+  /** Comptes Firestore → cache local (listes admin, contacts) + état admin. */
+  useEffect(() => {
+    if (!isCloudEnabled()) return undefined;
+
+    return subscribeToUsers((users) => {
+      replaceUserCache(users);
+
+      setAdminDrivers(
+        users
+          .filter((user) => user.role === 'driver')
+          .map((user) => ({
+            id: user.id,
+            name: user.name,
+            rating: 0,
+            rides: 0,
+            vehicle: user.vehicle ?? 'moto',
+            plate: user.plate ?? '—',
+            model: user.vehicle === 'tricycle' ? 'Tricycle' : 'Moto',
+            online: onlineIdsRef.current.includes(user.id),
+            zone: 'Zone couverte',
+            availableSeats: user.vehicle === 'tricycle' ? 3 : 1,
+            phone: user.phone,
+          })),
+      );
+    });
   }, []);
+
+  /** Positions live (conducteurs + clients) publiées sur la Realtime Database. */
+  useEffect(() => {
+    if (!isCloudEnabled()) return undefined;
+
+    return subscribeToAllPositions((positions) => {
+      setLiveDriverPositions(toGeoMap(positions.drivers));
+      setLivePassengerPositions(toGeoMap(positions.passengers));
+    });
+  }, []);
+
+  /** Conducteurs en ligne/hors ligne (Realtime Database). */
+  useEffect(() => {
+    if (!isCloudEnabled()) return undefined;
+
+    return subscribeToOnlineDrivers((drivers) => {
+      const ids = Object.entries(drivers)
+        .filter(([, status]) => status.online)
+        .map(([id]) => id);
+
+      onlineIdsRef.current = ids;
+      setOnlineDriverIds(ids);
+    });
+  }, []);
+
+  /** Demandes de course entrantes → son d'alerte FORT + carte conducteur. */
+  useEffect(() => {
+    if (!isCloudEnabled()) return undefined;
+
+    return subscribeToRideRequests((requests) => {
+      const first = requests[0] ?? null;
+
+      if (!first) {
+        lastRequestId.current = '';
+        setIncomingRequest(null);
+        return;
+      }
+
+      if (first.id === lastRequestId.current) return;
+
+      lastRequestId.current = first.id;
+      playAlertSound();
+      setIncomingRequest(first);
+    });
+  }, []);
+
+  /** Recharges, cadeaux et historique client : synchronisation Firestore. */
+  useEffect(() => {
+    if (!isCloudEnabled()) return undefined;
+
+    const unsubscribeRecharges = subscribeToRechargeRequests((requests) => {
+      setRechargeRequests([...requests].sort((a, b) => b.createdAt - a.createdAt));
+    });
+
+    const unsubscribeGifts = subscribeToGifts((gifts) => {
+      setDriverGifts([...gifts].sort((a, b) => b.createdAt - a.createdAt));
+    });
+
+    const accountId = currentUser?.id;
+    const unsubscribeRides = subscribeToRides(
+      (rides) => setPassengerHistory(rides),
+      accountId ? { field: 'passengerId', value: accountId } : undefined,
+    );
+
+    return () => {
+      unsubscribeRecharges();
+      unsubscribeGifts();
+      unsubscribeRides();
+    };
+  }, [currentUser]);
 
   const driverRevenue = useMemo(
     () => driverRidesToday.reduce((total, ride) => total + ride.price, 0),
@@ -557,6 +831,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
     driverPosition,
     setPassengerPosition,
     setDriverPosition,
+
+    cloudEnabled: isCloudEnabled(),
+    liveDriverPositions,
+    livePassengerPositions,
+    onlineDriverIds,
   };
 
   return <AppContext.Provider value={value}>{children}</AppContext.Provider>;

@@ -60,6 +60,7 @@ export default function PassengerHome() {
     destinationId,
     destinationLibre,
     setDestinationLieu,
+    liveDriverPositions,
     distanceKm,
     setDistanceKm,
     startSearch,
@@ -73,9 +74,17 @@ export default function PassengerHome() {
     tricycle: false,
   });
 
-  /* Aucun conducteur fictif : la carte n'affiche que les vraies positions
-     (aucune pour l'instant — la géolocalisation réelle arrivera plus tard). */
-  const markers: MapMarker[] = [];
+  /* Conducteurs réellement en ligne (Firebase Realtime Database) :
+     aucune position fictive, uniquement les appareils qui publient. */
+  const markers: MapMarker[] = Object.entries(liveDriverPositions).map(
+    ([driverId, position]) => ({
+      id: driverId,
+      position: [position.latitude, position.longitude],
+      emoji: '🏍️',
+      label: 'Conducteur en ligne',
+      color: '#009E60',
+    }),
+  );
 
   /* Géolocalisation réelle du client (watch continu). */
   const geo = useGeolocation({ onUpdate: (position) => setPassengerPosition(position) });

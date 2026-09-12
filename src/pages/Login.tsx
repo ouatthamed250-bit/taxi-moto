@@ -31,10 +31,10 @@ export default function Login() {
 
   const canSubmit = phone.replace(/\D/g, '').length >= 8 && password.length > 0;
 
-  const submit = () => {
+  const submit = async () => {
     setError('');
 
-    const result = login(phone, password);
+    const result = await login(phone, password);
     if (!result.success || !result.user) {
       setError(result.error ?? 'Connexion impossible.');
       return;

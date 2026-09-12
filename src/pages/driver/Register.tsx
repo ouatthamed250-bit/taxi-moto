@@ -128,10 +128,10 @@ export default function DriverRegister() {
     reader.readAsDataURL(file);
   };
 
-  const submit = () => {
+  const submit = async () => {
     setSubmitError('');
 
-    const result = registerDriver({
+    const result = await registerDriver({
       name: name.trim(),
       phone,
       password,

@@ -27,11 +27,11 @@ export interface AppContextValue {
   userName: string;
   phone: string;
   currentUser: User | null;
-  login: (phone: string, password: string) => AuthResult;
+  login: (phone: string, password: string) => Promise<AuthResult>;
   loginAsAdmin: () => void;
-  registerPassenger: (input: PassengerRegisterInput) => AuthResult;
-  registerDriver: (input: DriverRegisterInput) => AuthResult;
-  logout: () => void;
+  registerPassenger: (input: PassengerRegisterInput) => Promise<AuthResult>;
+  registerDriver: (input: DriverRegisterInput) => Promise<AuthResult>;
+  logout: () => Promise<void>;
 
   /* ---- Réservation passager ---- */
   passengers: number;
@@ -115,6 +115,16 @@ export interface AppContextValue {
   driverPosition: GeoPosition | null;
   setPassengerPosition: (position: GeoPosition | null) => void;
   setDriverPosition: (position: GeoPosition | null) => void;
+
+  /* ---- Temps réel (Firebase) ---- */
+  /** true = Firestore + Realtime Database actifs (sinon mode local). */
+  cloudEnabled: boolean;
+  /** Positions live de TOUS les conducteurs (RTDB) indexées par uid. */
+  liveDriverPositions: Record<string, GeoPosition>;
+  /** Positions live de TOUS les clients (RTDB) indexées par uid. */
+  livePassengerPositions: Record<string, GeoPosition>;
+  /** uid des conducteurs actuellement en ligne (RTDB). */
+  onlineDriverIds: string[];
 }
 
 export const AppContext = createContext<AppContextValue | null>(null);

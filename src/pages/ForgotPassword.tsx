@@ -13,7 +13,11 @@ import {
 } from 'lucide-react';
 import { Page } from '../components/Page';
 import { COLORS } from '../theme';
-import { getSecurityQuestion, resetPassword, verifySecurityAnswer } from '../services/authLocal';
+import {
+  getSecurityQuestion,
+  resetPassword,
+  verifySecurityAnswer,
+} from '../services/authService';
 import './ForgotPassword.css';
 
 type Step = 1 | 2 | 3;
@@ -32,10 +36,10 @@ export default function ForgotPassword() {
   const [error, setError] = useState('');
   const [done, setDone] = useState(false);
 
-  const askQuestion = () => {
+  const askQuestion = async () => {
     setError('');
 
-    const found = getSecurityQuestion(phone);
+    const found = await getSecurityQuestion(phone);
     if (!found) {
       setError('Aucun compte trouvé avec ce numéro.');
       return;
@@ -45,14 +49,14 @@ export default function ForgotPassword() {
     setStep(2);
   };
 
-  const verifyAnswer = () => {
+  const verifyAnswer = async () => {
     setError('');
 
     if (answer.trim().length < 2) {
       setError('Réponse trop courte.');
       return;
     }
-    if (!verifySecurityAnswer(phone, answer)) {
+    if (!(await verifySecurityAnswer(phone, answer))) {
       setError('Réponse incorrecte. Réessayez.');
       return;
     }
@@ -60,7 +64,7 @@ export default function ForgotPassword() {
     setStep(3);
   };
 
-  const submitReset = () => {
+  const submitReset = async () => {
     setError('');
 
     if (newPassword.length < 6) {
@@ -72,7 +76,7 @@ export default function ForgotPassword() {
       return;
     }
 
-    const result = resetPassword(phone, answer, newPassword);
+    const result = await resetPassword(phone, answer, newPassword);
     if (!result.success) {
       setError(result.error ?? 'Réinitialisation impossible.');
       return;

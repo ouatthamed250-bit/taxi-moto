@@ -1,0 +1,48 @@
+{
+  "//": "============================================================================",
+  "//_2": "Règles Realtime Database — Taxi-Moto",
+  "//_3": "À coller dans : Console Firebase → Realtime Database → Règles → Publier",
+  "//_4": "============================================================================",
+  "//_5": "Principe : toute personne AUTHENTIFIÉE (même anonyme) peut lire/écrire.",
+  "//_6": "Arborescence utilisée par l'application :",
+  "//_7": "  /positions/drivers/{uid}   → { latitude, longitude, updatedAt }",
+  "//_8": "  /positions/passengers/{uid}→ { latitude, longitude, updatedAt }",
+  "//_9": "  /online/drivers/{uid}      → true | false (+ updatedAt)",
+  "//_10": "  /rideRequests/{id}         → demande de course en attente",
+  "//_11": "⚠️ Prototype : à durcir (restreindre l'écriture de /online et /positions",
+  "//_12": "   à auth.uid == $uid, réserver /positions aux admins).",
+  "rules": {
+    ".read": "auth != null",
+    ".write": "auth != null",
+    "positions": {
+      "drivers": {
+        "$uid": {
+          ".read": "auth != null",
+          ".write": "auth != null"
+        }
+      },
+      "passengers": {
+        "$uid": {
+          ".read": "auth != null",
+          ".write": "auth != null"
+        }
+      }
+    },
+    "online": {
+      "drivers": {
+        "$uid": {
+          ".read": "auth != null",
+          ".write": "auth != null"
+        }
+      }
+    },
+    "rideRequests": {
+      ".read": "auth != null",
+      ".write": "auth != null",
+      "$requestId": {
+        ".read": "auth != null",
+        ".write": "auth != null"
+      }
+    }
+  }
+}

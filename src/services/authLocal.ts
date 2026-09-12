@@ -289,3 +289,88 @@ export function resetPassword(phone: string, answer: string, newPassword: string
 
   return { success: true, user: updated };
 }
+
+/* ==========================================================================
+ * Synchronisation cloud (Firebase) — le localStorage sert de CACHE
+ * --------------------------------------------------------------------------
+ * En mode Firebase, Firestore est la source de vérité : les comptes sont
+ * recopiés ici pour que les écrans qui lisent de façon synchrone (listes
+ * admin, contacts téléphoniques) continuent de fonctionner sans changement.
+ * ========================================================================== */
+
+/** Clé de stockage de l'identifiant du compte cloud actif. */
+const CLOUD_ACCOUNT_KEY = 'taxi-moto:cloud-account-id';
+
+/** Valide une inscription passager (règles partagées avec le mode cloud). */
+export function validatePassengerInput(input: PassengerRegisterInput): string | null {
+  return validateCommon(input, readUsers());
+}
+
+/** Valide une inscription conducteur (règles partagées avec le mode cloud). */
+export function validateDriverInput(input: DriverRegisterInput): string | null {
+  const error = validateCommon(input, readUsers());
+  if (error) return error;
+
+  if (!PLATE_RE.test(input.plate.trim().toUpperCase())) {
+    return 'Plaque invalide (format AA-123-BC).';
+  }
+  if (!input.driverPhoto) return 'Ajoutez votre photo de conducteur.';
+  if (!input.vehiclePhoto) return 'Ajoutez la photo de votre véhicule.';
+  return null;
+}
+
+/** Identifiant du compte cloud actif (docId Firestore `users/{id}`). */
+export function getCloudAccountId(): string {
+  try {
+    return window.localStorage.getItem(CLOUD_ACCOUNT_KEY) ?? '';
+  } catch {
+    return '';
+  }
+}
+
+/** Mémorise l'identifiant du compte cloud actif. */
+export function setCloudAccountId(id: string): void {
+  try {
+    if (id) window.localStorage.setItem(CLOUD_ACCOUNT_KEY, id);
+    else window.localStorage.removeItem(CLOUD_ACCOUNT_KEY);
+  } catch {
+    // ignore
+  }
+}
+
+/** Met en cache un compte venu de Firestore et en fait la session courante. */
+export function cacheCloudUser(user: User): void {
+  const users = readUsers();
+  const index = users.findIndex(
+    (item) =>
+      item.id === user.id || normalizePhone(item.phone) === normalizePhone(user.phone),
+  );
+
+  if (index === -1) {
+    writeUsers([...users, user]);
+  } else {
+    const next = [...users];
+    next[index] = user;
+    writeUsers(next);
+  }
+
+  setCurrentUser(user);
+  setCloudAccountId(user.id);
+}
+
+/** Remplace le cache local des comptes (synchronisation Firestore). */
+export function replaceUserCache(users: User[]): void {
+  writeUsers(users);
+
+  const current = getCurrentUser();
+  if (!current) return;
+
+  const fresh = users.find((item) => item.id === current.id);
+  if (fresh) setCurrentUser(fresh);
+}
+
+/** Déconnecte la session locale (le compte cloud reste dans Firestore). */
+export function clearLocalSession(): void {
+  logout();
+  setCloudAccountId('');
+}

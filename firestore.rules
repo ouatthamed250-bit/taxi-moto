@@ -1,0 +1,55 @@
+rules_version = '2';
+
+// ============================================================================
+// Règles Firestore — Taxi-Moto
+// À coller dans : Console Firebase → Firestore Database → Règles → Publier
+// ============================================================================
+//
+// Principe : toute personne AUTHENTIFIÉE (même anonyme — chaque appareil a un
+// uid Firebase) peut lire/écrire les documents de l'application. Le compte
+// est identifié par son uid = docId dans `users`.
+//
+// ⚠️ Prototype : le mot de passe est encore stocké dans le document `users`.
+//    À durcir lors de la migration vers Firebase Auth par téléphone (SMS) :
+//    - restreindre `users/{uid}` à `request.auth.uid == uid`,
+//    - interdire la lecture de la liste complète des comptes aux non-admins,
+//    - valider les schémas avec `request.resource.data.keys().hasOnly([...])`.
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    // Comptes utilisateurs (passagers + conducteurs)
+    match /users/{userId} {
+      allow read, write: if signedIn();
+    }
+
+    // Courses
+    match /rides/{rideId} {
+      allow read, write: if signedIn();
+    }
+
+    // Demandes de recharge mobile money
+    match /rechargeRequests/{requestId} {
+      allow read, write: if signedIn();
+    }
+
+    // Cadeaux de recharge offerts par l'admin
+    match /gifts/{giftId} {
+      allow read, write: if signedIn();
+    }
+
+    // Paramètres applicatifs
+    match /settings/{settingId} {
+      allow read: if signedIn();
+      allow write: if signedIn();
+    }
+
+    // Refus par défaut
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

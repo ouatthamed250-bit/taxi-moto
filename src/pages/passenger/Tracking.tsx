@@ -16,6 +16,7 @@ import type { MapMarker } from '../../components/MapComponent';
 import { ABIDJAN_CENTER, COLORS, VEHICLES, commissionOf, fcfa, netEarnings } from '../../theme';
 import { useApp } from '../../store/useApp';
 import { useGeolocation } from '../../hooks/useGeolocation';
+import { useDriverLivePosition } from '../../hooks/useDriverLivePosition';
 import { getDistanceKm } from '../../services/geolocation';
 import { callPhone, messagePhone, resolveDriverPhone } from '../../services/contacts';
 import './Tracking.css';
@@ -67,6 +68,9 @@ export default function Tracking() {
   /* Géolocalisation réelle du client (watch continu). */
   const geo = useGeolocation({ onUpdate: (position) => setPassengerPosition(position) });
 
+  /* Position live du chauffeur (Firebase Realtime Database) → temps réel. */
+  const liveDriver = useDriverLivePosition(selectedOffer?.driver.id);
+
   useEffect(() => {
     if (!selectedOffer) navigate('/passenger');
   }, [selectedOffer, navigate]);
@@ -90,22 +94,24 @@ export default function Tracking() {
     ABIDJAN_CENTER[1] - 0.006,
   ];
 
-  /* Positions live : le client suit sa position, le conducteur est lu du store. */
+  /* Positions live : le client suit sa position, le conducteur vient du RTDB. */
+  const driverLivePosition = liveDriver ?? driverPosition;
+
   const passengerPin: [number, number] = geo.position
     ? [geo.position.latitude, geo.position.longitude]
     : ABIDJAN_CENTER;
 
-  const liveDriverPin: [number, number] = driverPosition
-    ? [driverPosition.latitude, driverPosition.longitude]
+  const liveDriverPin: [number, number] = driverLivePosition
+    ? [driverLivePosition.latitude, driverLivePosition.longitude]
     : driverPin;
 
   const remainingKm =
-    driverPosition && geo.position
+    driverLivePosition && geo.position
       ? getDistanceKm(
           geo.position.latitude,
           geo.position.longitude,
-          driverPosition.latitude,
-          driverPosition.longitude,
+          driverLivePosition.latitude,
+          driverLivePosition.longitude,
         )
       : null;
 

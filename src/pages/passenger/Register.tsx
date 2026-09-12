@@ -48,7 +48,7 @@ export default function PassengerRegister() {
   const [securityQuestion, setSecurityQuestion] = useState<string>(SECURITY_QUESTIONS[0]);
   const [securityAnswer, setSecurityAnswer] = useState('');
 
-  const submit = () => {
+  const submit = async () => {
     const next: FieldErrors = {};
 
     if (!name.trim()) {
@@ -71,7 +71,7 @@ export default function PassengerRegister() {
     setSubmitError('');
     if (Object.keys(next).length > 0) return;
 
-    const result = registerPassenger({
+    const result = await registerPassenger({
       name: name.trim(),
       phone,
       password,
