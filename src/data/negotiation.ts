@@ -15,8 +15,11 @@
  */
 import type { Negotiation, NegotiationMessage, NegotiationStatus } from '../types';
 
-/** Nombre de tours de négociation autorisés. */
+/** Nombre de tours de négociation autorisés (client + chauffeur). */
 export const MAX_NEGOTIATION_ROUNDS = 3;
+
+/** Nombre TOTAL de messages d'une négociation complète (3 client + 3 chauffeur). */
+export const MAX_NEGOTIATION_MESSAGES = MAX_NEGOTIATION_ROUNDS * 2;
 
 /** Délai maximal (ms) sans réponse avant expiration d'un tour. */
 export const NEGOTIATION_TIMEOUT_MS = 60_000;
@@ -25,14 +28,66 @@ export const NEGOTIATION_TIMEOUT_MS = 60_000;
 export const MIN_NEGOTIATION_FARE = 1000;
 export const MAX_NEGOTIATION_FARE = 3000;
 
-/** Les tours consommés : une contre-offre CLIENT = un tour. */
-export function countRounds(rounds: NegotiationMessage[]): number {
+/** Contre-offres du CLIENT (= nombre de ses messages). */
+export function countPassengerRounds(rounds: NegotiationMessage[]): number {
   return rounds.filter((round) => round.from === 'passenger').length;
 }
 
-/** Peut-on encore négocier ? (moins de 3 tours client consommés) */
+/** Contre-offres du CHAUFFEUR (son offre INITIALE ne compte pas). */
+export function countDriverRounds(rounds: NegotiationMessage[]): number {
+  return Math.max(0, rounds.filter((round) => round.from === 'driver').length - 1);
+}
+
+/**
+ * Nombre de contre-offres échangées (tous camps confondus).
+ * L'offre INITIALE du chauffeur ne compte pas.
+ */
+export function countCounterOffers(rounds: NegotiationMessage[]): number {
+  return Math.max(0, rounds.length - 1);
+}
+
+/**
+ * Les tours consommés : une contre-offre CLIENT = un tour.
+ * (Conservé pour la compatibilité : voir `currentRound` pour l'affichage.)
+ */
+export function countRounds(rounds: NegotiationMessage[]): number {
+  return countPassengerRounds(rounds);
+}
+
+/**
+ * Numéro du tour EN COURS (1 à 3).
+ *
+ * Un TOUR = un échange COMPLET (contre-offre client + réponse chauffeur) :
+ *   [chauffeur 1500]                    → Tour 1
+ *   [chauffeur 1500, client 1300]       → Tour 1
+ *   [.., chauffeur 1400]                → Tour 2   ← le compteur avance
+ *   [.., client 1350]                   → Tour 2
+ *   [.., chauffeur 1380]                → Tour 3
+ *   [.., client 1360]                   → Tour 3 (limite client atteinte)
+ */
+export function currentRound(rounds: NegotiationMessage[]): number {
+  const exchanges = Math.floor(countCounterOffers(rounds) / 2) + 1;
+  return Math.min(MAX_NEGOTIATION_ROUNDS, Math.max(1, exchanges));
+}
+
+/** Le CLIENT peut-il ENCORE envoyer une contre-offre ? */
+export function canPassengerCounter(rounds: NegotiationMessage[]): boolean {
+  return countPassengerRounds(rounds) < MAX_NEGOTIATION_ROUNDS;
+}
+
+/** Le CHAUFFEUR peut-il ENCORE envoyer une contre-offre ? */
+export function canDriverCounter(rounds: NegotiationMessage[]): boolean {
+  return countDriverRounds(rounds) < MAX_NEGOTIATION_ROUNDS;
+}
+
+/** Peut-on encore négocier ? (côté CLIENT — conservé pour l'UI historique) */
 export function canNegotiate(rounds: NegotiationMessage[]): boolean {
-  return countRounds(rounds) < MAX_NEGOTIATION_ROUNDS;
+  return canPassengerCounter(rounds);
+}
+
+/** Les DEUX camps ont épuisé leurs contre-offres → plus d'accord possible. */
+export function isNegotiationExhausted(rounds: NegotiationMessage[]): boolean {
+  return !canPassengerCounter(rounds) && !canDriverCounter(rounds);
 }
 
 /** Dernier montant proposé (par l'un ou l'autre), avec repli sur le prix initial. */
@@ -121,15 +176,17 @@ export function toNegotiation(
 ): Negotiation {
   return {
     rounds,
-    currentRound: Math.min(MAX_NEGOTIATION_ROUNDS, Math.max(1, countRounds(rounds) || 1)),
+    currentRound: currentRound(rounds),
     status,
   };
 }
 
-/** Libellé du tour affiché (« Tour 2/3 »). */
+/**
+ * Libellé du tour affiché (« Tour 2/3 »).
+ * Le compteur avance à chaque ÉCHANGE COMPLET (voir `currentRound`).
+ */
 export function roundLabel(rounds: NegotiationMessage[]): string {
-  const consumed = Math.min(MAX_NEGOTIATION_ROUNDS, Math.max(1, countRounds(rounds) || 1));
-  return `Tour ${consumed}/${MAX_NEGOTIATION_ROUNDS}`;
+  return `Tour ${currentRound(rounds)}/${MAX_NEGOTIATION_ROUNDS}`;
 }
 
 /**

@@ -83,34 +83,50 @@ Astuce : dans les deux écrans de données, laisse l'onglet ouvert — les
 ### 5.2 Flux NÉGOCIATION du prix (client ↔ chauffeur)
 
 ```
-Chauffeur propose 1 500 F   → /offers/{id}.rounds = [ {driver, 1500} ]  status: pending
-Client  « Négocier » 1 300  → rounds += {passenger, 1300}               status: negotiating
+Chauffeur propose 1 500 F   → /offers/{id}.rounds = [ {driver, 1500} ]  status: pending   (Tour 1/3)
+Client  « Négocier » 1 300  → rounds += {passenger, 1300}               status: negotiating (Tour 1/3)
     ⛔ RIEN ne démarre : aucune course, aucun `accepted`
     ⏳ Le client voit « Votre proposition : 1 300 F — En attente de la réponse du chauffeur… »
        (boutons Accepter / Négocier DÉSACTIVÉS)
+Chauffeur CONTRE-PROPOSE    → rounds += {driver, 1400} → Tour 2/3 → le client voit 1 400 F
+Client  « Négocier » 1 350  → rounds += {passenger, 1350}               (Tour 2/3)
+Chauffeur CONTRE-PROPOSE    → rounds += {driver, 1380} → Tour 3/3 → le client voit 1 380 F
+Client  « Négocier » 1 360  → 3ᵉ contre-offre client = LIMITE → status: expired
 Chauffeur ACCEPTE           → status: accepted → il crée la course (Firestore) → le client suit
-Chauffeur CONTRE-PROPOSE    → rounds += {driver, 1400} → le client voit « Le chauffeur propose 1 400 F »
-Client ACCEPTE 1 400        → status: accepted → le chauffeur crée la course
-3 tours client sans accord  → status: expired → la demande repart chez un autre conducteur
+Client ACCEPTE              → status: accepted → le chauffeur crée la course
+Chauffeur REFUSE            → status: rejected + offre retirée → le client voit
+                              « Le chauffeur a refusé. Recherche d'un autre chauffeur… »
 ```
 
 ⚠️ **Règles à ne pas casser** (bugs déjà corrigés) :
 
-1. **Chacun son tour** : après avoir proposé, on ATTEND la réponse de l'autre partie.
-   `canPassengerAcceptOffer(rounds)` renvoie `false` tant que la dernière proposition
-   vient du CLIENT — sinon le client « acceptait sa propre offre » et la course
-   démarrait à son prix sans l'accord du chauffeur.
-2. **`sendCounterOffer` n'écrit QUE la proposition** (`status: 'negotiating'`) :
-   jamais `accepted`, jamais de création de course. Le garde-fou est aussi dans
-   `sendCounterOffer` (refus si l'on attend déjà le chauffeur).
-3. **Le prix affiché côté client = dernière proposition DU CHAUFFEUR**
+1. **Compteur de tours = échanges COMPLETS** (`currentRound`) : il avance à chaque
+   réponse du chauffeur (« Tour 1/3 » → « Tour 2/3 » → « Tour 3/3 »). L'offre
+   INITIALE du chauffeur ne compte pas comme contre-offre.
+2. **Limites symétriques** (`canPassengerCounter` / `canDriverCounter`) : 3
+   contre-offres MAXIMUM par camp → **6 messages au total**
+   (`MAX_NEGOTIATION_MESSAGES`). La limite est vérifiée **AVANT** d'autoriser un
+   nouveau tour ; quand elle est atteinte, le bouton de contre-proposition est
+   **désactivé** (`3 tours atteints`) mais l'**acceptation reste possible** —
+   avant, cliquer « Contre-proposer » au-delà de la limite **détruisait toute la
+   négociation** (offre expirée) sans que le chauffeur puisse accepter.
+3. **`sendCounterOffer` n'écrit QUE la proposition** (`status: 'negotiating'`) :
+   jamais `accepted`, jamais de création de course.
+4. **Chacun son tour** : `canPassengerAcceptOffer(rounds)` renvoie `false` tant
+   que la dernière proposition vient du CLIENT (sinon le client « acceptait sa
+   propre offre » et la course démarrait à son prix).
+5. **REFUS toujours publié** : `rejectIncoming` (demande entrante **et** après une
+   offre) écrit `status: 'rejected'` puis retire l'offre de la RTDB. Avant, le
+   refus du chauffeur n'écrivait RIEN : le client attendait indéfiniment.
+   La demande reste publiée pour les autres conducteurs, et le client est prévenu
+   (`passengerNotice`) dès qu'une offre qu'il suivait disparaît.
+6. **Le prix affiché côté client = dernière proposition DU CHAUFFEUR**
    (`lastDriverAmount`) ; « Votre proposition » vient de `lastPassengerAmount`.
-   `offer.price` = montant du DERNIER tour (les deux camps), il ne doit donc
-   jamais servir directement d'affichage « prix du chauffeur ».
-4. **Historique** : `describeRounds(rounds, fcfa, 'passenger' | 'driver')` → ses
-   propres tours s'affichent « Vous » (« 1. Chauffeur : 1 500 F · 2. Vous : 1 300 F »).
-5. L'expiration (60 s) et la limite de 3 tours restent pilotées par
-   `isTimedOut()` / `canNegotiate()` (voir `src/data/negotiation.ts`).
+7. **Acceptation résiliente** : la demande est résolue par `requestId` parmi les
+   demandes publiées (`finalizeAcceptedOffer`), pour ne plus échouer pendant une
+   négociation. En cas de solde insuffisant, l'offre est retirée proprement.
+8. **Historique** : `describeRounds(rounds, fcfa, 'passenger' | 'driver')` →
+   ses propres tours s'affichent « Vous » (« 1. Chauffeur : 1 500 F · 2. Vous : 1 300 F »).
 
 ### 5.3 Flux RECHARGE : conducteur → admin (à ne pas casser)
 

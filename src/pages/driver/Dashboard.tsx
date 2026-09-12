@@ -38,7 +38,7 @@ import { useApp } from '../../store/useApp';
 import { useGeolocation } from '../../hooks/useGeolocation';
 import { MIN_MOVE_KM, distanceBetween, NEAR_DISTANCE_METERS, ARRIVED_DISTANCE_METERS } from '../../services/geolocation';
 import { DRIVER_STEPS, COURSE_LABEL, driverStepIndex } from '../../data/courseStatus';
-import { describeRounds, roundLabel } from '../../data/negotiation';
+import { describeRounds, roundLabel, canDriverCounter } from '../../data/negotiation';
 import { callPhone, messagePhone, resolvePassengerPhone } from '../../services/contacts';
 import './Dashboard.css';
 
@@ -119,6 +119,8 @@ export default function DriverDashboard() {
   const lastOfferRound = offerRounds[offerRounds.length - 1];
   /** C'est au conducteur de répondre (dernier message = client). */
   const mustAnswer = lastOfferRound?.from === 'passenger';
+  /** Reste-t-il des tours de négociation côté chauffeur ? (3 contre-offres max) */
+  const canCounterNow = canDriverCounter(offerRounds);
 
   /** Fixe le prix proposé (borné au barème 1 000 – 3 000 F). */
   const changeFare = (next: number) => {
@@ -723,17 +725,35 @@ export default function DriverDashboard() {
                             setCounterAmount(clampFare(myOffer.price));
                             setCounterOpen(true);
                           }}
+                          disabled={!canCounterNow}
                         >
                           <Handshake size={16} />
-                          Contre-proposer
+                          {canCounterNow ? 'Contre-proposer' : '3 tours atteints'}
                         </button>
                       </div>
+
+                      {!canCounterNow && (
+                        <p className="driver-dashboard-nego-waiting">
+                          Limite de 3 tours atteinte — acceptez le prix du client ou
+                          refusez la course.
+                        </p>
+                      )}
                     </>
                   ) : (
                     <p className="driver-dashboard-nego-waiting">
                       En attente de la réponse du client…
                     </p>
                   )}
+
+                  {/* Le conducteur peut TOUJOURS se retirer (refus publié). */}
+                  <button
+                    type="button"
+                    className="driver-dashboard-refuse"
+                    onClick={rejectIncoming}
+                  >
+                    <X size={16} />
+                    Refuser
+                  </button>
                 </section>
               ) : (
                 <div className="driver-dashboard-actions">

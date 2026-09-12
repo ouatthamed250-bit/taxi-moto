@@ -837,6 +837,22 @@
 
 .offers-rounds {
   display: flex;
+
+/* ===== NOTIFICATION CLIENT (refus / limite de tours) ===== */
+.offers-notice {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 12px;
+  padding: 11px 13px;
+  border-radius: 15px;
+  border: 1px solid rgba(229, 72, 77, 0.35);
+  background: rgba(229, 72, 77, 0.1);
+  color: #b42318;
+  font-size: 12px;
+  font-weight: 800;
+}
+
   gap: 8px;
   margin-bottom: 6px;
 }

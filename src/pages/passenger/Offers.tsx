@@ -62,6 +62,7 @@ export default function Offers() {
     cancelRide,
     rideStatus,
     negotiations,
+    passengerNotice,
     acceptOffer,
     rejectOffer,
     sendCounterOffer,
@@ -182,6 +183,14 @@ export default function Offers() {
               ? '1 conducteur a proposé un prix'
               : 'Aucune proposition pour le moment'}
         </p>
+
+        {/* Refus d'un conducteur / limite de tours : le client est prévenu. */}
+        {passengerNotice && (
+          <p className="offers-notice" role="status" aria-live="polite">
+            <Info size={14} />
+            {passengerNotice}
+          </p>
+        )}
 
         {/* ===== RÉCAP COURSE ===== */}
         <section className="offers-recap">

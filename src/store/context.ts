@@ -81,6 +81,8 @@ export interface AppContextValue {
   /* ---- Offres & négociation de prix (client ↔ chauffeur) ---- */
   /** Négociations en cours côté CLIENT, indexées par identifiant d'offre. */
   negotiations: Record<string, Negotiation>;
+  /** Message d'information CLIENT (refus du chauffeur, limite de tours…). */
+  passengerNotice: string;
   /** Offre publiée par le CONDUCTEUR pour la demande en cours (`null` sinon). */
   myOffer: LiveOffer | null;
   /** Conducteur : propose son prix pour la demande reçue. */

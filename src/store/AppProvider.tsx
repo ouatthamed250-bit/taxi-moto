@@ -80,9 +80,9 @@ import type { LivePosition } from '../services/realtimeDb';
 import { COURSE_STATUS_BY_RIDE, RIDE_STATUS_BY_COURSE } from '../data/courseStatus';
 import { mergeRideHistory, sortRidesDesc, todayStamp } from '../data/rides';
 import {
-  MAX_NEGOTIATION_ROUNDS,
-  canNegotiate,
+  canDriverCounter,
   canPassengerAcceptOffer,
+  canPassengerCounter,
   countRounds,
   isAwaitingDriverResponse,
   isTimedOut,
@@ -205,6 +205,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [driverBalance, setDriverBalanceState] = useState(INITIAL_DRIVER_BALANCE);
   const [rechargeRequests, setRechargeRequests] = useState<RechargeRequest[]>([]);
   const [driverGifts, setDriverGifts] = useState<DriverGift[]>([]);
+  /** Message d'information CLIENT (refus du chauffeur, expiration…). */
+  const [passengerNotice, setPassengerNotice] = useState('');
   /**
    * État de la synchronisation temps réel des recharges.
    * 'error' = l'admin ne reçoit RIEN de Firestore → affiché sur sa page.
@@ -256,6 +258,14 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const activeRequestId = useRef('');
   /** uids en ligne (lu par d'autres abonnements sans re-souscription). */
   const onlineIdsRef = useRef<string[]>([]);
+  /**
+   * Demandes de course actuellement publiées (RTDB) — permet de retomber sur la
+   * demande par son `requestId` même si l'état d'affichage `incomingRequest` a
+   * été réinitialisé entre-temps (cause d'échecs d'acceptation en pleine négo).
+   */
+  const pendingRequestsRef = useRef<RideRequest[]>([]);
+  /** Offres connues côté CLIENT → détecte le retrait d'un conducteur. */
+  const knownOfferIds = useRef<string[]>([]);
   /**
    * Identifiant TEMPS RÉEL = uid Firebase (`auth.uid`).
    * Les règles RTDB imposent `auth.uid === $uid` pour écrire une position ou
@@ -870,18 +880,13 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setDestinationLibre(Boolean(lieu.libre));
   }, []);
 
-  /** Refuse la demande : le bip s'arrête et la demande ne revient plus. */
-  const rejectIncoming = useCallback(() => {
-    const requestId = incomingRequest?.id ?? '';
-    dismissedRequestId.current = requestId;
-    lastRequestId.current = requestId;
-    stopIncomingAlert();
-    setIncomingRequest(null);
-  }, [incomingRequest, stopIncomingAlert]);
-
   const acceptIncoming = useCallback(
-    (fare: number): boolean => {
-      const request = incomingRequest;
+    (fare: number, explicitRequest?: RideRequest | null): boolean => {
+      /*
+       * La demande peut être fournie explicitement (acceptation d'une offre en
+       * pleine négociation) : on ne dépend plus du seul état `incomingRequest`.
+       */
+      const request = explicitRequest ?? incomingRequest;
       if (!request) return false;
 
       const commission = commissionOf(fare);
@@ -1166,6 +1171,9 @@ useEffect(() => {
   if (!isCloudEnabled() || !cloudReady) return undefined;
 
   const unsubscribe = subscribeToRideRequests((requests) => {
+    // On mémorise TOUTES les demandes publiées (résolution par `requestId`).
+    pendingRequestsRef.current = requests;
+
     if (!isDriverAccount) return;
 
     const pending =
@@ -1258,17 +1266,32 @@ const republishRequest = useCallback(() => {
  */
 const finalizeAcceptedOffer = useCallback(
   (offer: LiveOffer, amount: number) => {
+    /*
+     * La demande est résolue par son `requestId` parmi les demandes PUBLIÉES :
+     * l'acceptation ne peut plus échouer parce que l'écran du conducteur avait
+     * réinitialisé `incomingRequest` pendant la négociation.
+     */
+    const request =
+      pendingRequestsRef.current.find((item) => item.id === offer.requestId) ??
+      incomingRequest;
+
     // La demande du client doit encore être active pour créer la course.
-    if (!incomingRequest) {
+    if (!request) {
       void publishOfferStatus(offer.id, 'rejected', { status: 'rejected' });
       setOfferNotice('La demande du client n’est plus disponible.');
       return;
     }
 
-    const accepted = acceptIncoming(amount);
+    const accepted = acceptIncoming(amount, request);
 
     if (!accepted) {
+      /*
+       * Solde insuffisant : l'offre est RETIRÉE (le client cherche un autre
+       * conducteur) au lieu de rester bloquée en « accepted ».
+       */
       void publishOfferStatus(offer.id, 'rejected', { status: 'rejected' });
+      void removeOffer(offer.id);
+      setMyOffer(null);
       setOfferNotice('Solde insuffisant pour accepter cette course.');
       return;
     }
@@ -1372,8 +1395,11 @@ const sendCounterOffer = useCallback(
       return;
     }
 
-    // 3 tours déjà consommés → plus d'accord possible.
-    if (!canNegotiate(rounds)) {
+    // 3 tours déjà consommés → limite atteinte (expiration conformément à la règle).
+    if (!canPassengerCounter(rounds)) {
+      setPassengerNotice(
+        'Limite de 3 tours atteinte — acceptez le dernier prix proposé ou refusez.',
+      );
       expireOffer(offer, '3 tours atteints sans accord');
       return;
     }
@@ -1389,7 +1415,7 @@ const sendCounterOffer = useCallback(
      * Retour visuel IMMÉDIAT (avant l'écho temps réel) : le client voit sa
      * proposition et l'écran se met en attente — aucune course ne démarre.
      */
-    void updateOfferLocally(offerId, {
+    updateOfferLocally(offerId, {
       price: message.amount,
       status: 'negotiating',
       currentRound: countRounds(nextRounds),
@@ -1425,9 +1451,14 @@ const driverCounterOffer = useCallback(
 
     const rounds = offer.rounds ?? [];
 
-    // Le client a déjà consommé ses 3 tours → on clôt la négociation.
-    if (countRounds(rounds) >= MAX_NEGOTIATION_ROUNDS) {
-      expireOffer(offer, '3 tours atteints sans accord');
+    /*
+     * ⚠️ Limite de tours : on REFUSE la contre-offre (bouton désactivé côté UI)
+     * au lieu d'expirer TOUTE la négociation — le chauffeur peut encore
+     * ACCEPTER le prix du client, ce qui était impossible avant.
+     */
+    if (!canDriverCounter(rounds)) {
+      console.warn('[négociation] limite de 3 contre-offres chauffeur atteinte.');
+      setOfferNotice('Limite de 3 tours atteinte — acceptez le prix du client ou refusez.');
       return;
     }
 
@@ -1460,7 +1491,7 @@ const driverCounterOffer = useCallback(
       rounds: nextRounds,
     });
   },
-  [liveOffers, myOffer, expireOffer, logNegotiation, updateOfferLocally],
+  [liveOffers, myOffer, logNegotiation, updateOfferLocally, setOfferNotice],
 );
 
 /**
@@ -1510,14 +1541,56 @@ const rejectOffer = useCallback(
     const offer = liveOffers.find((item) => item.id === offerId) ?? myOffer;
     if (offer) logNegotiation({ ...offer, status: 'rejected' });
 
+    /*
+     * 1) Le statut « rejected » est publié PUIS l'offre est retirée de la RTDB :
+     *    le CLIENT voit en temps réel que ce conducteur s'est retiré, et la
+     *    demande reste publiée pour les AUTRES conducteurs.
+     */
     void publishOfferStatus(offerId, 'rejected', { status: 'rejected' });
     void removeOffer(offerId);
 
     setOffers((list) => list.filter((item) => item.id !== offerId));
     setMyOffer((current) => (current?.id === offerId ? null : current));
+
+    // 2) Côté CONDUCTEUR : la demande disparaît de sa vue (plus de bip).
+    if (isDriverAccount && offer) {
+      dismissedRequestId.current = offer.requestId;
+      lastRequestId.current = offer.requestId;
+      stopIncomingAlert();
+      setIncomingRequest(null);
+      setOfferNotice('Demande refusée — les autres conducteurs peuvent la prendre.');
+    }
   },
-  [liveOffers, myOffer, logNegotiation],
+  [liveOffers, myOffer, isDriverAccount, logNegotiation, stopIncomingAlert],
 );
+
+/**
+ * CONDUCTEUR : refuse la demande entrante — y compris APRÈS avoir proposé un
+ * prix (le bouton « Refuser » est présent dans les deux cartes).
+ *
+ * Avant, cette action se contentait de masquer la demande localement : AUCUNE
+ * écriture RTDB → le client n'était jamais prévenu et son offre restait
+ * « en attente » indéfiniment.
+ *
+ * ⚠️ Défini APRÈS `rejectOffer` (il l'utilise).
+ */
+const rejectIncoming = useCallback(() => {
+  const requestId = incomingRequest?.id ?? '';
+  const mine = myOffer;
+
+  // 1) Retrait de l'offre publiée → le client est notifié en temps réel.
+  if (mine) rejectOffer(mine.id);
+
+  // 2) La demande disparaît de la vue de CE conducteur (plus de bip).
+  const dismissed = requestId || mine?.requestId || '';
+  if (dismissed) {
+    dismissedRequestId.current = dismissed;
+    lastRequestId.current = dismissed;
+  }
+
+  stopIncomingAlert();
+  setIncomingRequest(null);
+}, [incomingRequest, myOffer, rejectOffer, stopIncomingAlert]);
 
 /**
  * Abonnements temps réel aux offres :
@@ -1566,6 +1639,21 @@ useEffect(() => {
 
     setNegotiations(nextNegotiations);
     setOffers(relevant.map(toStoreOffer));
+
+    /*
+     * NOTIFICATION CLIENT : une offre que l'on suivait a DISPARU (refus du
+     * conducteur → statut « rejected » puis retrait, ou expiration). On prévient
+     * le client au lieu de le laisser devant une liste vide sans explication.
+     */
+    const currentIds = relevant.map((offer) => offer.id);
+    const lostOffer = knownOfferIds.current.some((id) => !currentIds.includes(id));
+    knownOfferIds.current = currentIds;
+
+    if (relevant.length === 0 && lostOffer) {
+      setPassengerNotice('Le chauffeur a refusé. Recherche d’un autre chauffeur…');
+    } else if (relevant.length > 0) {
+      setPassengerNotice('');
+    }
 
     // Une offre arrive pendant la recherche → écran des offres.
     if (relevant.length > 0 && rideStatusRef.current === 'searching') {
@@ -1773,6 +1861,7 @@ useEffect(() => {
     updateRideStatus,
 
     negotiations,
+    passengerNotice,
     myOffer,
     proposePrice,
     sendCounterOffer,
