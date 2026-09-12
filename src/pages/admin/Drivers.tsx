@@ -68,7 +68,7 @@ export default function Drivers() {
     setGiftError('');
   };
 
-  const submitGift = () => {
+  const submitGift = async () => {
     if (!giftDriver) return;
 
     const value = Number(giftAmount);
@@ -77,12 +77,18 @@ export default function Drivers() {
       return;
     }
 
-    addDriverGift({
+    const result = await addDriverGift({
       driverId: giftDriver.id,
       driverName: giftDriver.name,
       amount: value,
       message: giftMessage.trim() || undefined,
     });
+
+    // On ne confirme QUE si l'écriture serveur (historique) a réussi.
+    if (!result.ok) {
+      setGiftError(`Envoi impossible : ${result.error ?? 'connexion indisponible'}.`);
+      return;
+    }
 
     showToast(`Cadeau de ${fcfa(value)} envoyé à ${giftDriver.name} 🎁`);
     closeGift();

@@ -29,7 +29,7 @@ function methodTone(method: string): string {
 }
 
 export default function Deposits() {
-  const { rechargeRequests, validateRechargeRequest } = useApp();
+  const { rechargeRequests, validateRechargeRequest, rechargeSync, rechargeError } = useApp();
 
   const [tab, setTab] = useState<RechargeStatus>('pending');
   const [previewShot, setPreviewShot] = useState<string | null>(null);
@@ -61,7 +61,32 @@ export default function Deposits() {
             {pendingCount} en attente · {rechargeRequests.length} demandes au total
           </p>
         </div>
+
+        {/* État du canal temps réel : plus jamais de page vide sans explication. */}
+        <span
+          className={`admin-sync-badge admin-sync-badge--${rechargeSync}`}
+          title={
+            rechargeSync === 'live'
+              ? 'Les demandes des conducteurs arrivent en temps réel.'
+              : rechargeSync === 'error'
+                ? 'Le canal temps réel est tombé : les demandes peuvent tarder.'
+                : 'Connexion Firestore en cours…'
+          }
+        >
+          {rechargeSync === 'live'
+            ? '🟢 Temps réel actif'
+            : rechargeSync === 'error'
+              ? '🔴 Temps réel interrompu'
+              : '⏳ Connexion…'}
+        </span>
       </div>
+
+      {rechargeError && (
+        <p className="admin-recharge-alert">
+          <ImageOff size={14} />
+          Synchronisation : {rechargeError}
+        </p>
+      )}
 
       <section className="admin-section">
         <div className="admin-section-head">

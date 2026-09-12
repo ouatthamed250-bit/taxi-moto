@@ -80,6 +80,42 @@ Realtime Database
 Astuce : dans les deux écrans de données, laisse l'onglet ouvert — les
 écritures apparaissent en direct pendant que vous utilisez l'application.
 
+### 5.1 Flux RECHARGE : conducteur → admin (à ne pas casser)
+
+| Étape | Qui | Ce qui se passe |
+|---|---|---|
+| 1 | Conducteur | `submitRechargeRequest` → `createRechargeRequest` (docId `RC-xxxxxx`, `status: 'pending'`) |
+| 2 | Admin | `subscribeToRechargeRequests` → `onSnapshot` sur **`rechargeRequests`** → page `/admin/deposits` |
+| 3 | Admin | « Valider » → `updateRechargeRequest` (`status: 'approved'`) + `incrementDriverBalance` sur `users/{driverId}` |
+
+⚠️ **Piège corrigé (à ne pas réintroduire)** :
+
+1. Les abonnements Firestore **ne se réessaient pas tout seuls**. Un `onSnapshot`
+   tombé en erreur (`permission-denied` le temps que la session anonyme se
+   propage) restait mort **définitivement** : l'admin ne recevait plus rien.
+   `watchCollection()` réessaie donc **sans limite** (back-off 1 s → 10 s).
+2. Une écriture doit être **attendue** : `submitRechargeRequest` /
+   `addDriverGift` renvoient `{ ok, error }` et l'UI ne confirme QUE si Firestore
+   a répondu (`withWriteRetry` : 3 essais). Avant, un échec était invisible.
+3. Le statut du canal est affiché sur `/admin/deposits`
+   (**🟢 Temps réel actif** / **🔴 Temps réel interrompu**) : une page vide n'est
+   jamais silencieuse.
+
+Comparaison utile : un **cadeau** est créé ET affiché sur l'appareil de l'admin
+(ajout local optimiste), il « marche » donc même sans Firestore ; une
+**recharge** vient d'un AUTRE appareil, elle n'existe pour l'admin que si
+l'écriture Firestore a réussi ET que son abonnement est vivant.
+
+Logs à surveiller dans la console du navigateur :
+
+```
+[recharge] envoi… { id, driverId, amount, captureKo }
+[recharge] ✅ demande RC-xxxxxx écrite dans Firestore (status=pending).
+[recharge] snapshot reçu : 3 demande(s).
+[firestore] abonnement « rechargeRequests » en erreur : permission-denied
+[firestore] nouvelle tentative « rechargeRequests » (#1) dans 1 s…
+```
+
 ## 6. Reste à faire (après cette étape)
 
 - Vérification réelle du numéro par **SMS** (`signInWithPhoneNumber`) puis

@@ -206,6 +206,17 @@ export interface AdminStats {
 /** Statut d'une demande de recharge mobile money. */
 export type RechargeStatus = 'pending' | 'approved' | 'rejected';
 
+/**
+ * Résultat d'une écriture persistante (Firestore, ou repli local).
+ * Permet de NE PLUS perdre une demande en silence : l'UI sait si l'écriture
+ * a réellement abouti côté serveur.
+ */
+export interface WalletWriteResult {
+  ok: boolean;
+  id: string;
+  error?: string;
+}
+
 /** Demande de recharge mobile money d'un conducteur (validation admin). */
 export interface RechargeRequest {
   id: string;

@@ -42,6 +42,54 @@
   color: #fff;
   font-size: 12px;
   font-weight: 800;
+
+/* ---------- ÉTAT DU CANAL TEMPS RÉEL (recharges) ---------- */
+
+.admin-sync-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 13px;
+  border-radius: 99px;
+  font-size: 11.5px;
+  font-weight: 800;
+  white-space: nowrap;
+  border: 1px solid transparent;
+}
+
+.admin-sync-badge--live {
+  color: #036b45;
+  background: rgba(34, 192, 122, 0.14);
+  border-color: rgba(34, 192, 122, 0.35);
+}
+
+.admin-sync-badge--error {
+  color: #b42318;
+  background: rgba(229, 72, 77, 0.12);
+  border-color: rgba(229, 72, 77, 0.35);
+}
+
+.admin-sync-badge--idle {
+  color: #7a879b;
+  background: rgba(6, 43, 103, 0.06);
+  border-color: rgba(6, 43, 103, 0.12);
+}
+
+/* Bandeau d'erreur de synchronisation / d'envoi */
+.admin-recharge-alert {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 12px 0 0;
+  padding: 12px 14px;
+  border-radius: 15px;
+  border: 1px solid rgba(229, 72, 77, 0.35);
+  background: rgba(229, 72, 77, 0.1);
+  color: #b42318;
+  font-size: 12.5px;
+  font-weight: 800;
+}
+
   text-decoration: none;
   box-shadow: 0 4px 0 rgba(6, 43, 103, 0.3);
 }

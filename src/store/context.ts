@@ -21,6 +21,7 @@ import type {
   Role,
   User,
   VehicleType,
+  WalletWriteResult,
   ZonePriceRule,
 } from '../types';
 
@@ -123,14 +124,21 @@ export interface AppContextValue {
 
   /* ---- Recharges mobile money ---- */
   rechargeRequests: RechargeRequest[];
+  /** Envoie la demande au serveur (Firestore) ; résout avec le résultat réel. */
   submitRechargeRequest: (
     request: Omit<RechargeRequest, 'id' | 'status' | 'createdAt'>,
-  ) => void;
+  ) => Promise<WalletWriteResult>;
   validateRechargeRequest: (id: string, approved: boolean) => void;
+  /** État du canal temps réel : 'live' = l'admin reçoit bien les demandes. */
+  rechargeSync: 'idle' | 'live' | 'error';
+  /** Dernière erreur d'envoi / synchronisation de recharge ('' si aucune). */
+  rechargeError: string;
 
   /* ---- Cadeaux de recharge (offerts par l'admin) ---- */
   driverGifts: DriverGift[];
-  addDriverGift: (gift: DriverGiftInput) => void;
+  addDriverGift: (gift: DriverGiftInput) => Promise<WalletWriteResult>;
+  /** Dernière erreur d'envoi de cadeau ('' si aucune). */
+  giftError: string;
 
   /* ---- Inscription conducteur ---- */
   driverApproved: boolean;

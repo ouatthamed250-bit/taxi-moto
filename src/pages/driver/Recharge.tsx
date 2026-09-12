@@ -211,6 +211,7 @@ export default function DriverRecharge() {
   const [shotBytes, setShotBytes] = useState(0);
   const [compressing, setCompressing] = useState(false);
   const [fileError, setFileError] = useState('');
+  const [sending, setSending] = useState(false);
   const [sent, setSent] = useState(false);
 
   const operator = operators.find((item) => item.key === operatorKey) ?? null;
@@ -284,8 +285,8 @@ export default function DriverRecharge() {
     setFileError('');
   };
 
-  const handleSubmit = () => {
-    if (!operator || !amountValid || !screenshot) return;
+  const handleSubmit = async () => {
+    if (!operator || !amountValid || !screenshot || sending) return;
 
     if (shotBytes > MAX_SHOT_KB * 1024) {
       setFileError(
@@ -293,6 +294,9 @@ export default function DriverRecharge() {
       );
       return;
     }
+
+    setFileError('');
+    setSending(true);
 
     submitRechargeRequest({
       /*
@@ -305,10 +309,21 @@ export default function DriverRecharge() {
       method: operator.name,
       phone: operator.phone,
       screenshot,
-    });
+      /* Attente du serveur : n'affiche « envoyé » que si Firestore a confirmé. */
+    })
+      .then((result) => {
+        if (!result.ok) {
+          setFileError(
+            `Envoi impossible : ${result.error ?? 'connexion indisponible'}. ` +
+              'Votre demande n’a PAS atteint l’administrateur — réessayez.',
+          );
+          return;
+        }
 
-    setSent(true);
-    window.setTimeout(() => navigate('/driver'), 1800);
+        setSent(true);
+        window.setTimeout(() => navigate('/driver'), 1800);
+      })
+      .finally(() => setSending(false));
   };
 
   return (
@@ -613,11 +628,11 @@ export default function DriverRecharge() {
                   <button
                     type="button"
                     className="driver-recharge-submit"
-                    disabled={!screenshot || compressing}
+                    disabled={!screenshot || compressing || sending}
                     onClick={handleSubmit}
                   >
                     <Send size={16} />
-                    Envoyer pour validation
+                    {sending ? 'Envoi en cours…' : 'Envoyer pour validation'}
                   </button>
                 </>
               )}

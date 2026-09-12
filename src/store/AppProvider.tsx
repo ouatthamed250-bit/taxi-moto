@@ -47,6 +47,8 @@ import {
   createGift,
   createRechargeRequest,
   createRide,
+  listGifts,
+  listRechargeRequests,
   saveNegotiation,
   subscribeToGifts,
   subscribeToRechargeRequests,
@@ -57,6 +59,7 @@ import {
   updateRide,
   updateUser,
 } from '../services/firestore';
+import type { WriteResult } from '../services/firestore';
 import {
   publishDriverPosition,
   publishNegotiation,
@@ -189,6 +192,15 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [driverBalance, setDriverBalanceState] = useState(INITIAL_DRIVER_BALANCE);
   const [rechargeRequests, setRechargeRequests] = useState<RechargeRequest[]>([]);
   const [driverGifts, setDriverGifts] = useState<DriverGift[]>([]);
+  /**
+   * État de la synchronisation temps réel des recharges.
+   * 'error' = l'admin ne reçoit RIEN de Firestore → affiché sur sa page.
+   */
+  const [rechargeSync, setRechargeSync] = useState<'idle' | 'live' | 'error'>('idle');
+  /** Dernière erreur d'envoi de recharge (montrée au conducteur). */
+  const [rechargeError, setRechargeError] = useState('');
+  /** Dernière erreur d'envoi de cadeau (montrée à l'admin). */
+  const [giftError, setGiftError] = useState('');
 
   /* ---- Admin ---- */
   const [adminStats, setAdminStats] = useState<AdminStats>(ADMIN_STATS);
@@ -363,19 +375,39 @@ export function AppProvider({ children }: { children: ReactNode }) {
   );
 
   /* ---- Recharges mobile money ---- */
-  /** Enregistre une demande de recharge (statut initial : « pending »). */
+  /**
+   * Enregistre une demande de recharge (statut initial : « pending »).
+   *
+   * ⚠️ L'écriture Firestore est ATTENDUE et son résultat est REMONTÉ : sinon la
+   * demande partait « au feu » en silence (premier `permission-denied` le temps
+   * que la session anonyme soit propagée) et l'ADMIN ne la voyait jamais.
+   */
   const submitRechargeRequest = useCallback(
-    (request: Omit<RechargeRequest, 'id' | 'status' | 'createdAt'>) => {
+    async (
+      request: Omit<RechargeRequest, 'id' | 'status' | 'createdAt'>,
+    ): Promise<WriteResult> => {
       const entry: RechargeRequest = {
         ...request,
         id: `RC-${Math.floor(100000 + Math.random() * 899999)}`,
         status: 'pending',
         createdAt: Date.now(),
       };
-      setRechargeRequests((list) => [entry, ...list]);
 
-      // Persistance cloud (Firestore) — sans bloquer l'interface.
-      void createRechargeRequest(entry);
+      // Session Firebase AVANT toute écriture Firestore.
+      await ensureCloudSession();
+
+      const result = await createRechargeRequest(entry);
+
+      if (result.ok) {
+        console.info('[recharge] demande transmise à l’admin :', result.id);
+        setRechargeRequests((list) => [entry, ...list]);
+        setRechargeError('');
+      } else {
+        console.error('[recharge] envoi impossible :', result.error);
+        setRechargeError(result.error ?? 'Envoi impossible.');
+      }
+
+      return result;
     },
     [],
   );
@@ -405,9 +437,20 @@ export function AppProvider({ children }: { children: ReactNode }) {
       );
 
       // Synchronisation cloud du statut de la demande.
-      void updateRechargeRequest(id, {
-        status: approved ? 'approved' : 'rejected',
-      });
+      void (async () => {
+        await ensureCloudSession();
+        const result = await updateRechargeRequest(id, {
+          status: approved ? 'approved' : 'rejected',
+        });
+
+        if (result.ok) {
+          console.info(`[recharge] statut ${approved ? 'validé' : 'rejeté'} pour ${id}.`);
+          setRechargeError('');
+        } else {
+          console.error('[recharge] statut NON synchronisé :', result.error);
+          setRechargeError(result.error ?? 'Synchronisation impossible.');
+        }
+      })();
     },
     [rechargeRequests, creditDriverBalance, accountId],
   );
@@ -415,9 +458,13 @@ export function AppProvider({ children }: { children: ReactNode }) {
   /* ---- Cadeaux de recharge ---- */
   /** Ajoute un cadeau de recharge (offert par l'admin) et crédite le solde. */
   const addDriverGift = useCallback(
-    (gift: DriverGiftInput) => {
+    async (gift: DriverGiftInput): Promise<WriteResult> => {
       const value = Math.max(0, Math.round(gift.amount));
-      if (value <= 0) return;
+      if (value <= 0) {
+        const invalid = { ok: false, id: '', error: 'Montant du cadeau invalide.' };
+        setGiftError(invalid.error);
+        return invalid;
+      }
 
       const entry: DriverGift = {
         id: `GF-${Math.floor(100000 + Math.random() * 899999)}`,
@@ -427,7 +474,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
         message: gift.message?.trim() || undefined,
         createdAt: Date.now(),
       };
-      setDriverGifts((list) => [entry, ...list]);
+
+      // Session Firebase AVANT toute écriture Firestore.
+      await ensureCloudSession();
 
       /*
        * Crédit du CONDUCTEUR concerné (et non du compte connecté : l'admin
@@ -435,7 +484,17 @@ export function AppProvider({ children }: { children: ReactNode }) {
        * conducteur → la même clé partout (recharges, cadeaux, courses).
        */
       if (isCloudEnabled() && gift.driverId) {
-        void incrementDriverBalance(gift.driverId, value);
+        await incrementDriverBalance(gift.driverId, value);
+      }
+
+      const result = await createGift(entry);
+
+      if (result.ok) {
+        setDriverGifts((list) => [entry, ...list]);
+        setGiftError('');
+      } else {
+        console.error('[cadeau] envoi impossible :', result.error);
+        setGiftError(result.error ?? 'Envoi du cadeau impossible.');
       }
 
       // Retour visuel immédiat uniquement si le cadeau nous est destiné.
@@ -443,8 +502,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         creditDriverBalance(value);
       }
 
-      // Persistance cloud du cadeau (Firestore).
-      void createGift(entry);
+      return result;
     },
     [userName, creditDriverBalance, accountId],
   );
@@ -1409,9 +1467,12 @@ useEffect(() => {
   useEffect(() => {
     if (!isCloudEnabled() || !cloudReady) return undefined;
 
-    const unsubscribeRecharges = subscribeToRechargeRequests((requests) => {
-      setRechargeRequests([...requests].sort((a, b) => b.createdAt - a.createdAt));
-    });
+    const unsubscribeRecharges = subscribeToRechargeRequests(
+      (requests) => {
+        setRechargeRequests([...requests].sort((a, b) => b.createdAt - a.createdAt));
+      },
+      (status) => setRechargeSync(status),
+    );
 
     const unsubscribeGifts = subscribeToGifts((gifts) => {
       setDriverGifts([...gifts].sort((a, b) => b.createdAt - a.createdAt));
@@ -1460,6 +1521,35 @@ useEffect(() => {
       unsubscribeRides();
     };
   }, [cloudReady, accountId, applyAcceptedRide, isDriverAccount]);
+
+  /**
+   * FILET DE SÉCURITÉ — si le canal temps réel des recharges est en erreur
+   * (session non propagée, réseau, règles), on fait une LECTURE UNIQUE de
+   * secours : l'admin voit au moins les demandes déjà enregistrées au lieu
+   * d'une page vide, et le canal live se rétablit de son côté.
+   */
+  useEffect(() => {
+    if (!isCloudEnabled() || !cloudReady || rechargeSync !== 'error') return undefined;
+
+    let active = true;
+
+    void listRechargeRequests().then((requests) => {
+      if (active && requests.length > 0) {
+        console.info(`[recharge] lecture de secours : ${requests.length} demande(s).`);
+        setRechargeRequests([...requests].sort((a, b) => b.createdAt - a.createdAt));
+      }
+    });
+
+    void listGifts().then((gifts) => {
+      if (active && gifts.length > 0) {
+        setDriverGifts([...gifts].sort((a, b) => b.createdAt - a.createdAt));
+      }
+    });
+
+    return () => {
+      active = false;
+    };
+  }, [rechargeSync, cloudReady]);
 
   const driverRevenue = useMemo(
     () => driverRidesToday.reduce((total, ride) => total + ride.price, 0),
@@ -1543,9 +1633,12 @@ useEffect(() => {
     rechargeRequests,
     submitRechargeRequest,
     validateRechargeRequest,
+    rechargeSync,
+    rechargeError,
 
     driverGifts,
     addDriverGift,
+    giftError,
 
     driverApproved,
     approveDriver,

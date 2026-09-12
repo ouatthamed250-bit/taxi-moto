@@ -25,16 +25,12 @@ import {
   where,
 } from 'firebase/firestore';
 import type { DocumentData, Query, QueryDocumentSnapshot } from 'firebase/firestore';
-import type { DriverGift, RechargeRequest, Ride, User, UserRole } from '../types';
+import type { DriverGift, RechargeRequest, Ride, User, UserRole, WalletWriteResult } from '../types';
 import type { NegotiationMessage, NegotiationStatus } from '../types';
 import { getFirestoreDb, isFirebaseConfigured } from './firebase';
 
 /** Résultat d'une écriture Firestore. */
-export interface WriteResult {
-  ok: boolean;
-  id: string;
-  error?: string;
-}
+export type WriteResult = WalletWriteResult;
 
 function toWriteError(error: unknown): string {
   if (error && typeof error === 'object' && 'message' in error) {
@@ -266,15 +262,28 @@ export async function createRechargeRequest(
   const db = getFirestoreDb();
   if (!db) return { ok: false, id: data.id, error: 'Firebase non configuré.' };
 
+  const id = data.id || `RC-${Date.now()}`;
+
+  console.debug('[recharge] envoi…', {
+    id,
+    driverId: data.driverId,
+    amount: data.amount,
+    method: data.method,
+    captureKo: Math.round(data.screenshot.length / 1024),
+  });
+
   try {
-    if (data.id) {
-      await setDoc(doc(db, 'rechargeRequests', data.id), data);
-      return { ok: true, id: data.id };
-    }
-    const created = await addDoc(collection(db, 'rechargeRequests'), data);
-    return { ok: true, id: created.id };
+    await withWriteRetry(
+      () => setDoc(doc(db, 'rechargeRequests', id), { ...data, id }),
+      'demande de recharge',
+    );
+
+    console.info(`[recharge] ✅ demande ${id} écrite dans Firestore (status=${data.status}).`);
+    return { ok: true, id };
   } catch (error) {
-    return { ok: false, id: data.id, error: toWriteError(error) };
+    const message = toWriteError(error);
+    console.error(`[recharge] ❌ écriture impossible (${id}) : ${message}`);
+    return { ok: false, id, error: message };
   }
 }
 
@@ -286,11 +295,20 @@ export async function updateRechargeRequest(
   const db = getFirestoreDb();
   if (!db) return { ok: false, id, error: 'Firebase non configuré.' };
 
+  console.debug(`[recharge] mise à jour ${id}…`, data);
+
   try {
-    await updateDoc(doc(db, 'rechargeRequests', id), data);
+    await withWriteRetry(
+      () => updateDoc(doc(db, 'rechargeRequests', id), data),
+      'validation de recharge',
+    );
+
+    console.info(`[recharge] ✅ demande ${id} mise à jour (${String(data.status)}).`);
     return { ok: true, id };
   } catch (error) {
-    return { ok: false, id, error: toWriteError(error) };
+    const message = toWriteError(error);
+    console.error(`[recharge] ❌ mise à jour impossible (${id}) : ${message}`);
+    return { ok: false, id, error: message };
   }
 }
 
@@ -311,6 +329,7 @@ export async function listRechargeRequests(): Promise<RechargeRequest[]> {
 /** Écoute les demandes de recharge en temps réel. */
 export function subscribeToRechargeRequests(
   onRequests: (requests: RechargeRequest[]) => void,
+  onStatus?: (status: 'live' | 'error') => void,
 ): () => void {
   const db = getFirestoreDb();
   if (!db) return () => {};
@@ -320,9 +339,10 @@ export function subscribeToRechargeRequests(
     () => collection(db, 'rechargeRequests'),
     (docs) => mapDocs<RechargeRequest>(docs),
     (requests) => {
-      console.debug(`[sync] demandes de recharge reçues : ${requests.length}`);
+      console.info(`[recharge] snapshot reçu : ${requests.length} demande(s).`);
       onRequests(requests);
     },
+    onStatus,
   );
 }
 
@@ -333,15 +353,26 @@ export async function createGift(data: DriverGift): Promise<WriteResult> {
   const db = getFirestoreDb();
   if (!db) return { ok: false, id: data.id, error: 'Firebase non configuré.' };
 
+  const id = data.id || `GF-${Date.now()}`;
+
+  console.debug('[cadeau] envoi…', {
+    id,
+    driverId: data.driverId,
+    amount: data.amount,
+  });
+
   try {
-    if (data.id) {
-      await setDoc(doc(db, 'gifts', data.id), data);
-      return { ok: true, id: data.id };
-    }
-    const created = await addDoc(collection(db, 'gifts'), data);
-    return { ok: true, id: created.id };
+    await withWriteRetry(
+      () => setDoc(doc(db, 'gifts', id), { ...data, id }),
+      'cadeau',
+    );
+
+    console.info(`[cadeau] ✅ ${id} écrit dans Firestore (${data.amount} F).`);
+    return { ok: true, id };
   } catch (error) {
-    return { ok: false, id: data.id, error: toWriteError(error) };
+    const message = toWriteError(error);
+    console.error(`[cadeau] ❌ écriture impossible (${id}) : ${message}`);
+    return { ok: false, id, error: message };
   }
 }
 
@@ -362,6 +393,7 @@ export async function listGifts(): Promise<DriverGift[]> {
 /** Écoute les cadeaux en temps réel. */
 export function subscribeToGifts(
   onGifts: (gifts: DriverGift[]) => void,
+  onStatus?: (status: 'live' | 'error') => void,
 ): () => void {
   const db = getFirestoreDb();
   if (!db) return () => {};
@@ -371,22 +403,62 @@ export function subscribeToGifts(
     () => collection(db, 'gifts'),
     (docs) => mapDocs<DriverGift>(docs),
     (gifts) => {
-      console.debug(`[sync] cadeaux reçus : ${gifts.length}`);
+      console.info(`[cadeau] snapshot reçu : ${gifts.length} cadeau(x).`);
       onGifts(gifts);
     },
+    onStatus,
   );
 }
 
 /**
- * Abonnement Firestore ROBUSTE : un `onSnapshot` en erreur ne se réessaie pas
- * tout seul (règles non encore propagées, réseau, session qui vient de
- * s'ouvrir…). On relance donc l'abonnement jusqu'à 3 fois, 3 s plus tard.
+ * Réessaie une ÉCRITURE Firestore.
+ *
+ * Même cause que pour les abonnements : une écriture lancée juste après
+ * l'ouverture de la session anonyme peut être refusée (`permission-denied`) le
+ * temps que le jeton soit propagé. Sans réessai, la demande de recharge était
+ * **perdue en silence** (aucune trace, aucun message).
+ */
+async function withWriteRetry<T>(operation: () => Promise<T>, label: string): Promise<T> {
+  const delays = [500, 1500, 3000];
+
+  for (let attempt = 0; ; attempt += 1) {
+    try {
+      return await operation();
+    } catch (error) {
+      if (attempt >= delays.length) {
+        console.warn(`[firestore] écriture « ${label} » abandonnée.`, error);
+        throw error;
+      }
+
+      console.warn(
+        `[firestore] écriture « ${label} » refusée (tentative ${attempt + 1}) → nouvel essai…`,
+        error,
+      );
+
+      await new Promise((resolve) => {
+        setTimeout(resolve, delays[attempt] ?? 3000);
+      });
+    }
+  }
+}
+
+/**
+ * Abonnement Firestore ROBUSTE.
+ *
+ * ⚠️ Un `onSnapshot` en erreur ne se réessaie **jamais** tout seul. Or la toute
+ * première requête envoyée après l'ouverture de la session anonyme est souvent
+ * refusée (`permission-denied`) le temps que le jeton soit propagé côté SDK.
+ * Avec un nombre d'essais limité, l'abonnement restait mort DÉFINITIVEMENT :
+ * l'admin ne recevait alors plus JAMAIS les données distantes (bug « les
+ * demandes de recharge n'arrivent pas chez l'admin »). On réessaie donc sans
+ * limite, avec un back-off progressif plafonné à 10 s.
  */
 function watchCollection<T>(
   label: string,
   build: () => Query,
   map: (docs: QueryDocumentSnapshot<DocumentData>[]) => T[],
   onData: (items: T[]) => void,
+  onStatus?: (status: 'live' | 'error') => void,
 ): () => void {
   const db = getFirestoreDb();
   if (!db) return () => {};
@@ -396,22 +468,34 @@ function watchCollection<T>(
   let attempts = 0;
   let cancelled = false;
 
+  const RETRY_DELAYS = [1000, 3000, 5000, 10000];
+
   const start = () => {
+    if (cancelled) return;
+
     unsubscribe = onSnapshot(
       build(),
       (snapshot) => {
+        if (attempts > 0) {
+          console.info(`[sync] « ${label} » rétabli après ${attempts} tentative(s).`);
+        }
         attempts = 0;
-        onData(map(snapshot.docs));
+        onStatus?.('live');
+        const items = map(snapshot.docs);
+        console.debug(`[sync] ${label} : ${items.length} document(s)`);
+        onData(items);
       },
       (error) => {
         console.warn(`[firestore] abonnement « ${label} » en erreur :`, error);
+        onStatus?.('error');
+        if (cancelled) return;
 
-        if (cancelled || attempts >= 3) return;
+        const delay = RETRY_DELAYS[Math.min(attempts, RETRY_DELAYS.length - 1)];
         attempts += 1;
         console.info(
-          `[firestore] nouvelle tentative « ${label} » (${attempts}/3) dans 3 s…`,
+          `[firestore] nouvelle tentative « ${label} » (#${attempts}) dans ${delay / 1000} s…`,
         );
-        retryTimer = window.setTimeout(start, 3000);
+        retryTimer = window.setTimeout(start, delay);
       },
     );
   };
@@ -434,10 +518,17 @@ export async function incrementDriverBalance(
   if (!db || !uid) return { ok: false, id: uid, error: 'Firebase non configuré.' };
 
   try {
-    await updateDoc(doc(db, 'users', uid), { driverBalance: increment(amount) });
+    await withWriteRetry(
+      () => updateDoc(doc(db, 'users', uid), { driverBalance: increment(amount) }),
+      'solde conducteur',
+    );
+
+    console.info(`[solde] ${uid} crédité de ${amount} F.`);
     return { ok: true, id: uid };
   } catch (error) {
-    return { ok: false, id: uid, error: toWriteError(error) };
+    const message = toWriteError(error);
+    console.error(`[solde] ❌ crédit impossible (${uid}) : ${message}`);
+    return { ok: false, id: uid, error: message };
   }
 }
 
