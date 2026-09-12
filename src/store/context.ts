@@ -112,6 +112,12 @@ export interface AppContextValue {
   acceptIncoming: (fare: number) => boolean;
   rejectIncoming: () => void;
   driverRidesToday: Ride[];
+  /**
+   * Historique COMPLET du conducteur (source Firestore, une course = un doc) :
+   * uniquement les courses `completed` / `cancelled`, dédoublonnées et triées
+   * de la plus récente à la plus ancienne.
+   */
+  driverRideHistory: Ride[];
   driverRevenue: number;
   driverCommission: number;
   driverNet: number;

@@ -4,6 +4,12 @@ import { Bike, Car, History, MapPin, Radar } from 'lucide-react';
 import { Page } from '../../components/Page';
 import { COLORS, VEHICLES, fcfa } from '../../theme';
 import { useApp } from '../../store/useApp';
+import {
+  countRidesByPeriod,
+  daysSinceRide,
+  filterRidesByPeriod,
+} from '../../data/rides';
+import type { RidePeriod } from '../../data/rides';
 import type { VehicleType } from '../../types';
 import './Rides.css';
 
@@ -27,7 +33,7 @@ const MONTHS_SHORT = [
   'déc.',
 ];
 
-type RideFilter = 'today' | 'week' | 'all';
+type RideFilter = RidePeriod;
 
 const FILTERS: { key: RideFilter; label: string }[] = [
   { key: 'today', label: 'Aujourd’hui' },
@@ -40,22 +46,6 @@ const STATUS_META: Record<string, { label: string; tone: 'green' | 'red' | 'blue
   cancelled: { label: 'Annulée', tone: 'red' },
 };
 
-/** Jours écoulés depuis une date "dd/mm/yyyy" (0 = aujourd'hui). */
-function daysSince(value: string): number {
-  const parts = value.split('/');
-  if (parts.length !== 3) return 0;
-
-  const day = Number(parts[0]);
-  const month = Number(parts[1]);
-  const year = Number(parts[2]);
-  if (!day || !month || !year) return 0;
-
-  const rideDate = new Date(year, month - 1, day);
-  const now = new Date();
-  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-  return Math.round((today.getTime() - rideDate.getTime()) / 86400000);
-}
-
 /** "09/11/2026" → "Aujourd'hui" · "Hier" · "9 nov." */
 function formatRideDate(value: string): string {
   const parts = value.split('/');
@@ -65,7 +55,7 @@ function formatRideDate(value: string): string {
   const month = Number(parts[1]);
   if (!day || !month) return value;
 
-  const days = daysSince(value);
+  const days = daysSinceRide({ date: value, time: '00:00' } as never);
   if (days === 0) return 'Aujourd’hui';
   if (days === 1) return 'Hier';
   return `${day} ${MONTHS_SHORT[month - 1] ?? value}`;
@@ -73,7 +63,11 @@ function formatRideDate(value: string): string {
 
 export default function DriverRides() {
   const navigate = useNavigate();
-  const { driverRidesToday } = useApp();
+  /**
+   * Historique conducteur : courses terminées/annulées UNIQUEMENT, filtrées par
+   * `driverId === accountId`, dédoublonnées et triées (plus récente en haut).
+   */
+  const { driverRideHistory } = useApp();
 
   const [filter, setFilter] = useState<RideFilter>('today');
   const [brokenImages, setBrokenImages] = useState<Record<string, boolean>>({});
@@ -93,12 +87,9 @@ export default function DriverRides() {
     toastTimer.current = window.setTimeout(() => setToast(''), 1800);
   };
 
-  // Filtrage par date : aujourd'hui / 7 derniers jours / tout.
-  const rides = driverRidesToday.filter((ride) => {
-    if (filter === 'all') return true;
-    const days = daysSince(ride.date);
-    return filter === 'today' ? days === 0 : days >= 0 && days <= 7;
-  });
+  // Filtres « Aujourd'hui / Cette semaine (7 j) / Tout » + compteurs par onglet.
+  const counts = countRidesByPeriod(driverRideHistory);
+  const rides = filterRidesByPeriod(driverRideHistory, filter);
 
   const gross = rides.reduce((sum, ride) => sum + ride.price, 0);
   const commission = rides.reduce((sum, ride) => sum + ride.commission, 0);
@@ -129,10 +120,10 @@ export default function DriverRides() {
             </div>
           </div>
 
-          <span className="driver-rides-count">{driverRidesToday.length}</span>
+          <span className="driver-rides-count">{driverRideHistory.length}</span>
         </header>
 
-        {/* ===== FILTRES ===== */}
+        {/* ===== FILTRES (avec compteur par période) ===== */}
         <div className="driver-rides-tabs">
           {FILTERS.map((item) => (
             <button
@@ -144,6 +135,7 @@ export default function DriverRides() {
               onClick={() => setFilter(item.key)}
             >
               {item.label}
+              <span className="driver-rides-tab-count">{counts[item.key]}</span>
             </button>
           ))}
         </div>
@@ -187,8 +179,11 @@ export default function DriverRides() {
         ) : (
           <div className="driver-rides-list">
             {rides.map((ride) => {
-              const meta =
-                STATUS_META[ride.status] ?? { label: 'En cours', tone: 'blue' as const };
+              /*
+               * L'historique ne contient QUE des courses terminées ou annulées
+               * (filtrage garanti par le store) → repli neutre « Terminée ».
+               */
+              const meta = STATUS_META[ride.status] ?? STATUS_META.completed;
               const vehicleKey = ride.vehicle;
               const initial = ride.passengerName.trim().charAt(0).toUpperCase() || 'P';
 

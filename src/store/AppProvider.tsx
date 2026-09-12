@@ -78,6 +78,7 @@ import {
 } from '../services/realtimeDb';
 import type { LivePosition } from '../services/realtimeDb';
 import { COURSE_STATUS_BY_RIDE, RIDE_STATUS_BY_COURSE } from '../data/courseStatus';
+import { mergeRideHistory, sortRidesDesc, todayStamp } from '../data/rides';
 import {
   MAX_NEGOTIATION_ROUNDS,
   canNegotiate,
@@ -187,7 +188,17 @@ export function AppProvider({ children }: { children: ReactNode }) {
   /* ---- Conducteur ---- */
   const [driverOnline, setDriverOnline] = useState(false);
   const [incomingRequest, setIncomingRequest] = useState<RideRequest | null>(null);
-  const [driverRidesToday, setDriverRidesToday] = useState<Ride[]>([]);
+  /**
+   * HISTORIQUE conducteur : une course = un document Firestore = une entrée.
+   * Alimenté par la complétion (côté conducteur) ET par la synchronisation
+   * Firestore (filtre `driverId === accountId`), dédoublonné et trié.
+   */
+  const [driverRideHistory, setDriverRideHistory] = useState<Ride[]>([]);
+  /** Courses du jour (`date` = aujourd'hui) — KPI « gains du jour ». */
+  const driverRidesToday = useMemo(
+    () => driverRideHistory.filter((ride) => ride.date === todayStamp()),
+    [driverRideHistory],
+  );
   const [driverApproved, setDriverApproved] = useState(false);
   const [driverBalance, setDriverBalanceState] = useState(INITIAL_DRIVER_BALANCE);
   const [rechargeRequests, setRechargeRequests] = useState<RechargeRequest[]>([]);
@@ -398,11 +409,17 @@ export function AppProvider({ children }: { children: ReactNode }) {
       // Archivage cloud de la course terminée (docId = celui de la course).
       void createRide(finished);
 
-      setDriverRidesToday((list) => [finished, ...list]);
+      /*
+       * Historique conducteur : on FUSIONNE (dédup par `id` + tri décroissant).
+       * Le même document arrivera ensuite par la synchronisation Firestore :
+       * la fusion garantit qu'il n'y a jamais de doublon affiché.
+       */
+      setDriverRideHistory((list) => mergeRideHistory(list, [finished]));
       debitDriverBalance(commission);
 
       setAdminStats((stats) => ({
         ...stats,
+        ridesToday: stats.ridesToday + 1,
         ridesCompleted: stats.ridesCompleted + 1,
         ridesActive: Math.max(0, stats.ridesActive - 1),
         revenue: stats.revenue + commission,
@@ -853,32 +870,18 @@ export function AppProvider({ children }: { children: ReactNode }) {
         return false;
       }
 
-      const ride: Ride = {
-        id: `C-${Math.floor(10000 + Math.random() * 89999)}`,
-        passengerName: request.passengerName ?? 'Passager Taxi-Moto',
-        driverName: 'Vous',
-        vehicle: request.vehicle,
-        pickup: request.pickup,
-        destination: request.destination,
-        distanceKm: request.distanceKm,
-        price: fare,
-        commission,
-        status: 'completed',
-        date: nowDate(),
-        time: nowTime(),
-        passengerId: request.passengerId,
-        driverId: liveUserId || phone,
-      };
-      setDriverRidesToday((rides) => [ride, ...rides]);
-      setAdminStats((stats) => ({
-        ...stats,
-        ridesCompleted: stats.ridesCompleted + 1,
-        ridesToday: stats.ridesToday + 1,
-        revenue: stats.revenue + commission,
-      }));
-
-      // La commission (10 %) est débitée du solde conducteur.
-      debitDriverBalance(commission);
+      /*
+       * ⚠️ ACCEPTER n'est PAS TERMINER. On crée UNIQUEMENT le document de course
+       * (statut « accepted »), mis à jour à chaque étape par le conducteur puis
+       * clôturé par `completeRide()` (historique + commission + statistiques).
+       *
+       * Avant, on ajoutait ici une course fictive « completed » : elle créait un
+       * DOUBLON dans l'historique (même `id` que la vraie course), mélangeait les
+       * courses en cours et les terminées, et débitait la commission DEUX fois.
+       */
+      const rideId = `C-${Math.floor(10000 + Math.random() * 89999)}`;
+      const date = nowDate();
+      const time = nowTime();
 
       /*
        * Publication de l'ACCEPTATION dans Firestore : le client suit les
@@ -890,7 +893,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
        *    on marque simplement la demande comme traitée de notre côté.
        */
       const acceptedRide: Ride = {
-        id: ride.id,
+        id: rideId,
         passengerName: request.passengerName ?? 'Passager',
         driverName: userName || 'Conducteur',
         driverPhone: phone,
@@ -904,8 +907,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
         commission,
         // Statut PARTAGÉ initial : le client passe en « Chauffeur en route ».
         status: 'accepted',
-        date: ride.date,
-        time: ride.time,
+        date,
+        time,
         passengerId: request.passengerAccountId ?? request.passengerId,
         passengerUid: request.passengerId,
         passengerPhone: request.passengerPhone,
@@ -929,7 +932,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
     [
       incomingRequest,
       driverBalance,
-      debitDriverBalance,
       liveUserId,
       accountId,
       userName,
@@ -1553,13 +1555,22 @@ useEffect(() => {
     const unsubscribeRides = subscribeToRides(
       (rides) => {
         if (isDriverAccount) {
+          /*
+           * HISTORIQUE conducteur : source de vérité = Firestore (une course =
+           * un document, filtré par `driverId === accountId`). On fusionne à
+           * chaque snapshot : dédoublonnage par `id` + tri décroissant, et les
+           * courses en cours sont exclues (elles restent dans `activeRide`).
+           */
+          setDriverRideHistory((list) => mergeRideHistory(list, rides));
+
           const mine =
             rides.find((ride) => DRIVER_ACTIVE_STATUSES.includes(ride.status)) ?? null;
           setActiveRide(mine);
           return;
         }
 
-        setPassengerHistory(rides);
+        // Historique client : même tri que le conducteur (plus récent en haut).
+        setPassengerHistory(sortRidesDesc(rides));
 
         // 1) Course déjà suivie → on applique le statut partagé (Firestore).
         const current = activeRideIdRef.current
@@ -1705,6 +1716,7 @@ useEffect(() => {
     acceptIncoming,
     rejectIncoming,
     driverRidesToday,
+    driverRideHistory,
     driverRevenue,
     driverCommission,
     driverNet,

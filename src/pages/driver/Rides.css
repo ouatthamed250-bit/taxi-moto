@@ -170,6 +170,9 @@
 }
 
 .driver-rides-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
   flex: 0 0 auto;
   padding: 10px 16px;
   border: none;
@@ -186,6 +189,24 @@
     box-shadow 0.16s ease,
     background 0.18s ease,
     color 0.18s ease;
+}
+
+/* Compteur de courses par filtre (Aujourd'hui / Cette semaine / Tout) */
+.driver-rides-tab-count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 20px;
+  padding: 1px 6px;
+  border-radius: 99px;
+  background: rgba(6, 43, 103, 0.1);
+  color: inherit;
+  font-size: 10.5px;
+  font-weight: 900;
+}
+
+.driver-rides-tab--active .driver-rides-tab-count {
+  background: rgba(255, 255, 255, 0.22);
 }
 
 .driver-rides-tab:hover {

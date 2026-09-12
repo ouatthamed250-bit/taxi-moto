@@ -68,7 +68,7 @@ function daysSince(value: string): number {
 export default function DriverEarnings() {
   const navigate = useNavigate();
   const {
-    driverRidesToday,
+    driverRideHistory,
     driverRevenue,
     driverCommission,
     driverNet,
@@ -97,7 +97,12 @@ export default function DriverEarnings() {
     return days >= 0 && days <= 29;
   };
 
-  const rides = driverRidesToday.filter((ride) => inPeriod(daysSince(ride.date)));
+  /*
+   * Historique COMPLET (source Firestore, une course = un document) : les
+   * périodes « semaine » et « mois » couvrent désormais les courses passées,
+   * pas seulement celles de la session en cours.
+   */
+  const rides = driverRideHistory.filter((ride) => inPeriod(daysSince(ride.date)));
 
   const periodGross = rides.reduce((sum, ride) => sum + ride.price, 0);
   const periodCommission = rides.reduce((sum, ride) => sum + ride.commission, 0);
@@ -109,7 +114,7 @@ export default function DriverEarnings() {
   const average = rides.length > 0 ? net / rides.length : 0;
 
   // Comparaison avec la période précédente équivalente (si des données existent).
-  const prevRides = driverRidesToday.filter((ride) => {
+  const prevRides = driverRideHistory.filter((ride) => {
     const days = daysSince(ride.date);
     if (filter === 'today') return days === 1;
     if (filter === 'week') return days >= 7 && days <= 13;
@@ -123,7 +128,7 @@ export default function DriverEarnings() {
   // Répartition des gains nets sur les 7 derniers jours (index 6 = aujourd'hui).
   const chartDays = Array.from({ length: 7 }, (_, index) => {
     const offset = 6 - index;
-    const total = driverRidesToday
+    const total = driverRideHistory
       .filter((ride) => daysSince(ride.date) === offset)
       .reduce((sum, ride) => sum + (ride.price - ride.commission), 0);
 
@@ -311,14 +316,14 @@ export default function DriverEarnings() {
               <History size={15} />
             </span>
             <span className="driver-earnings-card-title">Historique des courses</span>
-            <span className="driver-earnings-card-hint">{driverRidesToday.length}</span>
+            <span className="driver-earnings-card-hint">{rides.length}</span>
           </div>
 
-          {driverRidesToday.length === 0 ? (
+          {rides.length === 0 ? (
             <p className="driver-earnings-history-empty">Aucune course pour le moment.</p>
           ) : (
             <div className="driver-earnings-history">
-              {driverRidesToday.map((ride) => (
+              {rides.map((ride) => (
                 <div key={ride.id} className="driver-earnings-history-item">
                   <span className="driver-earnings-history-avatar">
                     {ride.passengerName.trim().charAt(0).toUpperCase() || 'P'}
