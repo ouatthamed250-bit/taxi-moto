@@ -6,6 +6,7 @@ import type {
   AdminStats,
   AppSettings,
   AuthResult,
+  DestinationLieu,
   DriverGift,
   DriverGiftInput,
   DriverProfile,
@@ -85,6 +86,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [vehicle, setVehicle] = useState<VehicleType | null>(restoredUser?.vehicle ?? null);
   const [pickup, setPickup] = useState('Ma position actuelle');
   const [destination, setDestination] = useState('');
+  /** Secteur du quartier choisi (vide si saisie libre). */
+  const [destinationSecteur, setDestinationSecteur] = useState('');
+  /** true = destination hors base de quartiers (saisie libre du client). */
+  const [destinationLibre, setDestinationLibre] = useState(false);
   const [distanceKm, setDistanceKm] = useState(0);
 
   /* ---- Course ---- */
@@ -335,9 +340,22 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setOffers([]);
     setSelectedOffer(null);
     setDestination('');
+    setDestinationSecteur('');
+    setDestinationLibre(false);
     setDistanceKm(0);
     setVehicle(null);
     setPassengers(1);
+  }, []);
+
+  /**
+   * Sélectionne une destination complète.
+   * `libre: true` → lieu hors base (tapé par le client) : accepté quand même,
+   * le chauffeur pourra contacter le client pour confirmer.
+   */
+  const setDestinationLieu = useCallback((lieu: DestinationLieu) => {
+    setDestination(lieu.nom);
+    setDestinationSecteur(lieu.secteur ?? '');
+    setDestinationLibre(Boolean(lieu.libre));
   }, []);
 
   const toggleOnline = useCallback(() => setDriverOnline((online) => !online), []);
@@ -476,6 +494,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setPickup,
     destination,
     setDestination,
+    destinationSecteur,
+    destinationLibre,
+    setDestinationLieu,
     distanceKm,
     setDistanceKm,
 

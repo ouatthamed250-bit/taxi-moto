@@ -4,6 +4,7 @@ import {
   ArrowLeft,
   Bike,
   Car,
+  Info,
   MapPin,
   Radar,
   RotateCcw,
@@ -39,6 +40,7 @@ export default function Offers() {
     vehicle,
     distanceKm,
     destination,
+    destinationLibre,
     cancelRide,
   } = useApp();
 
@@ -170,6 +172,13 @@ export default function Offers() {
             </div>
           </div>
         </section>
+
+        {destinationLibre && (
+          <p className="free-destination-note">
+            <Info size={14} />
+            Destination hors base — le chauffeur vous contactera pour confirmer
+          </p>
+        )}
 
         {/* ===== LISTE DES OFFRES ===== */}
         {offers.length === 0 ? (

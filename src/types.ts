@@ -73,6 +73,28 @@ export interface Destination {
   covered: boolean;
 }
 
+/** Quartier de la zone de couverture (base `src/data/quartiers.ts`). */
+export interface Quartier {
+  /** Slug unique du quartier. */
+  id: string;
+  /** Nom affiché du lieu (ex. « Boutique Omo »). */
+  nom: string;
+  /** Regroupement d'affichage (ex. « Adjouffou », « Gonzagueville »). */
+  secteur: string;
+  /** Repère connu sur le terrain (ex. « Carrefour Casier »). */
+  repere: string;
+}
+
+/** Destination choisie par le client : quartier de la base ou saisie libre. */
+export interface DestinationLieu {
+  /** Nom du lieu (quartier de la base ou texte tapé par le client). */
+  nom: string;
+  /** Secteur d'appartenance (vide si saisie libre). */
+  secteur?: string;
+  /** true = lieu hors base, tapé manuellement par le client. */
+  libre?: boolean;
+}
+
 export interface AdminStats {
   passengers: number;
   drivers: number;

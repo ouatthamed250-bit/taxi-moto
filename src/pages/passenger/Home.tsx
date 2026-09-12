@@ -18,11 +18,20 @@ import type { MapMarker } from '../../components/MapComponent';
 import { ABIDJAN_CENTER, COLORS, VEHICLES, estimateFare, fcfa } from '../../theme';
 import { useApp } from '../../store/useApp';
 import { useGeolocation } from '../../hooks/useGeolocation';
-import { DESTINATIONS } from '../../data/mock';
+import { DESTINATIONS, DESTINATIONS_HORS_ZONE } from '../../data/mock';
+import {
+  DISTANCE_ZONE_MOYENNE_KM,
+  QUARTIERS_PAR_SECTEUR,
+  findQuartierByLabel,
+  labelQuartier,
+} from '../../data/quartiers';
 import type { VehicleType } from '../../types';
 import './Home.css';
 
 const MAX_PASSENGERS = 4;
+
+/** Valeur du sélecteur pour « Autre destination » (recherche libre). */
+const AUTRE_DESTINATION = '__autre__';
 
 const VEHICLE_IMAGES: Record<VehicleType, string> = {
   moto: '/images/moto.jpg',
@@ -47,7 +56,8 @@ export default function PassengerHome() {
     vehicle,
     setVehicle,
     destination,
-    setDestination,
+    destinationLibre,
+    setDestinationLieu,
     distanceKm,
     setDistanceKm,
     startSearch,
@@ -78,10 +88,44 @@ export default function PassengerHome() {
   const estimate = distanceKm > 0 ? estimateFare(distanceKm) : null;
   const motoAllowed = passengers <= VEHICLES.moto.max;
 
-  const pickDestination = (name: string) => {
-    setDestination(name);
-    const found = DESTINATIONS.find((item) => item.name === name);
-    setDistanceKm(found ? found.distanceKm : 0);
+  /* Destination : base de quartiers (zone couverte) ou saisie libre. */
+  const [autreSelected, setAutreSelected] = useState(false);
+  const [lieuLibre, setLieuLibre] = useState('');
+
+  /** Sélection dans la liste : quartier couvert, hors zone, ou saisie libre. */
+  const pickDestination = (value: string) => {
+    if (value === AUTRE_DESTINATION) {
+      setAutreSelected(true);
+      setLieuLibre('');
+      setDestinationLieu({ nom: '', libre: true });
+      setDistanceKm(0);
+      return;
+    }
+
+    setAutreSelected(false);
+    setLieuLibre('');
+
+    const quartier = findQuartierByLabel(value);
+
+    if (quartier) {
+      // Quartier de la base → zone couverte, estimation sur distance moyenne.
+      setDestinationLieu({ nom: value, secteur: quartier.secteur });
+      setDistanceKm(DISTANCE_ZONE_MOYENNE_KM);
+      return;
+    }
+
+    const found = DESTINATIONS.find((item) => item.name === value);
+    setDestinationLieu({ nom: value });
+    setDistanceKm(found ? found.distanceKm : DISTANCE_ZONE_MOYENNE_KM);
+  };
+
+  /** Saisie libre : acceptée même si le lieu n'est pas dans la base. */
+  const changeLieuLibre = (value: string) => {
+    setLieuLibre(value);
+
+    const trimmed = value.trim();
+    setDestinationLieu({ nom: trimmed, libre: true });
+    setDistanceKm(trimmed ? DISTANCE_ZONE_MOYENNE_KM : 0);
   };
 
   const changePassengers = (delta: number) => {
@@ -195,7 +239,12 @@ export default function PassengerHome() {
 
               <div className="home-route-content">
                 <strong>Destination</strong>
-                <span>{destination || 'Choisissez une destination'}</span>
+                <span>
+                  {destination ||
+                    (autreSelected
+                      ? 'Saisissez le nom du lieu'
+                      : 'Choisissez une destination')}
+                </span>
               </div>
 
               <ChevronRight size={18} className="home-route-chevron" />
@@ -203,18 +252,60 @@ export default function PassengerHome() {
               <select
                 className="home-route-select"
                 aria-label="Choisir une destination"
-                value={destination}
+                value={autreSelected ? AUTRE_DESTINATION : destination}
                 onChange={(event) => pickDestination(event.target.value)}
               >
                 <option value="">Choisir une destination</option>
-                {DESTINATIONS.map((item) => (
-                  <option key={item.name} value={item.name}>
-                    {item.name} · {item.distanceKm} km
-                  </option>
+
+                {QUARTIERS_PAR_SECTEUR.map(({ secteur, quartiers }) => (
+                  <optgroup key={secteur} label={`Zone couverte · ${secteur}`}>
+                    {quartiers.map((quartier) => (
+                      <option key={quartier.id} value={labelQuartier(quartier)}>
+                        {labelQuartier(quartier)}
+                      </option>
+                    ))}
+                  </optgroup>
                 ))}
+
+                <optgroup label="Hors zone · non couvert">
+                  {DESTINATIONS_HORS_ZONE.map((item) => (
+                    <option key={item.name} value={item.name}>
+                      {item.name}
+                    </option>
+                  ))}
+                </optgroup>
+
+                <option value={AUTRE_DESTINATION}>Autre destination (saisir…)</option>
               </select>
             </div>
           </div>
+
+          {/* Destination libre (hors base) */}
+          {autreSelected && (
+            <div className="home-free">
+              <label className="home-free-label" htmlFor="home-free-input">
+                Entrez le nom du quartier ou lieu
+              </label>
+
+              <div className="home-free-field">
+                <MapPin size={16} className="home-free-icon" />
+
+                <input
+                  id="home-free-input"
+                  className="home-free-input"
+                  type="text"
+                  autoComplete="off"
+                  placeholder="Ex. Modeste, China Mall, Pharmacie du carrefour"
+                  value={lieuLibre}
+                  onChange={(event) => changeLieuLibre(event.target.value)}
+                />
+              </div>
+
+              <p className="home-free-note">
+                Si le chauffeur ne trouve pas, il vous appellera pour négocier.
+              </p>
+            </div>
+          )}
 
           {/* Passagers */}
           <div className="home-section-label">
@@ -326,9 +417,16 @@ export default function PassengerHome() {
                 </div>
               </div>
 
-              <p className="home-estimate-note">
-                Le prix final est proposé par le chauffeur.
-              </p>
+              {destinationLibre ? (
+                <p className="home-estimate-note">
+                  Lieu hors base : estimation sur une distance moyenne. Le chauffeur vous
+                  appellera pour confirmer le lieu et le prix.
+                </p>
+              ) : (
+                <p className="home-estimate-note">
+                  Le prix final est proposé par le chauffeur.
+                </p>
+              )}
             </div>
           )}
 

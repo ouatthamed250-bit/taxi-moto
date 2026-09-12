@@ -4,6 +4,7 @@ import {
   ArrowLeft,
   Bike,
   Car,
+  Info,
   MapPin,
   Radar,
   UsersRound,
@@ -29,6 +30,7 @@ export default function Searching() {
     vehicle,
     passengers,
     destination,
+    destinationLibre,
     distanceKm,
     cancelRide,
   } = useApp();
@@ -121,6 +123,13 @@ export default function Searching() {
               <span>{destination || 'À définir'}</span>
             </div>
           </div>
+
+          {destinationLibre && (
+            <p className="free-destination-note">
+              <Info size={14} />
+              Destination hors base — le chauffeur vous contactera pour confirmer
+            </p>
+          )}
 
           <div className="search-info-row">
             <span className="search-vehicle-badge">

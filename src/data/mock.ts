@@ -6,6 +6,7 @@
 // enregistrés via `services/authLocal.ts` (localStorage).
 
 import type { AdminStats, Destination, DriverProfile, Ride, ZonePriceRule } from '../types';
+import { DISTANCE_ZONE_MOYENNE_KM, QUARTIERS, labelQuartier } from './quartiers';
 
 /** Villes couvertes par la carte Taxi-Moto (donnée de référence). */
 export const CITIES = [
@@ -18,17 +19,34 @@ export const CITIES = [
   'Man',
 ];
 
-/** Destinations de référence — certaines zones ne sont PAS encore couvertes. */
-export const DESTINATIONS: Destination[] = [
-  { name: 'Cocody — Angré 7e Tranche', distanceKm: 3.4, covered: true },
-  { name: 'Plateau — Cité Administrative', distanceKm: 6.1, covered: true },
-  { name: 'Yopougon — Niangon Sud', distanceKm: 8.7, covered: true },
-  { name: 'Adjamé — Marché Gouro', distanceKm: 4.2, covered: true },
-  { name: 'Marcory — Zone 4', distanceKm: 9.3, covered: true },
+/**
+ * Destinations de la ZONE COUVERTE (issues de la base de quartiers).
+ * Tous les quartiers de `QUARTIERS` sont couverts → commande possible.
+ * La distance réelle n'est pas encore calculée : on utilise la distance
+ * moyenne de zone comme base d'estimation.
+ */
+export const DESTINATIONS_ZONE: Destination[] = QUARTIERS.map((quartier) => ({
+  name: labelQuartier(quartier),
+  distanceKm: DISTANCE_ZONE_MOYENNE_KM,
+  covered: true,
+}));
+
+/** Destinations HORS zone de couverture (commande refusée). */
+export const DESTINATIONS_HORS_ZONE: Destination[] = [
   { name: 'Bingerville', distanceKm: 14.5, covered: false },
   { name: 'Anyama', distanceKm: 16.2, covered: false },
   { name: 'Grand-Bassam', distanceKm: 32.0, covered: false },
+  { name: 'Abidjan centre — hors zone', distanceKm: 12.4, covered: false },
 ];
+
+/** Destinations de référence = zone couverte (quartiers) + hors zone. */
+export const DESTINATIONS: Destination[] = [
+  ...DESTINATIONS_ZONE,
+  ...DESTINATIONS_HORS_ZONE,
+];
+
+/** Réexport pratique de la base de quartiers (zone de couverture). */
+export { QUARTIERS };
 
 /** Aucun conducteur simulé : les conducteurs viennent des comptes réels. */
 export const DRIVERS: DriverProfile[] = [];

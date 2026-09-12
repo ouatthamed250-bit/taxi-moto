@@ -710,3 +710,64 @@
 
 
 
+
+/* ---------- DESTINATION LIBRE (hors base) ---------- */
+.home-free {
+  margin-top: 10px;
+  padding: 12px;
+  border-radius: 16px;
+  border: 1px dashed rgba(255, 153, 0, 0.55);
+  background: rgba(255, 153, 0, 0.06);
+}
+
+.home-free-label {
+  display: block;
+  margin-bottom: 7px;
+  color: var(--taxi-navy, #062b67);
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.2px;
+}
+
+.home-free-field {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 44px;
+  padding: 0 12px;
+  border-radius: 13px;
+  border: 1px solid rgba(6, 43, 103, 0.1);
+  background: #ffffff;
+  box-shadow: 0 6px 16px rgba(6, 43, 103, 0.06);
+}
+
+.home-free-icon {
+  flex: 0 0 auto;
+  color: var(--taxi-orange, #ff9900);
+}
+
+.home-free-input {
+  flex: 1;
+  min-width: 0;
+  height: 100%;
+  border: 0;
+  outline: none;
+  background: transparent;
+  color: var(--taxi-navy, #062b67);
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.home-free-input::placeholder {
+  color: #9aa7ba;
+  font-weight: 500;
+}
+
+.home-free-note {
+  margin: 8px 0 0;
+  color: #8a5a00;
+  font-size: 10.5px;
+  font-weight: 600;
+  line-height: 1.4;
+}

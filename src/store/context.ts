@@ -3,6 +3,7 @@ import type {
   AdminStats,
   AppSettings,
   AuthResult,
+  DestinationLieu,
   DriverGift,
   DriverGiftInput,
   DriverProfile,
@@ -41,6 +42,12 @@ export interface AppContextValue {
   setPickup: (s: string) => void;
   destination: string;
   setDestination: (s: string) => void;
+  /** Secteur du quartier choisi (vide si destination saisie librement). */
+  destinationSecteur: string;
+  /** true = destination hors base, tapée manuellement par le client. */
+  destinationLibre: boolean;
+  /** Sélectionne une destination complète (quartier de la base ou saisie libre). */
+  setDestinationLieu: (lieu: DestinationLieu) => void;
   distanceKm: number;
   setDistanceKm: (n: number) => void;
 
