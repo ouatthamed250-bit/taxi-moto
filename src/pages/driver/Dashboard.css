@@ -1289,3 +1289,71 @@
   font-weight: 700;
   line-height: 1.35;
 }
+
+/* ---------- NEGOCIATION (conducteur) ---------- */
+.driver-dashboard-counter {
+  margin-top: 14px;
+  padding: 14px;
+  border-radius: 18px;
+  border: 1px solid rgba(255, 153, 0, 0.4);
+  background: rgba(255, 153, 0, 0.08);
+}
+
+.driver-dashboard-nego {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 10px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.driver-dashboard-nego-line {
+  color: var(--taxi-gray-700, #43516a);
+  font-size: 11.5px;
+  font-weight: 700;
+}
+
+.driver-dashboard-nego-waiting {
+  margin: 10px 0 0;
+  color: #8a5a00;
+  font-size: 11.5px;
+  font-weight: 800;
+  line-height: 1.35;
+}
+
+.driver-dashboard-counter-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  padding: 13px;
+  border: none;
+  border-radius: 15px;
+  color: #fff;
+  background: linear-gradient(145deg, #0b5fff, #062b67);
+  box-shadow: 0 5px 0 rgba(6, 43, 103, 0.35);
+  font-family: inherit;
+  font-size: 12.5px;
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.driver-counter-send {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: 100%;
+  margin-top: 14px;
+  padding: 14px;
+  border: none;
+  border-radius: 16px;
+  color: #fff;
+  background: linear-gradient(145deg, #0b5fff, #062b67);
+  box-shadow: 0 6px 0 rgba(6, 43, 103, 0.35);
+  font-family: inherit;
+  font-size: 13.5px;
+  font-weight: 900;
+  cursor: pointer;
+}

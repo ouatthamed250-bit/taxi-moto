@@ -13,6 +13,9 @@ import type {
   DriverProfile,
   DriverRegisterInput,
   GeoPosition,
+  LiveOffer,
+  Negotiation,
+  NegotiationMessage,
   Offer,
   PassengerRegisterInput,
   RechargeRequest,
@@ -25,7 +28,7 @@ import type {
   ZonePriceRule,
 } from '../types';
 import { ADMIN_STATS } from '../data/mock';
-import { commissionOf, netEarnings } from '../theme';
+import { commissionOf, netEarnings, clampFare } from '../theme';
 import { getCurrentUser } from '../services/authLocal';
 import {
   ensureCloudSession,
@@ -44,6 +47,7 @@ import {
   createGift,
   createRechargeRequest,
   createRide,
+  saveNegotiation,
   subscribeToGifts,
   subscribeToRechargeRequests,
   subscribeToRides,
@@ -55,17 +59,30 @@ import {
 } from '../services/firestore';
 import {
   publishDriverPosition,
+  publishNegotiation,
+  publishOffer,
+  publishOfferStatus,
   publishOnlineStatus,
   publishPassengerPosition,
   publishRideRequest,
   publishRideStatus,
+  removeOffer,
   removeRideRequest,
   subscribeToAllPositions,
+  subscribeToOffers,
   subscribeToOnlineDrivers,
   subscribeToRideRequests,
 } from '../services/realtimeDb';
 import type { LivePosition } from '../services/realtimeDb';
 import { COURSE_STATUS_BY_RIDE, RIDE_STATUS_BY_COURSE } from '../data/courseStatus';
+import {
+  MAX_NEGOTIATION_ROUNDS,
+  canNegotiate,
+  countRounds,
+  isTimedOut,
+  lastAmount,
+  toNegotiation,
+} from '../data/negotiation';
 import { playAlertSound, unlockAudio } from '../services/notification';
 import { INITIAL_DRIVER_BALANCE } from '../services/wallet';
 import { readAppSettings, writeAppSettings } from '../services/settingsLocal';
@@ -145,6 +162,19 @@ export function AppProvider({ children }: { children: ReactNode }) {
   /* ---- Course ---- */
   const [rideStatus, setRideStatus] = useState<RideStatus>('idle');
   const [offers, setOffers] = useState<Offer[]>([]);
+
+  /* ---- Offres live & négociation (Realtime Database) ---- */
+  const [liveOffers, setLiveOffers] = useState<LiveOffer[]>([]);
+  /** Offre publiée par le conducteur pour la demande en cours. */
+  const [myOffer, setMyOffer] = useState<LiveOffer | null>(null);
+  /** Négociations en cours (client), indexées par identifiant d'offre. */
+  const [negotiations, setNegotiations] = useState<Record<string, Negotiation>>({});
+  /** Message d'information affiché au conducteur (offre acceptée / expirée). */
+  const [offerNotice, setOfferNotice] = useState<string | null>(null);
+  /** Offres déjà concrétisées en course (évite un doublon). */
+  const finalizedOfferIds = useRef<string[]>([]);
+  /** Dernière republication automatique (expiration) — anti-boucle. */
+  const lastRepublishAt = useRef(0);
   const [selectedOffer, setSelectedOffer] = useState<Offer | null>(null);
   const [lastRide, setLastRide] = useState<Ride | null>(null);
   const [passengerHistory, setPassengerHistory] = useState<Ride[]>([]);
@@ -1019,6 +1049,362 @@ useEffect(() => {
   };
 }, [cloudReady, isDriverAccount, liveUserId, stopIncomingAlert]);
 
+/* ================================================================
+ *  OFFRES DE PRIX & NÉGOCIATION (client ↔ chauffeur, 3 tours max)
+ * ================================================================ */
+
+/** Offre live (RTDB) → objet `Offer` du store, négociation comprise. */
+const toStoreOffer = useCallback(
+  (offer: LiveOffer): Offer => ({
+    id: offer.id,
+    requestId: offer.requestId,
+    price: offer.price,
+    negotiation: toNegotiation(offer.rounds ?? [], offer.status),
+    driver: {
+      id: offer.driverAccountId || offer.driverId,
+      name: offer.driverName,
+      rating: 0,
+      rides: 0,
+      vehicle: offer.vehicle,
+      plate: offer.driverPlate ?? '—',
+      model: offer.vehicle === 'tricycle' ? 'Tricycle' : 'Moto',
+      online: true,
+      zone: 'Zone couverte',
+      availableSeats: 1,
+      phone: offer.driverPhone,
+    },
+  }),
+  [],
+);
+
+/** Enregistre la négociation dans Firestore (historique consultable). */
+const logNegotiation = useCallback((offer: LiveOffer) => {
+  void saveNegotiation({
+    offerId: offer.id,
+    requestId: offer.requestId,
+    driverAccountId: offer.driverAccountId,
+    passengerAccountId: offer.passengerAccountId,
+    price: offer.price,
+    status: offer.status,
+    rounds: offer.rounds ?? [],
+  });
+}, []);
+
+/** Republie la demande auprès des autres conducteurs (offres tombées). */
+const republishRequest = useCallback(() => {
+  const now = Date.now();
+  if (now - lastRepublishAt.current < 8000) return; // anti-boucle
+  lastRepublishAt.current = now;
+
+  if (activeRequestId.current) void removeRideRequest(activeRequestId.current);
+  setOffers([]);
+  startSearch();
+}, [startSearch]);
+
+/**
+ * CONDUCTEUR : concrétise une offre acceptée en créant la course au prix
+ * convenu (la commission est débitée comme pour une acceptation directe).
+ */
+const finalizeAcceptedOffer = useCallback(
+  (offer: LiveOffer, amount: number) => {
+    // La demande du client doit encore être active pour créer la course.
+    if (!incomingRequest) {
+      void publishOfferStatus(offer.id, 'rejected', { status: 'rejected' });
+      setOfferNotice('La demande du client n’est plus disponible.');
+      return;
+    }
+
+    const accepted = acceptIncoming(amount);
+
+    if (!accepted) {
+      void publishOfferStatus(offer.id, 'rejected', { status: 'rejected' });
+      setOfferNotice('Solde insuffisant pour accepter cette course.');
+      return;
+    }
+
+    void publishOfferStatus(offer.id, 'accepted', {
+      status: 'accepted',
+      price: amount,
+    });
+    stopIncomingAlert();
+    dismissedRequestId.current = offer.requestId;
+    setOfferNotice(null);
+  },
+  [acceptIncoming, stopIncomingAlert, incomingRequest],
+);
+
+/** CONDUCTEUR : propose son prix pour la demande reçue. */
+const proposePrice = useCallback(
+  (price: number) => {
+    const request = incomingRequest;
+    if (!request) return;
+
+    const amount = clampFare(price);
+    const now = Date.now();
+
+    const offer: LiveOffer = {
+      id: `OF-${request.id}`,
+      requestId: request.id,
+      driverId: liveUserId,
+      driverAccountId: accountId || liveUserId,
+      driverName: userName || 'Conducteur',
+      driverPhone: phone,
+      driverPlate: currentUser?.plate,
+      vehicle: request.vehicle,
+      price: amount,
+      status: 'pending',
+      currentRound: 0,
+      createdAt: now,
+      updatedAt: now,
+      passengerAccountId: request.passengerAccountId,
+      rounds: [{ from: 'driver', amount, timestamp: now }],
+    };
+
+    setMyOffer(offer);
+    setOfferNotice(null);
+    void publishOffer(offer);
+    logNegotiation(offer);
+  },
+  [incomingRequest, liveUserId, accountId, userName, phone, currentUser, logNegotiation],
+);
+
+/**
+ * EXPIRATION d'une offre : plus de 60 s sans réponse, ou 3 tours sans accord.
+ * Le conducteur est alors retiré et la course repart chez un autre.
+ */
+const expireOffer = useCallback(
+  (offer: LiveOffer, reason: string) => {
+    const rounds = offer.rounds ?? [];
+    const expired: LiveOffer = {
+      ...offer,
+      price: lastAmount(rounds, offer.price),
+      currentRound: countRounds(rounds),
+      status: 'expired',
+    };
+
+    void publishOfferStatus(offer.id, 'expired', {
+      status: 'expired',
+      price: expired.price,
+      currentRound: expired.currentRound,
+    });
+    logNegotiation(expired);
+
+    setMyOffer((current) => (current?.id === offer.id ? null : current));
+
+    if (isDriverAccount) {
+      setOfferNotice(
+        `Négociation terminée (${reason}) — la course a été proposée à un autre conducteur.`,
+      );
+      stopIncomingAlert();
+      dismissedRequestId.current = offer.requestId;
+    }
+  },
+  [isDriverAccount, logNegotiation, stopIncomingAlert],
+);
+
+/** CLIENT : envoie une contre-offre (consomme un tour, 3 maximum). */
+const sendCounterOffer = useCallback(
+  (offerId: string, amount: number) => {
+    const offer = liveOffers.find((item) => item.id === offerId);
+    if (!offer) return;
+
+    const rounds = offer.rounds ?? [];
+
+    // 3 tours déjà consommés → plus d'accord possible.
+    if (!canNegotiate(rounds)) {
+      expireOffer(offer, '3 tours atteints sans accord');
+      return;
+    }
+
+    const message: NegotiationMessage = {
+      from: 'passenger',
+      amount: clampFare(amount),
+      timestamp: Date.now(),
+    };
+    const nextRounds = [...rounds, message];
+
+    void publishNegotiation(offerId, message, nextRounds.length);
+    void publishOfferStatus(offerId, 'negotiating', {
+      status: 'negotiating',
+      price: message.amount,
+      currentRound: countRounds(nextRounds),
+      rounds: nextRounds,
+    });
+    logNegotiation({
+      ...offer,
+      price: message.amount,
+      status: 'negotiating',
+      rounds: nextRounds,
+    });
+  },
+  [liveOffers, expireOffer, logNegotiation],
+);
+
+/** CONDUCTEUR : contre-propose après la contre-offre du client. */
+const driverCounterOffer = useCallback(
+  (offerId: string, amount: number) => {
+    const offer = liveOffers.find((item) => item.id === offerId) ?? myOffer;
+    if (!offer) return;
+
+    const rounds = offer.rounds ?? [];
+
+    // Le client a déjà consommé ses 3 tours → on clôt la négociation.
+    if (countRounds(rounds) >= MAX_NEGOTIATION_ROUNDS) {
+      expireOffer(offer, '3 tours atteints sans accord');
+      return;
+    }
+
+    const message: NegotiationMessage = {
+      from: 'driver',
+      amount: clampFare(amount),
+      timestamp: Date.now(),
+    };
+    const nextRounds = [...rounds, message];
+
+    void publishNegotiation(offerId, message, nextRounds.length);
+    void publishOfferStatus(offerId, 'negotiating', {
+      status: 'negotiating',
+      price: message.amount,
+      currentRound: countRounds(nextRounds),
+      rounds: nextRounds,
+    });
+    logNegotiation({
+      ...offer,
+      price: message.amount,
+      status: 'negotiating',
+      rounds: nextRounds,
+    });
+  },
+  [liveOffers, myOffer, expireOffer, logNegotiation],
+);
+
+/**
+ * ACCEPTATION :
+ *   • CLIENT → verrouille le prix et prévient le conducteur (c'est lui qui crée
+ *     la course, comme pour une acceptation directe) ;
+ *   • CONDUCTEUR → crée la course au prix convenu.
+ */
+const acceptOffer = useCallback(
+  (offerId: string) => {
+    const offer = liveOffers.find((item) => item.id === offerId) ?? myOffer;
+    if (!offer) return;
+
+    const amount = lastAmount(offer.rounds ?? [], offer.price);
+
+    if (isDriverAccount) {
+      finalizeAcceptedOffer({ ...offer, price: amount }, amount);
+      return;
+    }
+
+    // Retour visuel immédiat côté client (le suivi s'active dès que le
+    // conducteur a créé la course — Firestore temps réel).
+    setSelectedOffer(toStoreOffer({ ...offer, price: amount, status: 'accepted' }));
+
+    void publishOfferStatus(offerId, 'accepted', { status: 'accepted', price: amount });
+    logNegotiation({ ...offer, price: amount, status: 'accepted' });
+  },
+  [liveOffers, myOffer, isDriverAccount, finalizeAcceptedOffer, toStoreOffer, logNegotiation],
+);
+
+/** REFUS : le conducteur est retiré de la course. */
+const rejectOffer = useCallback(
+  (offerId: string) => {
+    const offer = liveOffers.find((item) => item.id === offerId) ?? myOffer;
+    if (offer) logNegotiation({ ...offer, status: 'rejected' });
+
+    void publishOfferStatus(offerId, 'rejected', { status: 'rejected' });
+    void removeOffer(offerId);
+
+    setOffers((list) => list.filter((item) => item.id !== offerId));
+    setMyOffer((current) => (current?.id === offerId ? null : current));
+  },
+  [liveOffers, myOffer, logNegotiation],
+);
+
+/**
+ * Abonnements temps réel aux offres :
+ *   • CLIENT     : les prix proposés pour sa demande → écran « Offres » ;
+ *   • CONDUCTEUR : le suivi de son offre (acceptée → course ; expirée → autre).
+ */
+useEffect(() => {
+  if (!isCloudEnabled() || !cloudReady) return undefined;
+
+  return subscribeToOffers((list) => {
+    setLiveOffers(list);
+
+    if (isDriverAccount) {
+      const mine =
+        list.find(
+          (offer) =>
+            offer.driverAccountId === (accountId || liveUserId) &&
+            offer.status !== 'expired' &&
+            offer.status !== 'rejected',
+        ) ?? null;
+
+      setMyOffer((current) =>
+        current && mine && current.id === mine.id ? { ...current, ...mine } : mine,
+      );
+
+      // Le client a accepté → le conducteur crée la course au prix convenu.
+      if (mine?.status === 'accepted' && !finalizedOfferIds.current.includes(mine.id)) {
+        finalizedOfferIds.current = [...finalizedOfferIds.current, mine.id];
+        finalizeAcceptedOffer(mine, lastAmount(mine.rounds ?? [], mine.price));
+      }
+      return;
+    }
+
+    /* ---- CÔTÉ CLIENT ---- */
+    const relevant = list.filter(
+      (offer) =>
+        offer.status !== 'rejected' &&
+        offer.status !== 'expired' &&
+        (!activeRequestId.current || offer.requestId === activeRequestId.current),
+    );
+
+    const nextNegotiations: Record<string, Negotiation> = {};
+    for (const offer of relevant) {
+      nextNegotiations[offer.id] = toNegotiation(offer.rounds ?? [], offer.status);
+    }
+
+    setNegotiations(nextNegotiations);
+    setOffers(relevant.map(toStoreOffer));
+
+    // Une offre arrive pendant la recherche → écran des offres.
+    if (relevant.length > 0 && rideStatusRef.current === 'searching') {
+      setRideStatus('offers');
+    }
+
+    // Toutes les offres sont tombées (refus / expiration) → autre conducteur.
+    if (relevant.length === 0 && rideStatusRef.current === 'offers') {
+      republishRequest();
+    }
+  });
+}, [
+  cloudReady,
+  isDriverAccount,
+  accountId,
+  liveUserId,
+  toStoreOffer,
+  finalizeAcceptedOffer,
+  republishRequest,
+]);
+
+/** Minuterie : expire une offre restée 60 s sans réponse. */
+useEffect(() => {
+  if (!isCloudEnabled() || !cloudReady) return undefined;
+
+  const timer = window.setInterval(() => {
+    const now = Date.now();
+
+    for (const offer of liveOffers) {
+      if (!isTimedOut(offer.rounds ?? [], offer.status, now)) continue;
+      expireOffer(offer, 'délai de réponse de 60 s dépassé');
+    }
+  }, 5000);
+
+  return () => window.clearInterval(timer);
+}, [cloudReady, liveOffers, expireOffer]);
+
   /** Recharges, cadeaux et historique client : synchronisation Firestore. */
   useEffect(() => {
     if (!isCloudEnabled() || !cloudReady) return undefined;
@@ -1129,6 +1515,15 @@ useEffect(() => {
 
     activeRide,
     updateRideStatus,
+
+    negotiations,
+    myOffer,
+    proposePrice,
+    sendCounterOffer,
+    driverCounterOffer,
+    acceptOffer,
+    rejectOffer,
+    offerNotice,
 
     driverOnline,
     toggleOnline,

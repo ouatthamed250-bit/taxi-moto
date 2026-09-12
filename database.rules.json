@@ -44,6 +44,26 @@
         ".write": "auth != null",
         ".validate": "newData.isString() && newData.val().matches(/^(pending|accepted|arrived|in_progress|completed|cancelled)$/)"
       }
+    },
+
+    "offers": {
+      ".read": "auth != null",
+      "$offerId": {
+        ".write": "auth != null",
+        ".validate": "newData.hasChildren(['driverId', 'requestId', 'price'])"
+      }
+    },
+
+    "negotiations": {
+      ".read": "auth != null",
+      "$offerId": {
+        ".write": "auth != null",
+        "rounds": {
+          "$round": {
+            ".validate": "newData.hasChildren(['from', 'amount', 'timestamp']) && newData.child('amount').val() >= 1000 && newData.child('amount').val() <= 3000"
+          }
+        }
+      }
     }
   }
 }

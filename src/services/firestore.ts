@@ -26,6 +26,7 @@ import {
 } from 'firebase/firestore';
 import type { DocumentData, Query, QueryDocumentSnapshot } from 'firebase/firestore';
 import type { DriverGift, RechargeRequest, Ride, User, UserRole } from '../types';
+import type { NegotiationMessage, NegotiationStatus } from '../types';
 import { getFirestoreDb, isFirebaseConfigured } from './firebase';
 
 /** Résultat d'une écriture Firestore. */
@@ -437,6 +438,38 @@ export async function incrementDriverBalance(
     return { ok: true, id: uid };
   } catch (error) {
     return { ok: false, id: uid, error: toWriteError(error) };
+  }
+}
+
+/** Document d'historique d'une négociation de prix. */
+export interface NegotiationLog {
+  offerId: string;
+  requestId?: string;
+  driverAccountId?: string;
+  passengerAccountId?: string;
+  price: number;
+  status: NegotiationStatus;
+  rounds: NegotiationMessage[];
+}
+
+/**
+ * Enregistre l'état d'une négociation dans `negotiations/{offerId}`
+ * (historique consultable depuis la console Firebase).
+ */
+export async function saveNegotiation(log: NegotiationLog): Promise<WriteResult> {
+  const db = getFirestoreDb();
+  if (!db || !log.offerId) {
+    return { ok: false, id: log.offerId, error: 'Firebase non configuré.' };
+  }
+
+  try {
+    await setDoc(doc(db, 'negotiations', log.offerId), {
+      ...log,
+      updatedAt: Date.now(),
+    });
+    return { ok: true, id: log.offerId };
+  } catch (error) {
+    return { ok: false, id: log.offerId, error: toWriteError(error) };
   }
 }
 

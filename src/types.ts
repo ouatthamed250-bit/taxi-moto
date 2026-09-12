@@ -43,10 +43,61 @@ export interface DriverProfile {
   phone?: string;
 }
 
+/** Un tour de négociation : qui a proposé quoi, et quand. */
+export interface NegotiationMessage {
+  from: 'passenger' | 'driver';
+  amount: number;
+  timestamp: number;
+}
+
+/** État d'une négociation de prix. */
+export type NegotiationStatus =
+  | 'pending'
+  | 'negotiating'
+  | 'accepted'
+  | 'rejected'
+  | 'expired';
+
+/** Négociation d'une offre (3 tours maximum). */
+export interface Negotiation {
+  rounds: NegotiationMessage[];
+  /** Nombre de tours consommés (1 à 3). */
+  currentRound: number;
+  status: NegotiationStatus;
+}
+
 export interface Offer {
   id: string;
   driver: DriverProfile;
   price: number;
+  /** Demande de course d'origine (Realtime Database). */
+  requestId?: string;
+  /** Négociation en cours (facultative : le client peut accepter directement). */
+  negotiation?: Negotiation;
+}
+
+/** Offre de prix publiée par un conducteur pour une demande (temps réel). */
+export interface LiveOffer {
+  id: string;
+  /** Demande de course d'origine. */
+  requestId: string;
+  /** uid Firebase du conducteur. */
+  driverId: string;
+  /** docId Firestore du conducteur (clé canonique). */
+  driverAccountId: string;
+  driverName: string;
+  driverPhone?: string;
+  driverPlate?: string;
+  vehicle: VehicleType;
+  price: number;
+  status: NegotiationStatus;
+  /** Nombre de contre-offres CLIENT consommées (0 à 3). */
+  currentRound: number;
+  createdAt: number;
+  updatedAt: number;
+  passengerAccountId?: string;
+  /** Historique complet des tours (client + chauffeur). */
+  rounds?: NegotiationMessage[];
 }
 
 export interface RideRequest {

@@ -10,9 +10,15 @@
  * Toutes les fonctions `subscribe*` retournent une fonction de DÉSABONNEMENT.
  * Si Firebase/RTDB n'est pas configuré, tout est inerte (no-op).
  */
-import { onDisconnect, onValue, ref, remove, set } from 'firebase/database';
+import { onDisconnect, onValue, ref, remove, set, update } from 'firebase/database';
 import type { Unsubscribe } from 'firebase/database';
-import type { GeoPosition, RideRequest } from '../types';
+import type {
+  GeoPosition,
+  LiveOffer,
+  NegotiationMessage,
+  NegotiationStatus,
+  RideRequest,
+} from '../types';
 import { getRealtimeDb } from './firebase';
 
 /** Position horodatée reçue du temps réel. */
@@ -267,7 +273,6 @@ export async function removeRideRequest(requestId: string): Promise<void> {
 }
 
 /* ========================= STATUT DE COURSE (live) ========================= */
-
 /**
  * Publie le statut d'une course sur la Realtime Database (`/rideStatus/{id}`).
  *
@@ -304,5 +309,141 @@ export function subscribeToRideStatus(
     (snapshot) => callback((snapshot.val() as string | null) ?? null),
     (error) => console.warn('[rtdb] subscribeToRideStatus :', error),
   );
+}
+
+/* ================== OFFRES & NÉGOCIATION (client ↔ chauffeur) ================== */
+
+/** Offre de prix publiée par un conducteur pour une demande (temps réel). */
+export type { LiveOffer } from '../types';
+
+/** Publie (ou met à jour) une offre de prix : `/offers/{offerId}`. */
+export async function publishOffer(offer: LiveOffer): Promise<boolean> {
+  const rtdb = getRealtimeDb();
+  if (!rtdb || !offer.id) return false;
+
+  try {
+    await set(ref(rtdb, `offers/${offer.id}`), { ...offer, updatedAt: Date.now() });
+    return true;
+  } catch (error) {
+    console.warn('[rtdb] publishOffer :', error);
+    return false;
+  }
+}
+
+/** Écoute TOUTES les offres en cours (client : les siennes ; conducteur : les siennes). */
+export function subscribeToOffers(
+  callback: (offers: LiveOffer[]) => void,
+): Unsubscribe {
+  const rtdb = getRealtimeDb();
+  if (!rtdb) return () => {};
+
+  return onValue(
+    ref(rtdb, 'offers'),
+    (snapshot) => {
+      const value = (snapshot.val() as Record<string, LiveOffer> | null) ?? {};
+      callback(
+        Object.entries(value).map(([id, offer]) => ({
+          ...offer,
+          id: offer.id || id,
+        })),
+      );
+    },
+    (error) => console.warn('[rtdb] subscribeToOffers :', error),
+  );
+}
+
+/** Retire une offre (accord trouvé, refus ou expiration). */
+export async function removeOffer(offerId: string): Promise<void> {
+  const rtdb = getRealtimeDb();
+  if (!rtdb || !offerId) return;
+
+  try {
+    await remove(ref(rtdb, `offers/${offerId}`));
+    await remove(ref(rtdb, `negotiations/${offerId}`));
+  } catch (error) {
+    console.warn('[rtdb] removeOffer :', error);
+  }
+}
+
+/**
+ * Publie un tour de négociation : `/negotiations/{offerId}/rounds/{round}`.
+ * `round` = numéro du tour dans la séquence (1, 2, 3…) → clé déterministe.
+ * On met aussi à jour l'offre (`rounds`, `currentRound`, `price`) pour que
+ * clients et conducteurs reçoivent tout depuis `/offers`.
+ */
+export async function publishNegotiation(
+  offerId: string,
+  message: NegotiationMessage,
+  round: number,
+): Promise<boolean> {
+  const rtdb = getRealtimeDb();
+  if (!rtdb || !offerId) return false;
+
+  try {
+    await set(ref(rtdb, `negotiations/${offerId}/rounds/${round}`), message);
+    await set(ref(rtdb, `negotiations/${offerId}/currentRound`), round);
+    return true;
+  } catch (error) {
+    console.warn('[rtdb] publishNegotiation :', error);
+    return false;
+  }
+}
+
+/** Dernier tour publié pour une offre. */
+export interface LiveNegotiation {
+  rounds: NegotiationMessage[];
+  currentRound: number;
+}
+
+/** Écoute la négociation d'une offre en temps réel. */
+export function subscribeToNegotiation(
+  offerId: string,
+  callback: (negotiation: LiveNegotiation) => void,
+): Unsubscribe {
+  const rtdb = getRealtimeDb();
+  if (!rtdb || !offerId) return () => {};
+
+  return onValue(
+    ref(rtdb, `negotiations/${offerId}`),
+    (snapshot) => {
+      const value =
+        (snapshot.val() as { rounds?: Record<string, NegotiationMessage>; currentRound?: number } | null) ??
+        {};
+
+      const rounds = Object.entries(value.rounds ?? {})
+        .map(([round, message]) => ({ round: Number(round), message }))
+        .sort((a, b) => a.round - b.round)
+        .map((item) => item.message);
+
+      callback({ rounds, currentRound: value.currentRound ?? rounds.length });
+    },
+    (error) => console.warn('[rtdb] subscribeToNegotiation :', error),
+  );
+}
+
+/** Publie le statut d'une offre : `/offers/{offerId}/status`. */
+export async function publishOfferStatus(
+  offerId: string,
+  status: NegotiationStatus,
+  patch: Partial<LiveOffer> = {},
+): Promise<boolean> {
+  const rtdb = getRealtimeDb();
+  if (!rtdb || !offerId) return false;
+
+  try {
+    /*
+     * `update` (et non `set`) : les champs existants de l'offre (driverId,
+     * requestId, price…) sont conservés — les règles de sécurité les exigent.
+     */
+    await update(ref(rtdb, `offers/${offerId}`), {
+      ...patch,
+      status,
+      updatedAt: Date.now(),
+    });
+    return true;
+  } catch (error) {
+    console.warn('[rtdb] publishOfferStatus :', error);
+    return false;
+  }
 }
 

@@ -4,6 +4,8 @@ import {
   ArrowLeft,
   Bike,
   Car,
+  Check,
+  Handshake,
   Info,
   MapPin,
   MessageCircle,
@@ -14,19 +16,29 @@ import {
   Star,
   UsersRound,
   Wallet,
+  X,
 } from 'lucide-react';
 import { Page } from '../../components/Page';
 import {
   COLORS,
+  MAX_FARE,
+  MIN_FARE,
   VEHICLES,
+  clampFare,
   commissionOf,
   estimateFare,
   fcfa,
   netEarnings,
 } from '../../theme';
 import { useApp } from '../../store/useApp';
+import {
+  MAX_NEGOTIATION_ROUNDS,
+  canNegotiate,
+  describeRounds,
+  roundLabel,
+} from '../../data/negotiation';
 import { callPhone, messagePhone, resolveDriverPhone } from '../../services/contacts';
-import type { VehicleType } from '../../types';
+import type { Offer, VehicleType } from '../../types';
 import './Offers.css';
 
 const VEHICLE_IMAGES: Record<VehicleType, string> = {
@@ -45,28 +57,65 @@ export default function Offers() {
     destination,
     destinationLibre,
     cancelRide,
+    rideStatus,
+    negotiations,
+    acceptOffer,
+    rejectOffer,
+    sendCounterOffer,
   } = useApp();
 
   // Fallback visuel si le visuel véhicule ne charge pas (badge + icône).
   const [vehicleImageBroken, setVehicleImageBroken] = useState(false);
+  /** Offre en cours de négociation (modale ouverte). */
+  const [negotiating, setNegotiating] = useState<Offer | null>(null);
+  /** Prix proposé par le client dans la modale. */
+  const [counterAmount, setCounterAmount] = useState(MIN_FARE);
+  /** Contre-offre envoyée : en attente de la réponse du chauffeur. */
+  const [waitingOfferId, setWaitingOfferId] = useState('');
 
   const vehicleKey: VehicleType = vehicle ?? 'moto';
   const info = VEHICLES[vehicleKey];
   const estimate = estimateFare(distanceKm);
 
-  const pick = (id: string) => {
+  /** Accepte le prix proposé : il est VERROUILLÉ pour la course. */
+  const accept = (id: string) => {
     const found = offers.find((offer) => offer.id === id);
     if (!found) return;
     chooseOffer(found);
-    navigate('/passenger/tracking');
+    acceptOffer(id);
   };
 
-  // Aucune offre réelle (moteur d'offres à venir) → écran « aucun conducteur ».
+  const openNegotiation = (offer: Offer) => {
+    setNegotiating(offer);
+    setCounterAmount(clampFare(offer.price - 100));
+    setWaitingOfferId('');
+  };
+
+  const sendCounter = () => {
+    if (!negotiating) return;
+    sendCounterOffer(negotiating.id, counterAmount);
+    setWaitingOfferId(negotiating.id);
+    setNegotiating(null);
+  };
+
+  /* Le conducteur a créé la course → suivi en temps réel. */
   useEffect(() => {
-    if (offers.length === 0) {
-      navigate('/passenger/unavailable', { state: { reason: 'no-driver' } });
-    }
-  }, [offers, navigate]);
+    if (rideStatus === 'driver_found') navigate('/passenger/tracking');
+  }, [rideStatus, navigate]);
+
+  /*
+   * Plus aucune offre (refus / expiration) : on laisse le temps à la
+   * republication automatique avant de basculer sur l'écran « indisponible ».
+   */
+  useEffect(() => {
+    if (offers.length > 0 || rideStatus === 'driver_found') return undefined;
+
+    const timer = window.setTimeout(
+      () => navigate('/passenger/unavailable', { state: { reason: 'no-driver' } }),
+      2500,
+    );
+    return () => window.clearTimeout(timer);
+  }, [offers, rideStatus, navigate]);
 
   const backToHome = () => {
     cancelRide();
@@ -192,10 +241,10 @@ export default function Offers() {
               <Search size={30} strokeWidth={1.8} />
             </span>
 
-            <strong>Aucune offre disponible</strong>
+            <strong>Aucun accord pour l’instant</strong>
             <p>
-              Les conducteurs près de vous n’ont pas encore répondu.
-              Modifiez votre recherche pour réessayer.
+              Les conducteurs n’ont pas encore répondu, ou la négociation a expiré :
+              nous recherchons un autre chauffeur…
             </p>
 
             <button type="button" className="offers-empty-button" onClick={backToHome}>
@@ -210,6 +259,12 @@ export default function Offers() {
               const initial = driver.name.trim().charAt(0).toUpperCase() || 'C';
               // Numéro réel du conducteur (compte authLocal) — vide = boutons masqués.
               const driverPhone = resolveDriverPhone(driver);
+
+              /* ---- Négociation en cours pour cette offre ---- */
+              const negotiation = negotiations[offer.id] ?? offer.negotiation;
+              const rounds = negotiation?.rounds ?? [];
+              const isWaiting = waitingOfferId === offer.id;
+              const canStillNegotiate = canNegotiate(rounds);
 
               return (
                 <article
@@ -267,19 +322,160 @@ export default function Offers() {
                     </div>
                   )}
 
-                  <button
-                    type="button"
-                    className="offers-pick"
-                    onClick={() => pick(offer.id)}
-                  >
-                    Choisir ce chauffeur
-                  </button>
+                  {/* ===== NÉGOCIATION (3 tours maximum) ===== */}
+                  {rounds.length > 0 && (
+                    <div className="offers-nego">
+                      <div className="offers-nego-head">
+                        <span className="offers-nego-round">{roundLabel(rounds)}</span>
+                        <span className="offers-nego-status">
+                          {negotiation?.status === 'accepted'
+                            ? 'Prix accepté'
+                            : isWaiting
+                              ? 'En attente du chauffeur…'
+                              : 'Négociation en cours'}
+                        </span>
+                      </div>
+
+                      <ul className="offers-nego-history">
+                        {describeRounds(rounds, fcfa).map((line) => (
+                          <li key={line} className="offers-nego-line">
+                            {line}
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+
+                  {isWaiting && (
+                    <p className="offers-nego-waiting">
+                      En attente de la réponse du chauffeur…
+                    </p>
+                  )}
+
+                  <div className="offers-choice">
+                    <button
+                      type="button"
+                      className="offers-pick"
+                      onClick={() => accept(offer.id)}
+                    >
+                      <Check size={16} />
+                      Accepter {fcfa(offer.price)}
+                    </button>
+
+                    <button
+                      type="button"
+                      className="offers-nego-btn"
+                      onClick={() => openNegotiation(offer)}
+                      disabled={!canStillNegotiate}
+                    >
+                      <Handshake size={16} />
+                      {canStillNegotiate ? 'Négocier' : '3 tours épuisés'}
+                    </button>
+
+                    <button
+                      type="button"
+                      className="offers-reject-btn"
+                      onClick={() => rejectOffer(offer.id)}
+                    >
+                      <X size={15} />
+                      Refuser
+                    </button>
+                  </div>
                 </article>
               );
             })}
           </div>
         )}
 
+
+        {/* ===== MODALE : NÉGOCIATION DU PRIX ===== */}
+        {negotiating && (
+          <div className="offers-modal" role="dialog" aria-modal="true">
+            <button
+              type="button"
+              className="offers-modal-backdrop"
+              aria-label="Fermer"
+              onClick={() => setNegotiating(null)}
+            />
+
+            <div className="offers-modal-card">
+              <h2 className="offers-modal-title">Négocier le prix</h2>
+
+              <p className="offers-modal-sub">
+                {negotiating.driver.name} propose{' '}
+                <strong>{fcfa(negotiating.price)}</strong>
+              </p>
+
+              {/* Progression des tours (1, 2, 3) */}
+              <div className="offers-rounds">
+                {Array.from({ length: MAX_NEGOTIATION_ROUNDS }).map((_, index) => {
+                  const current = (negotiating.negotiation?.currentRound ?? 1) - 1;
+                  const done = index < current;
+
+                  return (
+                    <span
+                      key={index}
+                      className={`offers-round-step${
+                        done ? ' offers-round-step--done' : ''
+                      }${index === current ? ' offers-round-step--current' : ''}`}
+                    >
+                      {index + 1}
+                    </span>
+                  );
+                })}
+              </div>
+
+              <p className="offers-modal-round-label">
+                {roundLabel(negotiating.negotiation?.rounds ?? [])}
+              </p>
+
+              <label className="offers-modal-label" htmlFor="offer-counter">
+                Votre prix
+              </label>
+
+              <div className="offers-modal-fare">
+                <button
+                  type="button"
+                  className="offers-modal-fare-btn"
+                  aria-label="Diminuer de 100"
+                  onClick={() => setCounterAmount((value) => clampFare(value - 100))}
+                >
+                  −
+                </button>
+
+                <input
+                  id="offer-counter"
+                  type="number"
+                  className="offers-modal-fare-input"
+                  value={counterAmount}
+                  min={MIN_FARE}
+                  max={MAX_FARE}
+                  step={100}
+                  onChange={(event) => setCounterAmount(clampFare(Number(event.target.value)))}
+                />
+
+                <button
+                  type="button"
+                  className="offers-modal-fare-btn"
+                  aria-label="Augmenter de 100"
+                  onClick={() => setCounterAmount((value) => clampFare(value + 100))}
+                >
+                  +
+                </button>
+              </div>
+
+              <p className="offers-modal-hint">
+                Barème conseillé : {fcfa(estimate.exact)} (fourchette {fcfa(estimate.min)} –{' '}
+                {fcfa(estimate.max)})
+              </p>
+
+              <button type="button" className="offers-modal-send" onClick={sendCounter}>
+                <Handshake size={16} />
+                Envoyer la contre-offre
+              </button>
+            </div>
+          </div>
+        )}
 
         <p className="offers-footnote">
           Le prix accepté dans l’application est verrouillé.

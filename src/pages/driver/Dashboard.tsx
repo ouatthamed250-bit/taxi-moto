@@ -4,6 +4,7 @@ import {
   AlertTriangle,
   Check,
   Clock,
+  Handshake,
   Info,
   MapPin,
   MessageCircle,
@@ -37,6 +38,7 @@ import { useApp } from '../../store/useApp';
 import { useGeolocation } from '../../hooks/useGeolocation';
 import { MIN_MOVE_KM } from '../../services/geolocation';
 import { DRIVER_STEPS, COURSE_LABEL, driverStepIndex } from '../../data/courseStatus';
+import { describeRounds, roundLabel } from '../../data/negotiation';
 import { coordsOfQuartier } from '../../data/quartiers';
 import { callPhone, messagePhone, resolvePassengerPhone } from '../../services/contacts';
 import './Dashboard.css';
@@ -66,11 +68,19 @@ export default function DriverDashboard() {
     updateRideStatus,
     livePassengerPositions,
     accountId,
+    myOffer,
+    proposePrice,
+    acceptOffer,
+    driverCounterOffer,
+    offerNotice,
   } = useApp();
   const [fareAdjust, setFareAdjust] = useState<{ id: string; delta: number }>({
     id: '',
     delta: 0,
   });
+  /** Modale de contre-proposition (négociation). */
+  const [counterOpen, setCounterOpen] = useState(false);
+  const [counterAmount, setCounterAmount] = useState(MIN_FARE);
 
   /**
    * Publication de la position conducteur.
@@ -104,6 +114,12 @@ export default function DriverDashboard() {
     fareAdjust.id === (incomingRequest?.id ?? '') ? fareAdjust.delta : 0;
   const fare = clampFare(fareEstimate.exact + fareDelta);
   const fareOutOfRange = fare < fareEstimate.min || fare > fareEstimate.max;
+
+  /* ---- Négociation en cours (offre publiée par ce conducteur) ---- */
+  const offerRounds = myOffer?.rounds ?? [];
+  const lastOfferRound = offerRounds[offerRounds.length - 1];
+  /** C'est au conducteur de répondre (dernier message = client). */
+  const mustAnswer = lastOfferRound?.from === 'passenger';
 
   /** Fixe le prix proposé (borné au barème 1 000 – 3 000 F). */
   const changeFare = (next: number) => {
@@ -396,6 +412,14 @@ export default function DriverDashboard() {
             </p>
           </section>
 
+          {/* Information négociation (expiration / solde insuffisant) */}
+          {offerNotice && (
+            <p className="driver-dashboard-negotiate">
+              <Info size={13} />
+              {offerNotice}
+            </p>
+          )}
+
           {/* ===== COURSE EN COURS (statut partagé avec le client) ===== */}
           {trip ? (
             <section className="driver-dashboard-trip">
@@ -608,25 +632,98 @@ export default function DriverDashboard() {
                 <strong className="driver-dashboard-net-value">{fcfa(netEarnings(fare))}</strong>
               </p>
 
-              <div className="driver-dashboard-actions">
-                <button
-                  type="button"
-                  className="driver-dashboard-accept"
-                  onClick={handleAccept}
-                >
-                  <Check size={17} />
-                  Accepter
-                </button>
+              {myOffer ? (
+                /* ---- Négociation en cours : offre publiée par ce conducteur ---- */
+                <section className="driver-dashboard-counter">
+                  <div className="driver-dashboard-trip-head">
+                    <span className="driver-dashboard-trip-badge">
+                      {myOffer.status === 'accepted'
+                        ? 'Prix accepté'
+                        : myOffer.status === 'negotiating'
+                          ? `Contre-offre du client — ${roundLabel(offerRounds)}`
+                          : `Offre envoyée — ${roundLabel(offerRounds)}`}
+                    </span>
 
-                <button
-                  type="button"
-                  className="driver-dashboard-refuse"
-                  onClick={rejectIncoming}
-                >
-                  <X size={16} />
-                  Refuser
-                </button>
-              </div>
+                    <span className="driver-dashboard-request-people">
+                      <Wallet size={13} />
+                      {fcfa(myOffer.price)}
+                    </span>
+                  </div>
+
+                  <ul className="driver-dashboard-nego">
+                    {describeRounds(offerRounds, fcfa).map((line) => (
+                      <li key={line} className="driver-dashboard-nego-line">
+                        {line}
+                      </li>
+                    ))}
+                  </ul>
+
+                  {mustAnswer ? (
+                    <>
+                      <p className="driver-dashboard-nego-waiting">
+                        Le client propose {fcfa(myOffer.price)} — répondez sous 60 s,
+                        sinon la course part chez un autre conducteur.
+                      </p>
+
+                      <div className="driver-dashboard-actions">
+                        <button
+                          type="button"
+                          className="driver-dashboard-accept"
+                          onClick={() => acceptOffer(myOffer.id)}
+                        >
+                          <Check size={17} />
+                          Accepter {fcfa(myOffer.price)}
+                        </button>
+
+                        <button
+                          type="button"
+                          className="driver-dashboard-counter-btn"
+                          onClick={() => {
+                            setCounterAmount(clampFare(myOffer.price));
+                            setCounterOpen(true);
+                          }}
+                        >
+                          <Handshake size={16} />
+                          Contre-proposer
+                        </button>
+                      </div>
+                    </>
+                  ) : (
+                    <p className="driver-dashboard-nego-waiting">
+                      En attente de la réponse du client…
+                    </p>
+                  )}
+                </section>
+              ) : (
+                <div className="driver-dashboard-actions">
+                  <button
+                    type="button"
+                    className="driver-dashboard-accept"
+                    onClick={() => proposePrice(fare)}
+                  >
+                    <Handshake size={17} />
+                    Proposer {fcfa(fare)}
+                  </button>
+
+                  <button
+                    type="button"
+                    className="driver-dashboard-accept"
+                    onClick={handleAccept}
+                  >
+                    <Check size={17} />
+                    Accord direct
+                  </button>
+
+                  <button
+                    type="button"
+                    className="driver-dashboard-refuse"
+                    onClick={rejectIncoming}
+                  >
+                    <X size={16} />
+                    Refuser
+                  </button>
+                </div>
+              )}
             </section>
           ) : (
             <section className="driver-dashboard-waiting">
@@ -672,6 +769,75 @@ export default function DriverDashboard() {
 
         </section>
       </div>
+      {/* ===== MODALE : CONTRE-PROPOSITION DU CONDUCTEUR ===== */}
+      {counterOpen && myOffer && (
+        <div className="driver-counter-modal" role="dialog" aria-modal="true">
+          <button
+            type="button"
+            className="driver-counter-backdrop"
+            aria-label="Fermer"
+            onClick={() => setCounterOpen(false)}
+          />
+
+          <div className="driver-counter-card">
+            <h2 className="driver-counter-title">Contre-proposer</h2>
+
+            <p className="driver-counter-sub">
+              Le client propose {fcfa(lastOfferRound?.amount ?? myOffer.price)} — votre
+              contre-proposition :
+            </p>
+
+            <div className="driver-dashboard-fare">
+              <button
+                type="button"
+                className="driver-dashboard-fare-btn"
+                aria-label="Diminuer de 100"
+                onClick={() => setCounterAmount((value) => clampFare(value - 100))}
+              >
+                −
+              </button>
+
+              <input
+                type="number"
+                className="driver-dashboard-fare-input"
+                value={counterAmount}
+                min={MIN_FARE}
+                max={MAX_FARE}
+                step={100}
+                onChange={(event) => setCounterAmount(clampFare(Number(event.target.value)))}
+              />
+
+              <button
+                type="button"
+                className="driver-dashboard-fare-btn"
+                aria-label="Augmenter de 100"
+                onClick={() => setCounterAmount((value) => clampFare(value + 100))}
+              >
+                +
+              </button>
+            </div>
+
+            <p className="driver-dashboard-net">
+              Commission 10 % ({fcfa(commissionOf(counterAmount))}) = Net :{' '}
+              <strong className="driver-dashboard-net-value">
+                {fcfa(netEarnings(counterAmount))}
+              </strong>
+            </p>
+
+            <button
+              type="button"
+              className="driver-counter-send"
+              onClick={() => {
+                driverCounterOffer(myOffer.id, counterAmount);
+                setCounterOpen(false);
+              }}
+            >
+              <Handshake size={16} />
+              Envoyer ma contre-proposition
+            </button>
+          </div>
+        </div>
+      )}
     </Page>
   );
 }

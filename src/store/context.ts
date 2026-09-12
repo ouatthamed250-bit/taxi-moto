@@ -10,6 +10,8 @@ import type {
   DriverProfile,
   DriverRegisterInput,
   GeoPosition,
+  LiveOffer,
+  Negotiation,
   Offer,
   PassengerRegisterInput,
   RechargeRequest,
@@ -75,6 +77,22 @@ export interface AppContextValue {
   rateRide: (rating: number) => void;
   resetBooking: () => void;
 
+  /* ---- Offres & négociation de prix (client ↔ chauffeur) ---- */
+  /** Négociations en cours côté CLIENT, indexées par identifiant d'offre. */
+  negotiations: Record<string, Negotiation>;
+  /** Offre publiée par le CONDUCTEUR pour la demande en cours (`null` sinon). */
+  myOffer: LiveOffer | null;
+  /** Conducteur : propose son prix pour la demande reçue. */
+  proposePrice: (price: number) => void;
+  /** Client : envoie une contre-offre (consomme un tour). */
+  sendCounterOffer: (offerId: string, amount: number) => void;
+  /** Conducteur : contre-propose après l'offre du client. */
+  driverCounterOffer: (offerId: string, amount: number) => void;
+  /** Accepte l'offre (client) ou la contre-offre du client (conducteur). */
+  acceptOffer: (offerId: string) => void;
+  /** Refuse l'offre : le conducteur est retiré de la course. */
+  rejectOffer: (offerId: string) => void;
+
   /* ---- Suivi de course partagé (client + conducteur) ---- */
   /**
    * Course active : celle que le conducteur conduit ou que le client suit.
@@ -83,6 +101,8 @@ export interface AppContextValue {
   activeRide: Ride | null;
   /** Met à jour le statut partagé de la course (Firestore + RTDB). */
   updateRideStatus: (rideId: string, status: CourseStatus) => Promise<void>;
+  /** Message d'information conducteur (offre expirée / solde insuffisant). */
+  offerNotice: string | null;
 
   /* ---- Conducteur ---- */
   driverOnline: boolean;

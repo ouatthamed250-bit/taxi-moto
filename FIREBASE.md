@@ -56,7 +56,14 @@ Realtime Database
   positions/passengers/{uid}  → { latitude, longitude, updatedAt }
   online/drivers/{uid}        → { online: true|false, updatedAt }
   rideRequests/{id}           → demande de course en attente
+  rideStatus/{rideId}         → statut partagé de la course (live)
+  offers/{offerId}            → prix proposé par un conducteur (+ rounds, status)
+  negotiations/{offerId}      → tours de négociation (rounds 1 à 3, max 3 tours)
 ```
+
+⚠️ Pensez à **re-publier `database.rules.json`** après chaque ajout de nœud
+(`rideStatus`, `offers`, `negotiations`) : sans cela, l'écriture est refusée
+(`Permission denied`) et la fonctionnalité correspondante reste en mode dégradé.
 
 ## 5. Où vérifier dans la console Firebase
 
