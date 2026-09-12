@@ -80,7 +80,39 @@ Realtime Database
 Astuce : dans les deux écrans de données, laisse l'onglet ouvert — les
 écritures apparaissent en direct pendant que vous utilisez l'application.
 
-### 5.1 Flux RECHARGE : conducteur → admin (à ne pas casser)
+### 5.2 Flux NÉGOCIATION du prix (client ↔ chauffeur)
+
+```
+Chauffeur propose 1 500 F   → /offers/{id}.rounds = [ {driver, 1500} ]  status: pending
+Client  « Négocier » 1 300  → rounds += {passenger, 1300}               status: negotiating
+    ⛔ RIEN ne démarre : aucune course, aucun `accepted`
+    ⏳ Le client voit « Votre proposition : 1 300 F — En attente de la réponse du chauffeur… »
+       (boutons Accepter / Négocier DÉSACTIVÉS)
+Chauffeur ACCEPTE           → status: accepted → il crée la course (Firestore) → le client suit
+Chauffeur CONTRE-PROPOSE    → rounds += {driver, 1400} → le client voit « Le chauffeur propose 1 400 F »
+Client ACCEPTE 1 400        → status: accepted → le chauffeur crée la course
+3 tours client sans accord  → status: expired → la demande repart chez un autre conducteur
+```
+
+⚠️ **Règles à ne pas casser** (bugs déjà corrigés) :
+
+1. **Chacun son tour** : après avoir proposé, on ATTEND la réponse de l'autre partie.
+   `canPassengerAcceptOffer(rounds)` renvoie `false` tant que la dernière proposition
+   vient du CLIENT — sinon le client « acceptait sa propre offre » et la course
+   démarrait à son prix sans l'accord du chauffeur.
+2. **`sendCounterOffer` n'écrit QUE la proposition** (`status: 'negotiating'`) :
+   jamais `accepted`, jamais de création de course. Le garde-fou est aussi dans
+   `sendCounterOffer` (refus si l'on attend déjà le chauffeur).
+3. **Le prix affiché côté client = dernière proposition DU CHAUFFEUR**
+   (`lastDriverAmount`) ; « Votre proposition » vient de `lastPassengerAmount`.
+   `offer.price` = montant du DERNIER tour (les deux camps), il ne doit donc
+   jamais servir directement d'affichage « prix du chauffeur ».
+4. **Historique** : `describeRounds(rounds, fcfa, 'passenger' | 'driver')` → ses
+   propres tours s'affichent « Vous » (« 1. Chauffeur : 1 500 F · 2. Vous : 1 300 F »).
+5. L'expiration (60 s) et la limite de 3 tours restent pilotées par
+   `isTimedOut()` / `canNegotiate()` (voir `src/data/negotiation.ts`).
+
+### 5.3 Flux RECHARGE : conducteur → admin (à ne pas casser)
 
 | Étape | Qui | Ce qui se passe |
 |---|---|---|

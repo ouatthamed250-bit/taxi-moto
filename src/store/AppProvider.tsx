@@ -82,7 +82,9 @@ import { mergeRideHistory, sortRidesDesc, todayStamp } from '../data/rides';
 import {
   MAX_NEGOTIATION_ROUNDS,
   canNegotiate,
+  canPassengerAcceptOffer,
   countRounds,
+  isAwaitingDriverResponse,
   isTimedOut,
   lastAmount,
   toNegotiation,
@@ -440,6 +442,28 @@ export function AppProvider({ children }: { children: ReactNode }) {
       accountId,
       debitDriverBalance,
     ],
+  );
+
+  /**
+   * Met à jour une offre localement (retour visuel immédiat, avant l'écho
+   * temps réel) : offre brute (`liveOffers`) ET négociation exposée à l'UI.
+   */
+  const updateOfferLocally = useCallback(
+    (offerId: string, patch: Partial<LiveOffer>) => {
+      setLiveOffers((list) =>
+        list.map((item) => (item.id === offerId ? { ...item, ...patch } : item)),
+      );
+
+      const rounds = patch.rounds;
+      if (rounds) {
+        const status = patch.status ?? 'negotiating';
+        setNegotiations((current) => ({
+          ...current,
+          [offerId]: toNegotiation(rounds, status),
+        }));
+      }
+    },
+    [],
   );
 
   /**
@@ -1337,6 +1361,17 @@ const sendCounterOffer = useCallback(
 
     const rounds = offer.rounds ?? [];
 
+    /*
+     * ⚠️ C'est au CHAUFFEUR de répondre : le client ne peut pas enchaîner deux
+     * propositions (il doit attendre — boutons grisés dans l'interface).
+     */
+    if (isAwaitingDriverResponse(rounds)) {
+      console.warn(
+        '[négociation] contre-offre déjà envoyée : en attente de la réponse du chauffeur.',
+      );
+      return;
+    }
+
     // 3 tours déjà consommés → plus d'accord possible.
     if (!canNegotiate(rounds)) {
       expireOffer(offer, '3 tours atteints sans accord');
@@ -1350,6 +1385,21 @@ const sendCounterOffer = useCallback(
     };
     const nextRounds = [...rounds, message];
 
+    /*
+     * Retour visuel IMMÉDIAT (avant l'écho temps réel) : le client voit sa
+     * proposition et l'écran se met en attente — aucune course ne démarre.
+     */
+    void updateOfferLocally(offerId, {
+      price: message.amount,
+      status: 'negotiating',
+      currentRound: countRounds(nextRounds),
+      rounds: nextRounds,
+    });
+
+    /*
+     * On écrit UNIQUEMENT la proposition : `negotiating` (pas « accepted » !) →
+     * aucune course ne démarre, le chauffeur doit répondre.
+     */
     void publishNegotiation(offerId, message, nextRounds.length);
     void publishOfferStatus(offerId, 'negotiating', {
       status: 'negotiating',
@@ -1364,7 +1414,7 @@ const sendCounterOffer = useCallback(
       rounds: nextRounds,
     });
   },
-  [liveOffers, expireOffer, logNegotiation],
+  [liveOffers, expireOffer, logNegotiation, updateOfferLocally],
 );
 
 /** CONDUCTEUR : contre-propose après la contre-offre du client. */
@@ -1388,6 +1438,14 @@ const driverCounterOffer = useCallback(
     };
     const nextRounds = [...rounds, message];
 
+    // Retour visuel immédiat : le conducteur repasse « en attente du client ».
+    updateOfferLocally(offerId, {
+      price: message.amount,
+      status: 'negotiating',
+      currentRound: countRounds(nextRounds),
+      rounds: nextRounds,
+    });
+
     void publishNegotiation(offerId, message, nextRounds.length);
     void publishOfferStatus(offerId, 'negotiating', {
       status: 'negotiating',
@@ -1402,7 +1460,7 @@ const driverCounterOffer = useCallback(
       rounds: nextRounds,
     });
   },
-  [liveOffers, myOffer, expireOffer, logNegotiation],
+  [liveOffers, myOffer, expireOffer, logNegotiation, updateOfferLocally],
 );
 
 /**
@@ -1416,7 +1474,21 @@ const acceptOffer = useCallback(
     const offer = liveOffers.find((item) => item.id === offerId) ?? myOffer;
     if (!offer) return;
 
-    const amount = lastAmount(offer.rounds ?? [], offer.price);
+    const rounds = offer.rounds ?? [];
+
+    /*
+     * ⚠️ GARDE-FOU : le CLIENT ne peut accepter QUE la proposition du CHAUFFEUR.
+     * S'il vient de négocier, il doit ATTENDRE la réponse — sinon la course
+     * démarrerait à SON prix sans l'accord du chauffeur (auto-acceptation).
+     */
+    if (!isDriverAccount && !canPassengerAcceptOffer(rounds)) {
+      console.warn(
+        '[négociation] acceptation refusée : en attente de la réponse du chauffeur.',
+      );
+      return;
+    }
+
+    const amount = lastAmount(rounds, offer.price);
 
     if (isDriverAccount) {
       finalizeAcceptedOffer({ ...offer, price: amount }, amount);
@@ -1432,7 +1504,6 @@ const acceptOffer = useCallback(
   },
   [liveOffers, myOffer, isDriverAccount, finalizeAcceptedOffer, toStoreOffer, logNegotiation],
 );
-
 /** REFUS : le conducteur est retiré de la course. */
 const rejectOffer = useCallback(
   (offerId: string) => {

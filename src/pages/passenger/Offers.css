@@ -772,6 +772,69 @@
   font-weight: 600;
 }
 
+
+/* ===== ATTENTE DE LA RÉPONSE DU CHAUFFEUR (bandeau + spinner) =====
+   Le client a envoyé SA proposition : les actions sont grisées et l'écran
+   reste bloqué en attente tant que le chauffeur n'a pas répondu. */
+.offers-nego-waiting {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  padding: 12px 13px;
+  border-radius: 16px;
+  border: 1px solid rgba(11, 95, 255, 0.28);
+  background: rgba(11, 95, 255, 0.08);
+  color: #0b5fff;
+}
+
+.offers-nego-waiting-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.offers-nego-waiting-text strong {
+  font-size: 12.5px;
+  font-weight: 900;
+}
+
+.offers-nego-waiting-text span {
+  color: var(--taxi-gray-500, #7a879b);
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.offers-nego-spinner {
+  width: 18px;
+  height: 18px;
+  flex: 0 0 18px;
+  border-radius: 50%;
+  border: 2.5px solid rgba(11, 95, 255, 0.25);
+  border-top-color: #0b5fff;
+  animation: offersSpin 0.8s linear infinite;
+}
+
+@keyframes offersSpin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* Actions grisées pendant l'attente (impossible d'accepter sa propre offre) */
+.offers-pick:disabled,
+.offers-reject-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  box-shadow: none;
+  transform: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .offers-nego-spinner {
+    animation-duration: 2s;
+  }
+}
+
 .offers-rounds {
   display: flex;
   gap: 8px;

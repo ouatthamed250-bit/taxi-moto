@@ -692,7 +692,7 @@ export default function DriverDashboard() {
                   </div>
 
                   <ul className="driver-dashboard-nego">
-                    {describeRounds(offerRounds, fcfa).map((line) => (
+                    {describeRounds(offerRounds, fcfa, 'driver').map((line) => (
                       <li key={line} className="driver-dashboard-nego-line">
                         {line}
                       </li>

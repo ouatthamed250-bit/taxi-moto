@@ -6,7 +6,12 @@
  *     chauffeur) ;
  *   • un tour sans réponse pendant 60 s expire automatiquement ;
  *   • si les 3 tours sont épuisés sans accord, la course est retirée du
- *     chauffeur et proposée à un autre.
+ *     chauffeur et proposée à un autre ;
+ *   • **on joue chacun son tour** : après avoir proposé, on ATTEND la réponse de
+ *     l'autre partie (on ne peut donc jamais accepter SA PROPRE proposition) ;
+ *   • la course ne démarre QUE lorsque l'accord est scellé : le chauffeur
+ *     accepte (il crée la course) ou le client accepte la proposition du
+ *     chauffeur (le chauffeur crée la course).
  */
 import type { Negotiation, NegotiationMessage, NegotiationStatus } from '../types';
 
@@ -53,6 +58,62 @@ export function isTimedOut(
   return now - last.timestamp >= NEGOTIATION_TIMEOUT_MS;
 }
 
+/** Dernier message échangé (null si aucune négociation). */
+export function lastRound(rounds: NegotiationMessage[]): NegotiationMessage | null {
+  return rounds.length > 0 ? rounds[rounds.length - 1] : null;
+}
+
+/** Qui a parlé en DERNIER ? (null si aucune négociation) */
+export function lastRoundFrom(
+  rounds: NegotiationMessage[],
+): 'passenger' | 'driver' | null {
+  return lastRound(rounds)?.from ?? null;
+}
+
+/**
+ * Le CLIENT vient de proposer → on ATTEND la réponse du chauffeur.
+ * (Le client ne doit alors PLUS pouvoir accepter : ce serait accepter SA
+ * propre proposition.)
+ */
+export function isAwaitingDriverResponse(rounds: NegotiationMessage[]): boolean {
+  return lastRoundFrom(rounds) === 'passenger';
+}
+
+/** Le CHAUFFEUR vient de proposer → on attend la réponse du client. */
+export function isAwaitingPassengerResponse(rounds: NegotiationMessage[]): boolean {
+  return lastRoundFrom(rounds) === 'driver';
+}
+
+/**
+ * Le CLIENT peut-il accepter l'offre ?
+ *
+ * ⚠️ Uniquement si la dernière proposition vient du CHAUFFEUR (ou qu'aucune
+ * négociation n'a commencé). Sinon la course démarrerait au prix du client SANS
+ * l'accord du chauffeur (bug « auto-acceptation de sa propre proposition »).
+ */
+export function canPassengerAcceptOffer(rounds: NegotiationMessage[]): boolean {
+  return !isAwaitingDriverResponse(rounds);
+}
+
+/** Montant de la dernière proposition du CHAUFFEUR (repli : prix de l'offre). */
+export function lastDriverAmount(
+  rounds: NegotiationMessage[],
+  fallback: number,
+): number {
+  for (let index = rounds.length - 1; index >= 0; index -= 1) {
+    if (rounds[index].from === 'driver') return rounds[index].amount;
+  }
+  return fallback;
+}
+
+/** Montant de la dernière proposition du CLIENT (null si aucune). */
+export function lastPassengerAmount(rounds: NegotiationMessage[]): number | null {
+  for (let index = rounds.length - 1; index >= 0; index -= 1) {
+    if (rounds[index].from === 'passenger') return rounds[index].amount;
+  }
+  return null;
+}
+
 /** Construit l'objet de négociation exposé par le store. */
 export function toNegotiation(
   rounds: NegotiationMessage[],
@@ -71,13 +132,24 @@ export function roundLabel(rounds: NegotiationMessage[]): string {
   return `Tour ${consumed}/${MAX_NEGOTIATION_ROUNDS}`;
 }
 
-/** Historique lisible (« Tour 1 : Client 1300 F → Chauffeur 1400 F »). */
+/**
+ * Historique lisible des tours.
+ * `self` = le camp qui affiche l'historique → ses propres tours sont « Vous »
+ * (« 1. Chauffeur : 1 200 F · 2. Vous : 1 000 F · 3. Chauffeur : 1 400 F »).
+ */
 export function describeRounds(
   rounds: NegotiationMessage[],
   fcfaFormat: (value: number) => string,
+  self: 'passenger' | 'driver' = 'passenger',
 ): string[] {
-  return rounds.map(
-    (message, index) =>
-      `${index + 1}. ${message.from === 'passenger' ? 'Client' : 'Chauffeur'} : ${fcfaFormat(message.amount)}`,
-  );
+  return rounds.map((message, index) => {
+    const label =
+      message.from === self
+        ? 'Vous'
+        : message.from === 'passenger'
+          ? 'Client'
+          : 'Chauffeur';
+
+    return `${index + 1}. ${label} : ${fcfaFormat(message.amount)}`;
+  });
 }

@@ -35,6 +35,9 @@ import {
   MAX_NEGOTIATION_ROUNDS,
   canNegotiate,
   describeRounds,
+  isAwaitingDriverResponse,
+  lastDriverAmount,
+  lastPassengerAmount,
   roundLabel,
 } from '../../data/negotiation';
 import { callPhone, messagePhone, resolveDriverPhone } from '../../services/contacts';
@@ -70,14 +73,16 @@ export default function Offers() {
   const [negotiating, setNegotiating] = useState<Offer | null>(null);
   /** Prix proposé par le client dans la modale. */
   const [counterAmount, setCounterAmount] = useState(MIN_FARE);
-  /** Contre-offre envoyée : en attente de la réponse du chauffeur. */
-  const [waitingOfferId, setWaitingOfferId] = useState('');
 
   const vehicleKey: VehicleType = vehicle ?? 'moto';
   const info = VEHICLES[vehicleKey];
   const estimate = estimateFare(distanceKm);
 
-  /** Accepte le prix proposé : il est VERROUILLÉ pour la course. */
+  /**
+   * Accepte le prix du CHAUFFEUR : il est VERROUILLÉ pour la course.
+   * ⚠️ Impossible d'accepter sa propre contre-offre : le store refuse tant que
+   * le chauffeur n'a pas répondu (voir `canPassengerAcceptOffer`).
+   */
   const accept = (id: string) => {
     const found = offers.find((offer) => offer.id === id);
     if (!found) return;
@@ -85,16 +90,31 @@ export default function Offers() {
     acceptOffer(id);
   };
 
-  const openNegotiation = (offer: Offer) => {
+  /** Ouvre la modale : on négocie à partir du prix DU CHAUFFEUR. */
+  const openNegotiation = (offer: Offer, driverAmount: number) => {
     setNegotiating(offer);
-    setCounterAmount(clampFare(offer.price - 100));
-    setWaitingOfferId('');
+    setCounterAmount(clampFare(driverAmount - 100));
   };
 
+  /*
+   * Modale de négociation : on affiche TOUJOURS le prix du chauffeur et les
+   * tours EN COURS (état temps réel du store, jamais une copie figée).
+   */
+  const modalNegotiation = negotiating
+    ? negotiations[negotiating.id] ?? negotiating.negotiation
+    : undefined;
+  const modalRounds = modalNegotiation?.rounds ?? [];
+  const modalDriverAmount = negotiating
+    ? lastDriverAmount(modalRounds, negotiating.price)
+    : 0;
+
+  /**
+   * Envoie la contre-offre : le store ÉCRIT la proposition (RTDB) et rien
+   * d'autre — aucune course ne démarre, on attend la réponse du chauffeur.
+   */
   const sendCounter = () => {
     if (!negotiating) return;
     sendCounterOffer(negotiating.id, counterAmount);
-    setWaitingOfferId(negotiating.id);
     setNegotiating(null);
   };
 
@@ -263,8 +283,17 @@ export default function Offers() {
               /* ---- Négociation en cours pour cette offre ---- */
               const negotiation = negotiations[offer.id] ?? offer.negotiation;
               const rounds = negotiation?.rounds ?? [];
-              const isWaiting = waitingOfferId === offer.id;
-              const canStillNegotiate = canNegotiate(rounds);
+              /** Le CLIENT a parlé en dernier → on attend le chauffeur (rien ne démarre). */
+              const awaitingDriver = isAwaitingDriverResponse(rounds);
+              /** Prix de référence = dernière proposition du CHAUFFEUR. */
+              const driverAmount = lastDriverAmount(rounds, offer.price);
+              /** Dernière proposition du client (sa contre-offre en attente). */
+              const myAmount = lastPassengerAmount(rounds);
+              const priceAccepted = negotiation?.status === 'accepted';
+              const roundsExhausted = !canNegotiate(rounds);
+              /** Tant que l'on attend le chauffeur, AUCUNE action n'est possible. */
+              const canAct = !awaitingDriver && !priceAccepted;
+              const canStillNegotiate = canAct && !roundsExhausted;
 
               return (
                 <article
@@ -290,14 +319,14 @@ export default function Offers() {
                     </div>
 
                     <div className="offers-price">
-                      <strong>{fcfa(offer.price)}</strong>
-                      <span>prix proposé</span>
+                      <strong>{fcfa(driverAmount)}</strong>
+                      <span>{rounds.length > 0 ? 'prix du chauffeur' : 'prix proposé'}</span>
                     </div>
                   </div>
 
                   <p className="offers-net">
-                    Commission 10 % ({fcfa(commissionOf(offer.price))}) · Net
-                    chauffeur : {fcfa(netEarnings(offer.price))}
+                    Commission 10 % ({fcfa(commissionOf(driverAmount))}) · Net
+                    chauffeur : {fcfa(netEarnings(driverAmount))}
                   </p>
 
                   {driverPhone && (
@@ -328,16 +357,16 @@ export default function Offers() {
                       <div className="offers-nego-head">
                         <span className="offers-nego-round">{roundLabel(rounds)}</span>
                         <span className="offers-nego-status">
-                          {negotiation?.status === 'accepted'
+                          {priceAccepted
                             ? 'Prix accepté'
-                            : isWaiting
+                            : awaitingDriver
                               ? 'En attente du chauffeur…'
-                              : 'Négociation en cours'}
+                              : 'À vous de répondre'}
                         </span>
                       </div>
 
                       <ul className="offers-nego-history">
-                        {describeRounds(rounds, fcfa).map((line) => (
+                        {describeRounds(rounds, fcfa, 'passenger').map((line) => (
                           <li key={line} className="offers-nego-line">
                             {line}
                           </li>
@@ -346,10 +375,22 @@ export default function Offers() {
                     </div>
                   )}
 
-                  {isWaiting && (
-                    <p className="offers-nego-waiting">
-                      En attente de la réponse du chauffeur…
-                    </p>
+                  {/* ===== ATTENTE DE LA RÉPONSE DU CHAUFFEUR =====
+                      Le client a proposé son prix : RIEN ne démarre tant que le
+                      chauffeur n'a pas accepté ou contre-proposé. */}
+                  {awaitingDriver && (
+                    <div className="offers-nego-waiting" role="status" aria-live="polite">
+                      <span className="offers-nego-spinner" aria-hidden="true" />
+
+                      <div className="offers-nego-waiting-text">
+                        <strong>
+                          {myAmount !== null
+                            ? `Votre proposition : ${fcfa(myAmount)}`
+                            : 'Proposition envoyée'}
+                        </strong>
+                        <span>En attente de la réponse du chauffeur…</span>
+                      </div>
+                    </div>
                   )}
 
                   <div className="offers-choice">
@@ -357,25 +398,27 @@ export default function Offers() {
                       type="button"
                       className="offers-pick"
                       onClick={() => accept(offer.id)}
+                      disabled={!canAct}
                     >
                       <Check size={16} />
-                      Accepter {fcfa(offer.price)}
+                      {priceAccepted ? 'Prix accepté' : `Accepter ${fcfa(driverAmount)}`}
                     </button>
 
                     <button
                       type="button"
                       className="offers-nego-btn"
-                      onClick={() => openNegotiation(offer)}
+                      onClick={() => openNegotiation(offer, driverAmount)}
                       disabled={!canStillNegotiate}
                     >
                       <Handshake size={16} />
-                      {canStillNegotiate ? 'Négocier' : '3 tours épuisés'}
+                      {roundsExhausted ? '3 tours épuisés' : 'Négocier'}
                     </button>
 
                     <button
                       type="button"
                       className="offers-reject-btn"
                       onClick={() => rejectOffer(offer.id)}
+                      disabled={priceAccepted}
                     >
                       <X size={15} />
                       Refuser
@@ -403,13 +446,13 @@ export default function Offers() {
 
               <p className="offers-modal-sub">
                 {negotiating.driver.name} propose{' '}
-                <strong>{fcfa(negotiating.price)}</strong>
+                <strong>{fcfa(modalDriverAmount)}</strong>
               </p>
 
               {/* Progression des tours (1, 2, 3) */}
               <div className="offers-rounds">
                 {Array.from({ length: MAX_NEGOTIATION_ROUNDS }).map((_, index) => {
-                  const current = (negotiating.negotiation?.currentRound ?? 1) - 1;
+                  const current = (modalNegotiation?.currentRound ?? 1) - 1;
                   const done = index < current;
 
                   return (
@@ -425,9 +468,7 @@ export default function Offers() {
                 })}
               </div>
 
-              <p className="offers-modal-round-label">
-                {roundLabel(negotiating.negotiation?.rounds ?? [])}
-              </p>
+              <p className="offers-modal-round-label">{roundLabel(modalRounds)}</p>
 
               <label className="offers-modal-label" htmlFor="offer-counter">
                 Votre prix
