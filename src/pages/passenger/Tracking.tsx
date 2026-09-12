@@ -15,7 +15,11 @@ import { MapComponent } from '../../components/MapComponent';
 import type { MapMarker } from '../../components/MapComponent';
 import { ABIDJAN_CENTER, COLORS, VEHICLES, commissionOf, fcfa, netEarnings } from '../../theme';
 import { useApp } from '../../store/useApp';
+import { useGeolocation } from '../../hooks/useGeolocation';
+import { getDistanceKm } from '../../services/geolocation';
 import './Tracking.css';
+
+const LIVE_DRIVER_COLOR = '#009E60';
 
 const STATUS_LABEL: Record<string, string> = {
   driver_found: 'Chauffeur en route',
@@ -54,8 +58,13 @@ export default function Tracking() {
     resetBooking,
     vehicle,
     destination,
+    driverPosition,
+    setPassengerPosition,
   } = useApp();
   const [rating, setRating] = useState(0);
+
+  /* Géolocalisation réelle du client (watch continu). */
+  const geo = useGeolocation({ onUpdate: (position) => setPassengerPosition(position) });
 
   useEffect(() => {
     if (!selectedOffer) navigate('/passenger');
@@ -77,13 +86,33 @@ export default function Tracking() {
     ABIDJAN_CENTER[1] - 0.006,
   ];
 
+  /* Positions live : le client suit sa position, le conducteur est lu du store. */
+  const passengerPin: [number, number] = geo.position
+    ? [geo.position.latitude, geo.position.longitude]
+    : ABIDJAN_CENTER;
+
+  const liveDriverPin: [number, number] = driverPosition
+    ? [driverPosition.latitude, driverPosition.longitude]
+    : driverPin;
+
+  const remainingKm =
+    driverPosition && geo.position
+      ? getDistanceKm(
+          geo.position.latitude,
+          geo.position.longitude,
+          driverPosition.latitude,
+          driverPosition.longitude,
+        )
+      : null;
+
   const markers: MapMarker[] = [
     {
       id: driver.id,
-      position: driverPin,
+      position: liveDriverPin,
       emoji: info.emoji,
       label: `${driver.name} · ${driver.plate}`,
-      color: COLORS.navy,
+      color: driverPosition ? LIVE_DRIVER_COLOR : COLORS.navy,
+      badge: driverPosition ? 'Position live' : undefined,
     },
     {
       id: 'destination',
@@ -111,7 +140,7 @@ export default function Tracking() {
 
         {/* ===== CARTE ===== */}
         <div className="tracking-map">
-          <MapComponent center={ABIDJAN_CENTER} markers={markers} />
+          <MapComponent center={passengerPin} markers={markers} />
 
           <header className="tracking-topbar">
             <button
@@ -146,6 +175,13 @@ export default function Tracking() {
             <span className="tracking-status-dot" />
             {STATUS_LABEL[rideStatus] ?? 'Course'}
           </div>
+
+          {remainingKm !== null && (
+            <p className="tracking-live-distance">
+              <Radar size={14} />
+              Conducteur à {remainingKm} km de vous
+            </p>
+          )}
 
           {/* Chauffeur */}
           <article className="tracking-driver">

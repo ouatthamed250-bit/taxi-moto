@@ -10,6 +10,7 @@ import type {
   DriverGiftInput,
   DriverProfile,
   DriverRegisterInput,
+  GeoPosition,
   Offer,
   PassengerRegisterInput,
   RechargeRequest,
@@ -106,6 +107,18 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [adminStats, setAdminStats] = useState<AdminStats>(ADMIN_STATS);
   const [zoneRules, setZoneRules] = useState<ZonePriceRule[]>([]);
   const [adminDrivers, setAdminDrivers] = useState<DriverProfile[]>([]);
+
+  /* ---- Géolocalisation ---- */
+  const [passengerPosition, setPassengerPositionState] = useState<GeoPosition | null>(null);
+  /** Position du conducteur restaurée depuis localStorage (partage prototype). */
+  const [driverPosition, setDriverPositionState] = useState<GeoPosition | null>(() => {
+    try {
+      const raw = window.localStorage.getItem('taxi-moto:driver-position');
+      return raw ? (JSON.parse(raw) as GeoPosition) : null;
+    } catch {
+      return null;
+    }
+  });
 
   /* ---- Solde virtuel conducteur ---- */
   /** Fixe le solde (jamais négatif). */
@@ -411,6 +424,26 @@ export function AppProvider({ children }: { children: ReactNode }) {
     return loaded;
   }, []);
 
+  /* ---- Géolocalisation ---- */
+  const setPassengerPosition = useCallback((position: GeoPosition | null) => {
+    setPassengerPositionState(position);
+  }, []);
+
+  /** Position conducteur : conservée en mémoire + localStorage (partage prototype). */
+  const setDriverPosition = useCallback((position: GeoPosition | null) => {
+    setDriverPositionState(position);
+
+    try {
+      if (position) {
+        window.localStorage.setItem('taxi-moto:driver-position', JSON.stringify(position));
+      } else {
+        window.localStorage.removeItem('taxi-moto:driver-position');
+      }
+    } catch {
+      // Navigation privée / quota : on ignore.
+    }
+  }, []);
+
   const driverRevenue = useMemo(
     () => driverRidesToday.reduce((total, ride) => total + ride.price, 0),
     [driverRidesToday],
@@ -492,6 +525,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
     appSettings,
     updateAppSettings,
     loadAppSettings,
+
+    passengerPosition,
+    driverPosition,
+    setPassengerPosition,
+    setDriverPosition,
   };
 
   return <AppContext.Provider value={value}>{children}</AppContext.Provider>;

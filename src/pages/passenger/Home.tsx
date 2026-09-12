@@ -17,6 +17,7 @@ import { MapComponent } from '../../components/MapComponent';
 import type { MapMarker } from '../../components/MapComponent';
 import { ABIDJAN_CENTER, COLORS, VEHICLES, estimateFare, fcfa } from '../../theme';
 import { useApp } from '../../store/useApp';
+import { useGeolocation } from '../../hooks/useGeolocation';
 import { DESTINATIONS } from '../../data/mock';
 import type { VehicleType } from '../../types';
 import './Home.css';
@@ -50,6 +51,7 @@ export default function PassengerHome() {
     distanceKm,
     setDistanceKm,
     startSearch,
+    setPassengerPosition,
   } = useApp();
 
   // Fallback visuel : si un visuel véhicule ne charge pas, le badge reste
@@ -62,6 +64,15 @@ export default function PassengerHome() {
   /* Aucun conducteur fictif : la carte n'affiche que les vraies positions
      (aucune pour l'instant — la géolocalisation réelle arrivera plus tard). */
   const markers: MapMarker[] = [];
+
+  /* Géolocalisation réelle du client (watch continu). */
+  const geo = useGeolocation({ onUpdate: (position) => setPassengerPosition(position) });
+
+  const mapCenter: [number, number] = geo.position
+    ? [geo.position.latitude, geo.position.longitude]
+    : ABIDJAN_CENTER;
+
+  const showGeoBanner = geo.permission !== 'granted' || Boolean(geo.error);
 
   const selected = DESTINATIONS.find((item) => item.name === destination);
   const estimate = distanceKm > 0 ? estimateFare(distanceKm) : null;
@@ -95,8 +106,35 @@ export default function PassengerHome() {
 
         {/* ===== CARTE ===== */}
         <div className="home-map">
-          <MapComponent center={ABIDJAN_CENTER} markers={markers} zoneRadius={2000} />
+          <MapComponent center={mapCenter} markers={markers} zoneRadius={2000} />
         </div>
+
+        {/* ===== BANDEAU GÉOLOCALISATION ===== */}
+        {showGeoBanner && (
+          <div className="geo-banner">
+            <span className="geo-banner-icon">
+              <MapPin size={18} />
+            </span>
+
+            <span className="geo-banner-text">
+              {geo.supported
+                ? 'Activez la géolocalisation pour que le chauffeur vous trouve'
+                : 'Géolocalisation non supportée par ce navigateur'}
+            </span>
+
+            {geo.supported && (
+              <button
+                type="button"
+                className="geo-banner-btn"
+                onClick={() => {
+                  void geo.requestPermission();
+                }}
+              >
+                Activer
+              </button>
+            )}
+          </div>
+        )}
 
         {/* ===== HEADER ===== */}
         <header className="home-topbar">

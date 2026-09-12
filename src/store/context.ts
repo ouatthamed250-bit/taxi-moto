@@ -7,6 +7,7 @@ import type {
   DriverGiftInput,
   DriverProfile,
   DriverRegisterInput,
+  GeoPosition,
   Offer,
   PassengerRegisterInput,
   RechargeRequest,
@@ -99,6 +100,12 @@ export interface AppContextValue {
   appSettings: AppSettings;
   updateAppSettings: (partial: Partial<AppSettings>) => void;
   loadAppSettings: () => AppSettings;
+
+  /* ---- Géolocalisation ---- */
+  passengerPosition: GeoPosition | null;
+  driverPosition: GeoPosition | null;
+  setPassengerPosition: (position: GeoPosition | null) => void;
+  setDriverPosition: (position: GeoPosition | null) => void;
 }
 
 export const AppContext = createContext<AppContextValue | null>(null);

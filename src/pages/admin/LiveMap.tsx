@@ -1,9 +1,10 @@
 import { useState } from 'react';
-import { Bike, UserRound, Users } from 'lucide-react';
+import { Bike, MapPin, UserRound, Users } from 'lucide-react';
 import { MapComponent } from '../../components/MapComponent';
 import type { MapMarker } from '../../components/MapComponent';
 import { ABIDJAN_CENTER, VEHICLES } from '../../theme';
 import { listDrivers, listPassengers } from '../../services/authLocal';
+import { useApp } from '../../store/useApp';
 import './LiveMap.css';
 
 const ONLINE_COLOR = '#009E60';
@@ -13,13 +14,43 @@ const CLIENT_COLOR = '#0B5FFF';
 export default function LiveMap() {
   const [drivers] = useState(() => listDrivers());
   const [passengers] = useState(() => listPassengers());
+  const { passengerPosition, driverPosition } = useApp();
 
   /*
-   * Aucune position réelle n'est disponible pour l'instant : la géolocalisation
-   * sera branchée plus tard. La carte reste donc vide (zone d'Abidjan seule)
-   * tant qu'aucune position confirmée n'existe — aucune position fictive.
+   * Positions réelles uniquement : le conducteur publie la sienne (store +
+   * localStorage) et le client la sienne pendant sa session. Aucune position
+   * fictive n'est générée.
    */
   const markers: MapMarker[] = [];
+
+  if (driverPosition) {
+    markers.push({
+      id: 'driver-live',
+      position: [driverPosition.latitude, driverPosition.longitude],
+      emoji: '🏍️',
+      label: 'Conducteur · position live',
+      color: ONLINE_COLOR,
+      badge: 'En ligne',
+    });
+  }
+
+  if (passengerPosition) {
+    markers.push({
+      id: 'passenger-live',
+      position: [passengerPosition.latitude, passengerPosition.longitude],
+      emoji: '👤',
+      label: 'Client · position live',
+      color: CLIENT_COLOR,
+      badge: 'Client',
+    });
+  }
+
+  const hasPositions = markers.length > 0;
+  const mapCenter: [number, number] = driverPosition
+    ? [driverPosition.latitude, driverPosition.longitude]
+    : passengerPosition
+      ? [passengerPosition.latitude, passengerPosition.longitude]
+      : ABIDJAN_CENTER;
 
   const driversActive = drivers.filter((driver) => !driver.blocked).length;
   const driversSuspended = drivers.length - driversActive;
@@ -31,7 +62,8 @@ export default function LiveMap() {
           <h1 className="admin-page-title">Carte live</h1>
           <p className="admin-page-subtitle">
             {drivers.length} conducteur{drivers.length > 1 ? 's' : ''} · {passengers.length} client
-            {passengers.length > 1 ? 's' : ''} · positions à venir
+            {passengers.length > 1 ? 's' : ''} · {markers.length} position
+            {markers.length > 1 ? 's' : ''} en direct
           </p>
         </div>
       </div>
@@ -39,12 +71,19 @@ export default function LiveMap() {
       <section className="admin-live-map">
         <div className="admin-live-map-canvas">
           <MapComponent
-            center={ABIDJAN_CENTER}
+            center={mapCenter}
             zoom={12}
             me={false}
             zoneRadius={0}
             markers={markers}
           />
+
+          {!hasPositions && (
+            <div className="admin-live-empty">
+              <MapPin size={16} />
+              Aucune position disponible
+            </div>
+          )}
 
           <div className="admin-live-legend">
             <span className="admin-live-legend-item">

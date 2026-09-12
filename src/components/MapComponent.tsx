@@ -26,6 +26,8 @@ interface MapProps {
   me?: boolean;
   meLabel?: string;
   markers?: MapMarker[];
+  /** Marqueurs supplémentaires (ex. client + conducteur en temps réel). */
+  otherMarkers?: MapMarker[];
   /** Rayon (en mètres) du cercle de zone autour du point « me ». 0 = masqué. */
   zoneRadius?: number;
 }
@@ -58,14 +60,39 @@ const Recenter: FC<{ lat: number; lng: number; zoom: number }> = ({ lat, lng, zo
   return null;
 };
 
+/** Ajuste la vue pour englober plusieurs points (auto-zoom). */
+const FitBounds: FC<{ pointsKey: string }> = ({ pointsKey }) => {
+  const map = useMap();
+
+  useEffect(() => {
+    const points = pointsKey
+      .split('|')
+      .map((pair) => pair.split(',').map(Number) as [number, number]);
+
+    const bounds = L.latLngBounds(points.map(([lat, lng]) => L.latLng(lat, lng)));
+    map.fitBounds(bounds, { padding: [40, 40], maxZoom: 15 });
+  }, [pointsKey, map]);
+
+  return null;
+};
+
 export const MapComponent: FC<MapProps> = ({
   center,
   zoom = 13,
   me = true,
   meLabel = 'Vous êtes ici',
   markers = [],
+  otherMarkers = [],
   zoneRadius = 2000,
-}) => (
+}) => {
+  const allMarkers = [...markers, ...otherMarkers];
+  const points: [number, number][] = [
+    ...(me ? [center] : []),
+    ...allMarkers.map((marker) => marker.position),
+  ];
+  const pointsKey = points.map((point) => point.join(',')).join('|');
+
+  return (
   <MapContainer
     center={center}
     zoom={zoom}
@@ -77,7 +104,11 @@ export const MapComponent: FC<MapProps> = ({
       attribution="&copy; OpenStreetMap"
       url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
     />
-    <Recenter lat={center[0]} lng={center[1]} zoom={zoom} />
+    {points.length >= 2 ? (
+      <FitBounds pointsKey={pointsKey} />
+    ) : (
+      <Recenter lat={center[0]} lng={center[1]} zoom={zoom} />
+    )}
 
     {/* Cercle de zone de couverture autour de la position « me ». */}
     {me && zoneRadius > 0 && (
@@ -101,7 +132,7 @@ export const MapComponent: FC<MapProps> = ({
       </Marker>
     )}
 
-    {markers.map((marker) => {
+    {allMarkers.map((marker) => {
       const enriched = marker.rating !== undefined || marker.distanceKm !== undefined;
       const rounded = Math.round(marker.rating ?? 0);
 
@@ -141,4 +172,5 @@ export const MapComponent: FC<MapProps> = ({
       );
     })}
   </MapContainer>
-);
+  );
+};

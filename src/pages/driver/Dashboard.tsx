@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   AlertTriangle,
@@ -27,6 +27,7 @@ import {
   netEarnings,
 } from '../../theme';
 import { useApp } from '../../store/useApp';
+import { useGeolocation } from '../../hooks/useGeolocation';
 import './Dashboard.css';
 
 export default function DriverDashboard() {
@@ -46,8 +47,26 @@ export default function DriverDashboard() {
     phone,
     rechargeRequests,
     appSettings,
+    setDriverPosition,
   } = useApp();
   const [fare, setFare] = useState(1500);
+
+  /* Publication de la position conducteur (max 1 envoi / 5 s). */
+  const lastSentAt = useRef(0);
+  const geo = useGeolocation({
+    onUpdate: (position) => {
+      const now = Date.now();
+      if (now - lastSentAt.current < 5000) return;
+      lastSentAt.current = now;
+      setDriverPosition(position);
+    },
+  });
+
+  const mapCenter: [number, number] = geo.position
+    ? [geo.position.latitude, geo.position.longitude]
+    : ABIDJAN_CENTER;
+
+  const showGeoBanner = geo.permission !== 'granted' || Boolean(geo.error);
 
   const isLowBalance = driverBalance < appSettings.lowBalanceThreshold;
 
@@ -85,7 +104,7 @@ export default function DriverDashboard() {
 
         {/* ===== CARTE ===== */}
         <div className="driver-dashboard-map">
-          <MapComponent center={ABIDJAN_CENTER} meLabel="Votre position" />
+          <MapComponent center={mapCenter} meLabel="Votre position" />
 
           <header className="driver-dashboard-topbar">
             <div className="driver-dashboard-brand">
@@ -115,6 +134,33 @@ export default function DriverDashboard() {
             </button>
           </header>
         </div>
+
+        {/* ===== BANDEAU GÉOLOCALISATION ===== */}
+        {showGeoBanner && (
+          <div className="geo-banner">
+            <span className="geo-banner-icon">
+              <MapPin size={18} />
+            </span>
+
+            <span className="geo-banner-text">
+              {geo.supported
+                ? 'Activez la géolocalisation pour recevoir des courses proches'
+                : 'Géolocalisation non supportée par ce navigateur'}
+            </span>
+
+            {geo.supported && (
+              <button
+                type="button"
+                className="geo-banner-btn"
+                onClick={() => {
+                  void geo.requestPermission();
+                }}
+              >
+                Activer
+              </button>
+            )}
+          </div>
+        )}
 
         {/* ===== FEUILLE ===== */}
         <section className="driver-dashboard-sheet">

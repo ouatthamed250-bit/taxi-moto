@@ -192,3 +192,14 @@ export interface DriverRegisterInput extends PassengerRegisterInput {
   driverPhoto: string;
   vehiclePhoto: string;
 }
+
+/** Position GPS (latitude / longitude). */
+export interface GeoPosition {
+  latitude: number;
+  longitude: number;
+}
+
+/** Position GPS horodatée. */
+export interface GeoPositionWithTime extends GeoPosition {
+  timestamp: number;
+}
