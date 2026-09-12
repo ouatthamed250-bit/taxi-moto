@@ -100,6 +100,34 @@ function openOperatorLink(operator: MobileOperator): void {
   window.location.href = `tel:${operator.ussd}`;
 }
 
+/**
+ * Tente d'ouvrir l'application Wave via son scheme (`wave://send?phone=…`).
+ * Si l'app n'est pas installée, la page reste visible ~1,2 s → repli sur le
+ * site web Wave (https://wave.com).
+ */
+function openWaveApp(): void {
+  const appScheme = 'wave://send?phone=0554233234';
+  const webFallback = 'https://wave.com';
+
+  const timer = window.setTimeout(() => {
+    // Toujours sur la page ? L'app ne s'est pas ouverte → repli web.
+    if (document.visibilityState === 'visible') {
+      window.location.href = webFallback;
+    }
+  }, 1200);
+
+  // Si l'app s'ouvre, l'onglet passe en arrière-plan → on annule le repli.
+  window.addEventListener(
+    'visibilitychange',
+    () => {
+      if (document.visibilityState === 'hidden') window.clearTimeout(timer);
+    },
+    { once: true },
+  );
+
+  window.location.href = appScheme;
+}
+
 export default function DriverRecharge() {
   const navigate = useNavigate();
   const { userName, phone, driverBalance, submitRechargeRequest } = useApp();
@@ -369,18 +397,46 @@ export default function DriverRecharge() {
                     de dépôt ({fcfa(depositFee)}) sont à votre charge.
                   </p>
 
-                  <button
-                    type="button"
-                    className="driver-recharge-open"
-                    onClick={() => openOperatorLink(operator)}
-                  >
-                    <ExternalLink size={16} />
-                    Ouvrir {operator.action}
-                  </button>
+                  {operator.key === 'wave' ? (
+                    <>
+                      <button
+                        type="button"
+                        className="driver-recharge-open"
+                        onClick={() => openOperatorLink(operator)}
+                      >
+                        <ExternalLink size={16} />
+                        Composer le code USSD {operator.ussd}
+                      </button>
 
-                  <p className="driver-recharge-ussd">
-                    Code USSD : <code>{ussdCode}</code>
-                  </p>
+                      <button
+                        type="button"
+                        className="driver-recharge-open driver-recharge-open--wave"
+                        onClick={openWaveApp}
+                      >
+                        <ExternalLink size={16} />
+                        Ouvrir l'application Wave
+                      </button>
+
+                      <p className="driver-recharge-ussd">
+                        Le numéro de dépôt à saisir est : <code>{operator.phone}</code>
+                      </p>
+                    </>
+                  ) : (
+                    <>
+                      <button
+                        type="button"
+                        className="driver-recharge-open"
+                        onClick={() => openOperatorLink(operator)}
+                      >
+                        <ExternalLink size={16} />
+                        Ouvrir {operator.action}
+                      </button>
+
+                      <p className="driver-recharge-ussd">
+                        Code USSD : <code>{ussdCode}</code>
+                      </p>
+                    </>
+                  )}
 
                   <a
                     className="driver-recharge-weblink"

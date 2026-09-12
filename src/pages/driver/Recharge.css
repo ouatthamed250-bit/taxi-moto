@@ -679,6 +679,19 @@
   box-shadow: 0 2px 0 rgba(6, 43, 103, 0.3);
 }
 
+/* Variante Wave (bleu clair) — bouton d'ouverture de l'application. */
+.driver-recharge-open--wave {
+  margin-top: 10px;
+  background: linear-gradient(145deg, #48d0ff, #1dc4f7);
+  box-shadow:
+    0 5px 0 rgba(0, 130, 170, 0.4),
+    0 12px 24px rgba(29, 196, 247, 0.28);
+}
+
+.driver-recharge-open--wave:active {
+  box-shadow: 0 2px 0 rgba(0, 130, 170, 0.4);
+}
+
 .driver-recharge-weblink {
   display: block;
   margin-top: 12px;
