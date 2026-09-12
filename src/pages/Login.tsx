@@ -1,17 +1,17 @@
 import { useState } from 'react';
-import type { CSSProperties } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import {
   ArrowRight,
   Bike,
   ChevronRight,
+  Eye,
+  EyeOff,
   LockKeyhole,
   MapPin,
   ShieldCheck,
   Smartphone,
   UserRound,
 } from 'lucide-react';
-
 import { Page } from '../components/Page';
 import { COLORS } from '../theme';
 import { useApp } from '../store/useApp';
@@ -19,41 +19,28 @@ import './Login.css';
 
 type Mode = 'passenger' | 'driver';
 
-const inputStyle: CSSProperties = {
-  width: '100%',
-  boxSizing: 'border-box',
-  fontFamily: 'inherit',
-};
-
 export default function Login() {
   const navigate = useNavigate();
-  const { login, driverApproved } = useApp();
+  const { login } = useApp();
 
   const [mode, setMode] = useState<Mode>('passenger');
-  const [step, setStep] = useState<'phone' | 'otp'>('phone');
   const [phone, setPhone] = useState('');
-  const [code, setCode] = useState('');
+  const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+  const [error, setError] = useState('');
 
-  const sendCode = () => {
-    if (phone.replace(/\D/g, '').length >= 8) {
-      setStep('otp');
+  const canSubmit = phone.replace(/\D/g, '').length >= 8 && password.length > 0;
+
+  const submit = () => {
+    setError('');
+
+    const result = login(phone, password);
+    if (!result.success || !result.user) {
+      setError(result.error ?? 'Connexion impossible.');
+      return;
     }
-  };
 
-  const verify = () => {
-    if (code.replace(/\D/g, '').length < 4) return;
-
-    login(
-      mode,
-      mode === 'passenger' ? 'Aïcha K.' : 'Kouassi Yao',
-      phone
-    );
-
-    if (mode === 'passenger') {
-      navigate('/passenger');
-    } else {
-      navigate(driverApproved ? '/driver' : '/register/driver');
-    }
+    navigate(result.user.role === 'driver' ? '/driver' : '/passenger');
   };
 
   const isPassenger = mode === 'passenger';
@@ -81,31 +68,28 @@ export default function Login() {
             </div>
 
             <h1>
-              Bienvenue
+              Bon retour
               <span> 👋</span>
             </h1>
 
             <p>
-              Déplacez-vous simplement avec une moto
-              ou un tricycle près de vous.
+              Connectez-vous avec votre numéro
+              et votre mot de passe.
             </p>
           </section>
 
           {/* Main card */}
           <main className="login-card">
 
-            {/* Role selector */}
+            {/* Tabs rôle */}
             <div className="login-role-label">
-              <span>Vous êtes</span>
+              <span>Je me connecte comme</span>
             </div>
 
             <div className="login-role-switch">
-
               <button
                 type="button"
-                className={`login-role ${
-                  isPassenger ? 'login-role--active' : ''
-                }`}
+                className={`login-role ${isPassenger ? 'login-role--active' : ''}`}
                 onClick={() => setMode('passenger')}
               >
                 <span className="login-role-icon">
@@ -113,7 +97,7 @@ export default function Login() {
                 </span>
 
                 <span className="login-role-content">
-                  <strong>Passager</strong>
+                  <strong>Client</strong>
                   <small>Je veux me déplacer</small>
                 </span>
 
@@ -126,18 +110,16 @@ export default function Login() {
 
               <button
                 type="button"
-                className={`login-role ${
-                  !isPassenger ? 'login-role--active' : ''
-                }`}
+                className={`login-role ${!isPassenger ? 'login-role--active' : ''}`}
                 onClick={() => setMode('driver')}
               >
                 <span className="login-role-icon login-role-icon--driver">
-                  <Bike size={21} />
+                  <Bike size={20} />
                 </span>
 
                 <span className="login-role-content">
                   <strong>Conducteur</strong>
-                  <small>Je veux effectuer des courses</small>
+                  <small>Je propose des courses</small>
                 </span>
 
                 {!isPassenger && (
@@ -146,137 +128,87 @@ export default function Login() {
                   </span>
                 )}
               </button>
-
             </div>
 
-            {/* Phone */}
+            {/* Téléphone */}
             <div className="login-field-group">
-              <label htmlFor="phone">
+              <label className="login-field-label" htmlFor="login-phone">
                 Numéro de téléphone
               </label>
 
               <div className="login-input-wrapper">
-                <div className="login-input-icon">
-                  <Smartphone size={20} />
-                </div>
-
-                <span className="login-country">
-                  +225
+                <span className="login-input-icon">
+                  <Smartphone size={18} />
                 </span>
 
+                <span className="login-country">+225</span>
+
                 <input
-                  id="phone"
-                  style={inputStyle}
+                  id="login-phone"
                   className="login-input"
                   type="tel"
                   inputMode="tel"
                   autoComplete="tel"
                   placeholder="07 00 00 00 00"
                   value={phone}
-                  onChange={(event) =>
-                    setPhone(event.target.value)
-                  }
+                  onChange={(event) => setPhone(event.target.value)}
                 />
-              </div>
-
-              <div className="login-input-hint">
-                <ShieldCheck size={14} />
-                Votre numéro reste sécurisé
               </div>
             </div>
 
-            {/* OTP */}
-            {step === 'otp' && (
-              <div className="login-otp-section">
+            {/* Mot de passe */}
+            <div className="login-field-group">
+              <label className="login-field-label" htmlFor="login-password">
+                Mot de passe
+              </label>
 
-                <div className="login-otp-header">
-                  <div className="login-otp-icon">
-                    <LockKeyhole size={20} />
-                  </div>
-
-                  <div>
-                    <strong>Code de vérification</strong>
-                    <span>
-                      Code envoyé au {phone}
-                    </span>
-                  </div>
-                </div>
+              <div className="login-input-wrapper">
+                <span className="login-input-icon">
+                  <LockKeyhole size={18} />
+                </span>
 
                 <input
-                  className="login-otp-input"
-                  type="text"
-                  inputMode="numeric"
-                  maxLength={4}
-                  autoFocus
-                  placeholder="••••"
-                  value={code}
-                  onChange={(event) =>
-                    setCode(
-                      event.target.value.replace(/\D/g, '')
-                    )
-                  }
+                  id="login-password"
+                  className="login-input"
+                  type={showPassword ? 'text' : 'password'}
+                  autoComplete="current-password"
+                  placeholder="Votre mot de passe"
+                  value={password}
+                  onChange={(event) => setPassword(event.target.value)}
+                  onKeyDown={(event) => {
+                    if (event.key === 'Enter' && canSubmit) submit();
+                  }}
                 />
 
-                <div className="login-demo-code">
-                  <span>Mode démonstration</span>
-                  <strong>4 chiffres suffisent</strong>
-                </div>
-
+                <button
+                  type="button"
+                  className="login-eye"
+                  aria-label={showPassword ? 'Masquer le mot de passe' : 'Afficher le mot de passe'}
+                  onClick={() => setShowPassword((value) => !value)}
+                >
+                  {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                </button>
               </div>
-            )}
+            </div>
 
-            {/* Primary action */}
-            {step === 'phone' ? (
-              <button
-                className="login-primary-button"
-                type="button"
-                onClick={sendCode}
-                disabled={
-                  phone.replace(/\D/g, '').length < 8
-                }
-              >
-                <span>
-                  Recevoir le code
-                  <small>Vérification sécurisée</small>
-                </span>
+            {error && <p className="login-error">{error}</p>}
 
-                <span className="login-button-arrow">
-                  <ArrowRight size={22} />
-                </span>
-              </button>
-            ) : (
-              <button
-                className="login-primary-button"
-                type="button"
-                onClick={verify}
-                disabled={
-                  code.replace(/\D/g, '').length < 4
-                }
-              >
-                <span>
-                  Vérifier et continuer
-                  <small>Accéder à mon espace</small>
-                </span>
+            {/* Action */}
+            <button
+              className="login-primary-button"
+              type="button"
+              onClick={submit}
+              disabled={!canSubmit}
+            >
+              <span>
+                Se connecter
+                <small>Accéder à mon espace</small>
+              </span>
 
-                <span className="login-button-arrow">
-                  <ArrowRight size={22} />
-                </span>
-              </button>
-            )}
-
-            {/* Back / resend */}
-            {step === 'otp' && (
-              <button
-                type="button"
-                className="login-change-number"
-                onClick={() => {
-                  setStep('phone');
-                  setCode('');
-                }}
-              >
-                Modifier le numéro
-              </button>
-            )}
+              <span className="login-button-arrow">
+                <ArrowRight size={22} />
+              </span>
+            </button>
 
             {/* Register */}
             <div className="login-register">
@@ -292,7 +224,6 @@ export default function Login() {
 
           {/* Trust indicators */}
           <section className="login-trust">
-
             <div className="login-trust-item">
               <div className="login-trust-icon">
                 <ShieldCheck size={17} />
@@ -312,7 +243,6 @@ export default function Login() {
                 <span>Partout en Côte d'Ivoire</span>
               </div>
             </div>
-
           </section>
 
           {/* Admin */}

@@ -4,7 +4,6 @@ import { useNavigate } from 'react-router-dom';
 import {
   ArrowLeft,
   Bike,
-  Camera,
   Eye,
   EyeOff,
   LockKeyhole,
@@ -33,7 +32,7 @@ interface FieldErrors {
 
 export default function PassengerRegister() {
   const navigate = useNavigate();
-  const { login } = useApp();
+  const { registerPassenger } = useApp();
 
   const [name, setName] = useState('');
   const [phone, setPhone] = useState('');
@@ -42,6 +41,7 @@ export default function PassengerRegister() {
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
   const [errors, setErrors] = useState<FieldErrors>({});
+  const [submitError, setSubmitError] = useState('');
 
   const submit = () => {
     const next: FieldErrors = {};
@@ -60,9 +60,15 @@ export default function PassengerRegister() {
     }
 
     setErrors(next);
+    setSubmitError('');
     if (Object.keys(next).length > 0) return;
 
-    login('passenger', name.trim(), phone, password);
+    const result = registerPassenger({ name: name.trim(), phone, password });
+    if (!result.success) {
+      setSubmitError(result.error ?? 'Inscription impossible.');
+      return;
+    }
+
     navigate('/passenger');
   };
 
@@ -243,11 +249,9 @@ export default function PassengerRegister() {
             {errors.confirm && <span className="register-error">{errors.confirm}</span>}
           </div>
 
-          {/* Photo (optionnel) */}
-          <button type="button" className="register-photo">
-            <Camera size={16} />
-            Ajouter une photo (optionnel)
-          </button>
+          {submitError && (
+            <p className="register-error register-error--global">{submitError}</p>
+          )}
 
         </main>
 

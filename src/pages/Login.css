@@ -965,3 +965,49 @@
     display: none;
   }
 }
+
+/* =========================
+   CHAMPS & ERREUR (auth réelle)
+========================= */
+
+.login-field-label {
+  display: block;
+  margin-bottom: 8px;
+  color: var(--taxi-navy, #062b67);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.login-eye {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  flex: 0 0 34px;
+  border: none;
+  border-radius: 10px;
+  color: var(--taxi-gray-500, #7a879b);
+  background: transparent;
+  cursor: pointer;
+  transition: color 0.15s ease, background 0.15s ease;
+}
+
+.login-eye:hover {
+  color: var(--taxi-navy, #062b67);
+  background: rgba(6, 43, 103, 0.06);
+}
+
+.login-error {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0 0 14px;
+  padding: 11px 14px;
+  border: 1px solid rgba(229, 72, 77, 0.28);
+  border-radius: 14px;
+  color: #b3262a;
+  background: linear-gradient(150deg, #fff1f1, #ffffff);
+  font-size: 12px;
+  font-weight: 700;
+}

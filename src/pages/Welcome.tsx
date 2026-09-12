@@ -47,7 +47,7 @@ export default function Welcome() {
 
   const start = () => {
     if (role === 'guest') {
-      navigate('/login');
+      navigate('/register/passenger');
       return;
     }
     navigate('/passenger');

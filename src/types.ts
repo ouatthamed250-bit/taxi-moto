@@ -118,3 +118,45 @@ export interface DriverGiftInput {
   driverName?: string;
   message?: string;
 }
+
+/** Rôle d'un compte utilisateur (hors visiteur / administration). */
+export type UserRole = 'passenger' | 'driver';
+
+/** Compte utilisateur persisté localement (localStorage pour l'instant). */
+export interface User {
+  id: string;
+  role: UserRole;
+  name: string;
+  phone: string;
+  /** ⚠️ Mot de passe stocké en clair (prototype) — à hasher côté Firebase. */
+  password: string;
+  /** Conducteur uniquement. */
+  vehicle?: VehicleType;
+  plate?: string;
+  /** Photos encodées en base64 (conducteur uniquement). */
+  driverPhoto?: string;
+  vehiclePhoto?: string;
+  createdAt: number;
+}
+
+/** Résultat d'une opération d'authentification. */
+export interface AuthResult {
+  success: boolean;
+  error?: string;
+  user?: User;
+}
+
+/** Données d'inscription d'un passager. */
+export interface PassengerRegisterInput {
+  name: string;
+  phone: string;
+  password: string;
+}
+
+/** Données d'inscription d'un conducteur. */
+export interface DriverRegisterInput extends PassengerRegisterInput {
+  vehicle: VehicleType;
+  plate: string;
+  driverPhoto: string;
+  vehiclePhoto: string;
+}

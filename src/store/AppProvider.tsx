@@ -4,15 +4,19 @@ import { AppContext } from './context';
 import type { AppContextValue } from './context';
 import type {
   AdminStats,
+  AuthResult,
   DriverGift,
   DriverGiftInput,
   DriverProfile,
+  DriverRegisterInput,
   Offer,
+  PassengerRegisterInput,
   RechargeRequest,
   Ride,
   RideRequest,
   RideStatus,
   Role,
+  User,
   VehicleType,
   ZonePriceRule,
 } from '../types';
@@ -24,6 +28,13 @@ import {
   ZONE_RULES,
 } from '../data/mock';
 import { MIN_FARE, commissionOf, estimateFare, netEarnings } from '../theme';
+import {
+  getCurrentUser,
+  login as authLogin,
+  logout as authLogout,
+  registerDriver as authRegisterDriver,
+  registerPassenger as authRegisterPassenger,
+} from '../services/authLocal';
 
 /** Ordre du suivi de course. */
 const RIDE_ORDER: RideStatus[] = [
@@ -73,15 +84,21 @@ function nowTime(): string {
 }
 
 export function AppProvider({ children }: { children: ReactNode }) {
+  /**
+   * Session restaurée depuis localStorage AVANT le premier rendu
+   * (initialiseur paresseux → aucun setState dans un effet).
+   */
+  const [restoredUser] = useState(() => getCurrentUser());
+
   /* ---- Session ---- */
-  const [role, setRole] = useState<Role>('guest');
-  const [userName, setUserName] = useState('');
-  const [phone, setPhone] = useState('');
-  const [password, setPassword] = useState('');
+  const [role, setRole] = useState<Role>(restoredUser?.role ?? 'guest');
+  const [userName, setUserName] = useState(restoredUser?.name ?? '');
+  const [phone, setPhone] = useState(restoredUser?.phone ?? '');
+  const [currentUser, setCurrentUser] = useState<User | null>(restoredUser);
 
   /* ---- Réservation ---- */
   const [passengers, setPassengers] = useState(1);
-  const [vehicle, setVehicle] = useState<VehicleType | null>(null);
+  const [vehicle, setVehicle] = useState<VehicleType | null>(restoredUser?.vehicle ?? null);
   const [pickup, setPickup] = useState('Ma position actuelle');
   const [destination, setDestination] = useState('');
   const [distanceKm, setDistanceKm] = useState(0);
@@ -197,21 +214,55 @@ export function AppProvider({ children }: { children: ReactNode }) {
     [userName, creditDriverBalance],
   );
 
+  /** Applique un compte connecté à l'état de session. */
+  const applyUser = useCallback((user: User) => {
+    setCurrentUser(user);
+    setRole(user.role);
+    setUserName(user.name);
+    setPhone(user.phone);
+    if (user.role === 'driver' && user.vehicle) setVehicle(user.vehicle);
+  }, []);
+
   const login = useCallback(
-    (nextRole: Role, name: string, digits: string, secret = '') => {
-      setRole(nextRole);
-      setUserName(name);
-      setPhone(digits);
-      setPassword(secret);
+    (digits: string, secret: string): AuthResult => {
+      const result = authLogin(digits, secret);
+      if (result.success && result.user) applyUser(result.user);
+      return result;
     },
-    [],
+    [applyUser],
   );
 
+  const registerPassenger = useCallback(
+    (input: PassengerRegisterInput): AuthResult => {
+      const result = authRegisterPassenger(input);
+      if (result.success && result.user) applyUser(result.user);
+      return result;
+    },
+    [applyUser],
+  );
+
+  const registerDriver = useCallback(
+    (input: DriverRegisterInput): AuthResult => {
+      const result = authRegisterDriver(input);
+      if (result.success && result.user) applyUser(result.user);
+      return result;
+    },
+    [applyUser],
+  );
+
+  const loginAsAdmin = useCallback(() => {
+    setCurrentUser(null);
+    setRole('admin');
+    setUserName('Administrateur');
+    setPhone('');
+  }, []);
+
   const logout = useCallback(() => {
+    authLogout();
+    setCurrentUser(null);
     setRole('guest');
     setUserName('');
     setPhone('');
-    setPassword('');
   }, []);
 
   const startSearch = useCallback(() => {
@@ -379,8 +430,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
     role,
     userName,
     phone,
-    password,
+    currentUser,
     login,
+    loginAsAdmin,
+    registerPassenger,
+    registerDriver,
     logout,
 
     passengers,

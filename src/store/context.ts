@@ -1,15 +1,19 @@
 import { createContext } from 'react';
 import type {
   AdminStats,
+  AuthResult,
   DriverGift,
   DriverGiftInput,
   DriverProfile,
+  DriverRegisterInput,
   Offer,
+  PassengerRegisterInput,
   RechargeRequest,
   Ride,
   RideRequest,
   RideStatus,
   Role,
+  User,
   VehicleType,
   ZonePriceRule,
 } from '../types';
@@ -19,8 +23,11 @@ export interface AppContextValue {
   role: Role;
   userName: string;
   phone: string;
-  password: string;
-  login: (role: Role, name: string, phone: string, password?: string) => void;
+  currentUser: User | null;
+  login: (phone: string, password: string) => AuthResult;
+  loginAsAdmin: () => void;
+  registerPassenger: (input: PassengerRegisterInput) => AuthResult;
+  registerDriver: (input: DriverRegisterInput) => AuthResult;
   logout: () => void;
 
   /* ---- Réservation passager ---- */

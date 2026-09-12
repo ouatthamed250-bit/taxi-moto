@@ -61,7 +61,7 @@ export default function AdminDashboard() {
   const navigate = useNavigate();
   const {
     role,
-    login,
+    loginAsAdmin,
     logout,
     adminStats,
     zoneRules,
@@ -122,9 +122,9 @@ export default function AdminDashboard() {
             <button
               type="button"
               className="admin-lock-demo"
-              onClick={() => login('admin', 'Administrateur', '')}
+              onClick={loginAsAdmin}
             >
-              Accès démonstration
+              Accès administrateur
             </button>
           </div>
         </div>

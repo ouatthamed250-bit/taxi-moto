@@ -24,9 +24,14 @@ import './Register.css';
 
 const STEPS = ['Vos informations', 'Votre véhicule', 'Confirmation'];
 
+/** Plaque d'immatriculation valide : AA-123-BC. */
+const PLATE_RE = /^[A-Z]{2}-\d{3}-[A-Z]{2}$/;
+/** Taille maximale d'une photo (Mo). */
+const MAX_PHOTO_MB = 5;
+
 export default function DriverRegister() {
   const navigate = useNavigate();
-  const { login, approveDriver } = useApp();
+  const { registerDriver } = useApp();
 
   const [step, setStep] = useState(0);
   const [name, setName] = useState('');
@@ -37,8 +42,10 @@ export default function DriverRegister() {
   const [showConfirm, setShowConfirm] = useState(false);
   const [vehicle, setVehicle] = useState<VehicleType>('moto');
   const [plate, setPlate] = useState('');
-  const [photo, setPhoto] = useState('');
+  const [driverPhoto, setDriverPhoto] = useState('');
+  const [vehiclePhoto, setVehiclePhoto] = useState('');
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const [submitError, setSubmitError] = useState('');
 
   const info = VEHICLES[vehicle];
 
@@ -60,8 +67,16 @@ export default function DriverRegister() {
       }
     }
 
-    if (index === 1 && plate.trim().length < 4) {
-      next.plate = 'Immatriculation invalide (ex. AA-123-BC).';
+    if (index === 1) {
+      if (!PLATE_RE.test(plate.trim().toUpperCase())) {
+        next.plate = 'Immatriculation invalide (ex. AA-123-BC).';
+      }
+      if (!driverPhoto) {
+        next.driverPhoto = 'Ajoutez votre photo de conducteur.';
+      }
+      if (!vehiclePhoto) {
+        next.vehiclePhoto = 'Ajoutez la photo de votre véhicule.';
+      }
     }
 
     setErrors(next);
@@ -75,20 +90,55 @@ export default function DriverRegister() {
 
   const previous = () => setStep((value) => Math.max(0, value - 1));
 
-  const onPhoto = (event: ChangeEvent<HTMLInputElement>) => {
+  const readPhoto = (
+    event: ChangeEvent<HTMLInputElement>,
+    setter: (value: string) => void,
+    errorKey: string,
+  ) => {
     const file = event.target.files?.[0];
     if (!file) return;
 
+    if (!file.type.startsWith('image/')) {
+      setErrors((prev) => ({ ...prev, [errorKey]: 'Fichier image requis (JPG ou PNG).' }));
+      return;
+    }
+    if (file.size > MAX_PHOTO_MB * 1024 * 1024) {
+      setErrors((prev) => ({
+        ...prev,
+        [errorKey]: `Image trop lourde (maximum ${MAX_PHOTO_MB} Mo).`,
+      }));
+      return;
+    }
+
+    setErrors((prev) => {
+      const cleaned = { ...prev };
+      delete cleaned[errorKey];
+      return cleaned;
+    });
+
     const reader = new FileReader();
-    reader.onload = () => {
-      setPhoto(typeof reader.result === 'string' ? reader.result : '');
-    };
+    reader.onload = () => setter(typeof reader.result === 'string' ? reader.result : '');
     reader.readAsDataURL(file);
   };
 
   const submit = () => {
-    login('driver', name.trim(), phone, password);
-    approveDriver();
+    setSubmitError('');
+
+    const result = registerDriver({
+      name: name.trim(),
+      phone,
+      password,
+      vehicle,
+      plate: plate.trim().toUpperCase(),
+      driverPhoto,
+      vehiclePhoto,
+    });
+
+    if (!result.success) {
+      setSubmitError(result.error ?? 'Inscription impossible.');
+      return;
+    }
+
     navigate('/driver');
   };
 
@@ -339,15 +389,61 @@ export default function DriverRegister() {
                 )}
               </div>
 
-              {/* Photo du véhicule */}
+              {/* Photo du conducteur */}
               <div className="driver-register-field">
-                <label>Photo du véhicule</label>
+                <label>Photo du conducteur</label>
 
-                {photo ? (
+                {driverPhoto ? (
                   <div className="driver-register-upload-preview">
                     <img
                       className="driver-register-upload-img"
-                      src={photo}
+                      src={driverPhoto}
+                      alt="Photo du conducteur"
+                    />
+
+                    <label className="driver-register-upload-change">
+                      <Camera size={15} />
+                      Changer la photo
+                      <input
+                        className="driver-register-file"
+                        type="file"
+                        accept="image/*"
+                        onChange={(event) => readPhoto(event, setDriverPhoto, 'driverPhoto')}
+                      />
+                    </label>
+                  </div>
+                ) : (
+                  <label className="driver-register-upload">
+                    <span className="driver-register-upload-icon">
+                      <Camera size={26} strokeWidth={1.9} />
+                    </span>
+
+                    <strong>Ajouter votre photo</strong>
+                    <small>JPG ou PNG · selfie récent</small>
+
+                    <input
+                      className="driver-register-file"
+                      type="file"
+                      accept="image/*"
+                      onChange={(event) => readPhoto(event, setDriverPhoto, 'driverPhoto')}
+                    />
+                  </label>
+                )}
+
+                {errors.driverPhoto && (
+                  <span className="driver-register-error">{errors.driverPhoto}</span>
+                )}
+              </div>
+
+              {/* Photo du véhicule */}
+              <div className="driver-register-field">
+                <label>Photo du {info.label.toLowerCase()}</label>
+
+                {vehiclePhoto ? (
+                  <div className="driver-register-upload-preview">
+                    <img
+                      className="driver-register-upload-img"
+                      src={vehiclePhoto}
                       alt={`${info.label} du conducteur`}
                     />
 
@@ -358,7 +454,7 @@ export default function DriverRegister() {
                         className="driver-register-file"
                         type="file"
                         accept="image/*"
-                        onChange={onPhoto}
+                        onChange={(event) => readPhoto(event, setVehiclePhoto, 'vehiclePhoto')}
                       />
                     </label>
                   </div>
@@ -377,9 +473,13 @@ export default function DriverRegister() {
                       className="driver-register-file"
                       type="file"
                       accept="image/*"
-                      onChange={onPhoto}
+                      onChange={(event) => readPhoto(event, setVehiclePhoto, 'vehiclePhoto')}
                     />
                   </label>
+                )}
+
+                {errors.vehiclePhoto && (
+                  <span className="driver-register-error">{errors.vehiclePhoto}</span>
                 )}
               </div>
             </>
@@ -416,12 +516,26 @@ export default function DriverRegister() {
                 </div>
 
                 <div className="driver-register-recap-row driver-register-recap-row--photo">
-                  <span className="driver-register-recap-label">Photo du véhicule</span>
+                  <span className="driver-register-recap-label">Photo du conducteur</span>
 
-                  {photo ? (
+                  {driverPhoto ? (
                     <img
                       className="driver-register-recap-img"
-                      src={photo}
+                      src={driverPhoto}
+                      alt="Photo du conducteur"
+                    />
+                  ) : (
+                    <span className="driver-register-recap-empty">Aucune photo</span>
+                  )}
+                </div>
+
+                <div className="driver-register-recap-row driver-register-recap-row--photo">
+                  <span className="driver-register-recap-label">Photo du véhicule</span>
+
+                  {vehiclePhoto ? (
+                    <img
+                      className="driver-register-recap-img"
+                      src={vehiclePhoto}
                       alt={`${info.label} du conducteur`}
                     />
                   ) : (
@@ -429,6 +543,10 @@ export default function DriverRegister() {
                   )}
                 </div>
               </div>
+
+              {submitError && (
+                <p className="driver-register-error driver-register-error--global">{submitError}</p>
+              )}
             </>
           )}
 
