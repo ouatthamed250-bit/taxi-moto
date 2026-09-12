@@ -46,6 +46,32 @@ function mapDocs<T>(docs: QueryDocumentSnapshot<DocumentData>[]): T[] {
   return docs.map((item) => ({ ...(item.data() as object), id: item.id }) as T);
 }
 
+/**
+ * Réessaie une lecture Firestore.
+ *
+ * La toute première requête envoyée juste après l'ouverture de session (auth
+ * anonyme) peut être refusée le temps que le jeton soit propagé côté SDK.
+ * Un second essai (400 ms plus tard) évite un faux « compte introuvable ».
+ */
+async function withAuthRetry<T>(operation: () => Promise<T>, fallback: T): Promise<T> {
+  try {
+    return await operation();
+  } catch (firstError) {
+    console.warn('[firestore] 1re tentative refusée, nouvel essai après auth…', firstError);
+
+    await new Promise((resolve) => {
+      setTimeout(resolve, 400);
+    });
+
+    try {
+      return await operation();
+    } catch (retryError) {
+      console.warn('[firestore] échec définitif :', retryError);
+      return fallback;
+    }
+  }
+}
+
 /* ================================ USERS ================================ */
 
 /** Récupère un compte par son uid (docId). */
@@ -53,14 +79,11 @@ export async function getUser(uid: string): Promise<User | null> {
   const db = getFirestoreDb();
   if (!db || !uid) return null;
 
-  try {
+  return withAuthRetry(async () => {
     const snapshot = await getDoc(doc(db, 'users', uid));
     if (!snapshot.exists()) return null;
     return { ...(snapshot.data() as object), id: snapshot.id } as User;
-  } catch (error) {
-    console.warn('[firestore] getUser :', error);
-    return null;
-  }
+  }, null);
 }
 
 /** Crée (ou remplace) le compte `users/{uid}`. */
@@ -100,17 +123,14 @@ export async function findUserByPhone(phone: string): Promise<User | null> {
   const normalized = phone.replace(/\D/g, '');
   if (!normalized) return null;
 
-  try {
+  return withAuthRetry(async () => {
     const snapshot = await getDocs(
       query(collection(db, 'users'), where('phone', '==', normalized)),
     );
     if (snapshot.empty) return null;
     const first = snapshot.docs[0];
     return { ...(first.data() as object), id: first.id } as User;
-  } catch (error) {
-    console.warn('[firestore] findUserByPhone :', error);
-    return null;
-  }
+  }, null);
 }
 
 /** Liste les comptes d'un rôle ('passenger' | 'driver'). */

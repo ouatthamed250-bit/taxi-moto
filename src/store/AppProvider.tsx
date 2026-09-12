@@ -27,6 +27,7 @@ import { ADMIN_STATS } from '../data/mock';
 import { commissionOf, netEarnings } from '../theme';
 import { getCurrentUser } from '../services/authLocal';
 import {
+  ensureCloudSession,
   isCloudEnabled,
   listDrivers,
   login as authLogin,
@@ -37,6 +38,7 @@ import {
   replaceUserCache,
   restoreSession,
 } from '../services/authService';
+import { currentFirebaseUid, onAuthChange } from '../services/firebase';
 import {
   createGift,
   createRechargeRequest,
@@ -172,14 +174,21 @@ export function AppProvider({ children }: { children: ReactNode }) {
     Record<string, GeoPosition>
   >({});
   const [onlineDriverIds, setOnlineDriverIds] = useState<string[]>([]);
+  /** Session Firebase (anonyme) ouverte ? Les abonnements en dépendent. */
+  const [cloudReady, setCloudReady] = useState(false);
   /** Dernière demande vue → évite de rejouer le son d'alerte en boucle. */
   const lastRequestId = useRef('');
   /** Demande publiée par le client (retirée à l'annulation). */
   const activeRequestId = useRef('');
   /** uids en ligne (lu par d'autres abonnements sans re-souscription). */
   const onlineIdsRef = useRef<string[]>([]);
-  /** uid du compte connecté (identifiant temps réel des positions/présence). */
-  const liveUserId = currentUser?.id ?? '';
+  /**
+   * Identifiant TEMPS RÉEL = uid Firebase (`auth.uid`).
+   * Les règles RTDB imposent `auth.uid === $uid` pour écrire une position ou
+   * un statut en ligne : on n'utilise donc PAS l'id du compte Firestore (qui
+   * peut dater d'un autre appareil), sauf en mode local (pas de session).
+   */
+  const liveUserId = currentFirebaseUid() ?? currentUser?.id ?? '';
 
   /* ---- Solde virtuel conducteur ---- */
   /** Fixe le solde (jamais négatif). */
@@ -318,12 +327,18 @@ export function AppProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const logout = useCallback(async (): Promise<void> => {
+    // Fin de session : on coupe d'abord la présence temps réel (le conducteur
+    // ne doit pas rester « en ligne » sur la carte après déconnexion).
+    if (isCloudEnabled() && liveUserId && currentUser?.role === 'driver') {
+      await publishOnlineStatus(liveUserId, false);
+    }
+
     await authLogout();
     setCurrentUser(null);
     setRole('guest');
     setUserName('');
     setPhone('');
-  }, []);
+  }, [liveUserId, currentUser]);
 
   /**
    * Lance la recherche d'un conducteur. Retourne `true` si au moins un
@@ -341,7 +356,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
      * Publication de la demande sur la Realtime Database : les conducteurs
      * en ligne la reçoivent instantanément (son d'alerte + carte).
      */
-    if (available && isCloudEnabled()) {
+    if (available && isCloudEnabled() && liveUserId) {
       const requestId = `REQ-${Date.now().toString(36)}`;
       activeRequestId.current = requestId;
 
@@ -353,7 +368,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         destination,
         distanceKm,
         destinationLibre,
-        passengerId: currentUser?.id,
+        passengerId: liveUserId,
         passengerName: userName || 'Passager',
         passengerPhone: phone,
       });
@@ -367,7 +382,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     destination,
     distanceKm,
     destinationLibre,
-    currentUser,
+    liveUserId,
     userName,
     phone,
   ]);
@@ -539,10 +554,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
       debitDriverBalance(commission);
       setIncomingRequest(null);
 
-      // Course acceptée : archivage Firestore + retrait de la demande publiée.
+      // Course acceptée : archivage Firestore.
+      // ⚠️ Le retrait de la demande RTDB est réservé au client (les règles
+      //    n'autorisent que `data.child('passengerId').val() === auth.uid`).
       void createRide(ride);
-      void removeRideRequest(request.id);
-      if (activeRequestId.current === request.id) activeRequestId.current = '';
 
       return true;
     },
@@ -631,22 +646,51 @@ export function AppProvider({ children }: { children: ReactNode }) {
    *  TEMPS RÉEL — Firebase Firestore (données) + Realtime DB (positions)
    * ================================================================ */
 
-  /** Restaure la session Firebase puis suit les changements de session. */
+  /**
+   * Ouvre la session Firebase (anonyme) AVANT de brancher les abonnements :
+   * sans session, Firestore/RTDB répondent PERMISSION_DENIED et un abonnement
+   * en erreur ne se réessaie pas tout seul.
+   */
   useEffect(() => {
     if (!isCloudEnabled()) return undefined;
 
-    void restoreSession().then((user) => {
-      if (user) applyUser(user);
-    });
+    let active = true;
+    const sync = () => {
+      if (active) setCloudReady(currentFirebaseUid() !== null);
+    };
+
+    void ensureCloudSession().then(sync);
+    const unsubscribe = onAuthChange(() => sync());
+
+    return () => {
+      active = false;
+      unsubscribe();
+    };
+  }, []);
+
+  /** Restaure la session Firebase puis suit les changements de session. */
+  useEffect(() => {
+    if (!isCloudEnabled()) return undefined;
 
     return onSessionChange((user) => {
       if (user) applyUser(user);
     });
   }, [applyUser]);
 
+  /** Session prête → on recharge le compte le plus à jour depuis Firestore. */
+  useEffect(() => {
+    if (!isCloudEnabled() || !cloudReady) return undefined;
+
+    void restoreSession().then((user) => {
+      if (user) applyUser(user);
+    });
+
+    return undefined;
+  }, [cloudReady, applyUser]);
+
   /** Comptes Firestore → cache local (listes admin, contacts) + état admin. */
   useEffect(() => {
-    if (!isCloudEnabled()) return undefined;
+    if (!isCloudEnabled() || !cloudReady) return undefined;
 
     return subscribeToUsers((users) => {
       replaceUserCache(users);
@@ -669,35 +713,35 @@ export function AppProvider({ children }: { children: ReactNode }) {
           })),
       );
     });
-  }, []);
+  }, [cloudReady]);
 
   /** Positions live (conducteurs + clients) publiées sur la Realtime Database. */
   useEffect(() => {
-    if (!isCloudEnabled()) return undefined;
+    if (!isCloudEnabled() || !cloudReady) return undefined;
 
     return subscribeToAllPositions((positions) => {
       setLiveDriverPositions(toGeoMap(positions.drivers));
       setLivePassengerPositions(toGeoMap(positions.passengers));
     });
-  }, []);
+  }, [cloudReady]);
 
   /** Conducteurs en ligne/hors ligne (Realtime Database). */
   useEffect(() => {
-    if (!isCloudEnabled()) return undefined;
+    if (!isCloudEnabled() || !cloudReady) return undefined;
 
     return subscribeToOnlineDrivers((drivers) => {
       const ids = Object.entries(drivers)
-        .filter(([, status]) => status.online)
+        .filter(([, isOnline]) => isOnline)
         .map(([id]) => id);
 
       onlineIdsRef.current = ids;
       setOnlineDriverIds(ids);
     });
-  }, []);
+  }, [cloudReady]);
 
   /** Demandes de course entrantes → son d'alerte FORT + carte conducteur. */
   useEffect(() => {
-    if (!isCloudEnabled()) return undefined;
+    if (!isCloudEnabled() || !cloudReady) return undefined;
 
     return subscribeToRideRequests((requests) => {
       const first = requests[0] ?? null;
@@ -714,11 +758,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
       playAlertSound();
       setIncomingRequest(first);
     });
-  }, []);
+  }, [cloudReady]);
 
   /** Recharges, cadeaux et historique client : synchronisation Firestore. */
   useEffect(() => {
-    if (!isCloudEnabled()) return undefined;
+    if (!isCloudEnabled() || !cloudReady) return undefined;
 
     const unsubscribeRecharges = subscribeToRechargeRequests((requests) => {
       setRechargeRequests([...requests].sort((a, b) => b.createdAt - a.createdAt));
@@ -739,7 +783,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       unsubscribeGifts();
       unsubscribeRides();
     };
-  }, [currentUser]);
+  }, [cloudReady, currentUser]);
 
   const driverRevenue = useMemo(
     () => driverRidesToday.reduce((total, ride) => total + ride.price, 0),

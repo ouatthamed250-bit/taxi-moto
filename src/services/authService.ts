@@ -26,6 +26,7 @@ import {
   signOutFirebase,
 } from './firebase';
 import { createUser, findUserByPhone, getUser, updateUser } from './firestore';
+import { normalizePhone, phoneVariants } from './phone';
 import * as local from './authLocal';
 
 /* ---------------- Constantes (identiques dans les deux modes) ---------------- */
@@ -54,9 +55,22 @@ export function isCloudEnabled(): boolean {
   return isFirebaseConfigured;
 }
 
-/** Normalise un numéro (chiffres uniquement). */
-function normalizePhone(phone: string): string {
-  return phone.replace(/\D/g, '');
+/**
+ * Retrouve un compte par téléphone, quel que soit le format saisi
+ * (Firestore en priorité, puis cache local).
+ */
+async function findAccountByPhone(phone: string): Promise<User | null> {
+  for (const variant of phoneVariants(phone)) {
+    const cloudUser = await findUserByPhone(variant);
+    if (cloudUser) return cloudUser;
+
+    const cached = local
+      .listUsers()
+      .find((item) => normalizePhone(item.phone) === variant);
+    if (cached) return cached;
+  }
+
+  return null;
 }
 
 /** Message d'aide affiché si la session Firebase anonyme est refusée. */
@@ -86,17 +100,51 @@ async function resolveAccountId(): Promise<string> {
 
 /* ================================ CONNEXION ================================ */
 
-/** Connexion par numéro + mot de passe (Firestore en mode cloud). */
+/**
+ * Ouvre (ou récupère) la SESSION FIREBASE ANONYME.
+ *
+ * ⚠️ RÈGLE D'OR : à appeler AVANT toute lecture/écriture Firestore.
+ * Les règles de sécurité exigent `request.auth != null` : interroger Firestore
+ * avant l'authentification renvoie PERMISSION_DENIED (que l'on interprétait à
+ * tort comme « compte introuvable » → « Numéro ou mot de passe incorrect »).
+ */
+export async function ensureCloudSession(): Promise<boolean> {
+  const anonymous = await ensureAnonymousUser();
+  return anonymous !== null;
+}
+
+/**
+ * Connexion par numéro + mot de passe.
+ *
+ * Ordre IMPOSÉ :
+ *   1. authentification anonyme Firebase (session ouverte) ;
+ *   2. recherche du compte dans Firestore (désormais autorisée) ;
+ *   3. vérification du mot de passe ;
+ *   4. retour de l'utilisateur connecté.
+ */
 export async function login(phone: string, password: string): Promise<AuthResult> {
   if (!isFirebaseConfigured) return local.login(phone, password);
 
-  const normalized = normalizePhone(phone);
-  const cloudUser = await findUserByPhone(normalized);
-  const user =
-    cloudUser ??
-    local.listUsers().find((item) => normalizePhone(item.phone) === normalized) ??
-    null;
+  // 1) AUTHENTIFICATION D'ABORD.
+  const sessionReady = await ensureCloudSession();
+  if (!sessionReady) {
+    // Pas de session Firebase (fournisseur Anonyme désactivé / hors-ligne).
+    console.warn(ANONYMOUS_DISABLED_WARNING);
 
+    // Repli local : on tente aussi les variantes d'écriture du numéro.
+    for (const variant of phoneVariants(phone)) {
+      const attempt = local.login(variant, password);
+      if (attempt.success) return attempt;
+    }
+
+    return local.login(normalizePhone(phone), password);
+  }
+
+  // 2) Recherche du compte — maintenant que la session est ouverte.
+  //    (toutes les écritures du numéro sont testées : avec/sans +225, avec/sans 0)
+  const user = await findAccountByPhone(phone);
+
+  // 3) Vérification du mot de passe.
   if (!user || user.password !== password) {
     return { success: false, error: 'Numéro ou mot de passe incorrect.' };
   }
@@ -105,13 +153,7 @@ export async function login(phone: string, password: string): Promise<AuthResult
     return { success: false, error: 'Ce compte est bloqué. Contactez le support.' };
   }
 
-  const session = await ensureAnonymousUser();
-  if (!session) {
-    // Pas de session Firebase (auth anonyme désactivée / hors-ligne) → mode local.
-    console.warn(ANONYMOUS_DISABLED_WARNING);
-    return local.login(normalized, password);
-  }
-
+  // 4) Session applicative (cache local alimenté par Firestore).
   local.cacheCloudUser(user);
   return { success: true, user };
 }
@@ -168,7 +210,10 @@ export async function blockUserEverywhere(
 
   if (!isFirebaseConfigured) return;
 
-  const cloud = await findUserByPhone(phone);
+  // Session Firebase AVANT toute écriture Firestore.
+  if (!(await ensureCloudSession())) return;
+
+  const cloud = await findAccountByPhone(phone);
   if (cloud) await updateUser(cloud.id, { blocked });
 }
 
@@ -178,8 +223,9 @@ export async function blockUserEverywhere(
 export async function getSecurityQuestion(phone: string): Promise<string | null> {
   const normalized = normalizePhone(phone);
 
-  if (isFirebaseConfigured) {
-    const cloud = await findUserByPhone(normalized);
+  // Session Firebase AVANT la lecture Firestore.
+  if (isFirebaseConfigured && (await ensureCloudSession())) {
+    const cloud = await findAccountByPhone(phone);
     if (cloud) return cloud.securityQuestion ?? null;
   }
 
@@ -193,8 +239,9 @@ export async function verifySecurityAnswer(
 ): Promise<boolean> {
   const normalized = normalizePhone(phone);
 
-  if (isFirebaseConfigured) {
-    const cloud = await findUserByPhone(normalized);
+  // Session Firebase AVANT la lecture Firestore.
+  if (isFirebaseConfigured && (await ensureCloudSession())) {
+    const cloud = await findAccountByPhone(phone);
     if (cloud) {
       if (!cloud.securityAnswer) return false;
       return local.hashSecurityAnswer(answer) === cloud.securityAnswer;
@@ -212,8 +259,9 @@ export async function resetPassword(
 ): Promise<AuthResult> {
   const normalized = normalizePhone(phone);
 
-  if (isFirebaseConfigured) {
-    const cloud = await findUserByPhone(normalized);
+  // Session Firebase AVANT la lecture/écriture Firestore.
+  if (isFirebaseConfigured && (await ensureCloudSession())) {
+    const cloud = await findAccountByPhone(phone);
 
     if (cloud) {
       if (
@@ -247,23 +295,25 @@ export async function registerPassenger(
 ): Promise<AuthResult> {
   if (!isFirebaseConfigured) return local.registerPassenger(input);
 
+  // 1) Validation locale (aucun accès réseau).
   const validationError = local.validatePassengerInput(input);
   if (validationError) return { success: false, error: validationError };
 
+  // 2) SESSION FIREBASE D'ABORD (ouvre/résout l'uid) : sinon Firestore refuse.
+  const accountId = await resolveAccountId();
+  if (!accountId) {
+    // Auth anonyme indisponible : on ne bloque pas l'utilisateur, on reste local.
+    console.warn(ANONYMOUS_DISABLED_WARNING);
+    return local.registerPassenger(input);
+  }
+
+  // 3) Unicité du numéro — lecture Firestore désormais autorisée.
+  //    (comparaison multi-format : +225 / 0 / sans zéro)
   const phone = normalizePhone(input.phone);
-  const alreadyUsed =
-    (await findUserByPhone(phone)) !== null ||
-    local.listUsers().some((item) => normalizePhone(item.phone) === phone);
+  const alreadyUsed = (await findAccountByPhone(phone)) !== null;
 
   if (alreadyUsed) {
     return { success: false, error: 'Ce numéro est déjà utilisé. Connectez-vous plutôt.' };
-  }
-
-  const accountId = await resolveAccountId();
-  if (!accountId) {
-    // Auth anonyme indisponible : on n'bloque pas l'utilisateur, on reste local.
-    console.warn(ANONYMOUS_DISABLED_WARNING);
-    return local.registerPassenger(input);
   }
 
   const user: User = {
@@ -292,23 +342,25 @@ export async function registerDriver(
 ): Promise<AuthResult> {
   if (!isFirebaseConfigured) return local.registerDriver(input);
 
+  // 1) Validation locale (aucun accès réseau).
   const validationError = local.validateDriverInput(input);
   if (validationError) return { success: false, error: validationError };
 
+  // 2) SESSION FIREBASE D'ABORD (ouvre/résout l'uid) : sinon Firestore refuse.
+  const accountId = await resolveAccountId();
+  if (!accountId) {
+    // Auth anonyme indisponible : on ne bloque pas l'utilisateur, on reste local.
+    console.warn(ANONYMOUS_DISABLED_WARNING);
+    return local.registerDriver(input);
+  }
+
+  // 3) Unicité du numéro — lecture Firestore désormais autorisée.
+  //    (comparaison multi-format : +225 / 0 / sans zéro)
   const phone = normalizePhone(input.phone);
-  const alreadyUsed =
-    (await findUserByPhone(phone)) !== null ||
-    local.listUsers().some((item) => normalizePhone(item.phone) === phone);
+  const alreadyUsed = (await findAccountByPhone(phone)) !== null;
 
   if (alreadyUsed) {
     return { success: false, error: 'Ce numéro est déjà utilisé. Connectez-vous plutôt.' };
-  }
-
-  const accountId = await resolveAccountId();
-  if (!accountId) {
-    // Auth anonyme indisponible : on n'bloque pas l'utilisateur, on reste local.
-    console.warn(ANONYMOUS_DISABLED_WARNING);
-    return local.registerDriver(input);
   }
 
   const user: User = {

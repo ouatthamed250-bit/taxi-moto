@@ -20,17 +20,14 @@ export interface LivePosition extends GeoPosition {
   updatedAt: number;
 }
 
-/** Statut en ligne d'un conducteur. */
-export interface LiveOnlineStatus {
-  online: boolean;
-  updatedAt: number;
-}
-
 /** Positions live indexées par uid. */
 export type PositionMap = Record<string, LivePosition>;
 
-/** Statuts en ligne indexés par uid. */
-export type OnlineMap = Record<string, LiveOnlineStatus>;
+/**
+ * Règle RTDB : `online/drivers/{uid}` doit contenir un BOOLÉEN
+ * (`.validate: "newData.isBoolean()"`), pas un objet.
+ */
+export type OnlineMap = Record<string, boolean>;
 
 /** Realtime Database est-il prêt ? */
 export function isRealtimeReady(): boolean {
@@ -110,27 +107,48 @@ export function subscribeToAllDriverPositions(
   );
 }
 
-/** Écoute toutes les positions (conducteurs + clients) — carte admin. */
+/**
+ * Écoute toutes les positions (conducteurs + clients) — carte admin.
+ *
+ * ⚠️ Les règles RTDB n'autorisent la lecture que sur `positions/drivers` et
+ * `positions/passengers` (pas sur la racine `/positions`) : on combine donc
+ * deux abonnements.
+ */
 export function subscribeToAllPositions(
   callback: (positions: { drivers: PositionMap; passengers: PositionMap }) => void,
 ): Unsubscribe {
   const rtdb = getRealtimeDb();
   if (!rtdb) return () => {};
 
-  return onValue(
-    ref(rtdb, 'positions'),
-    (snapshot) => {
-      const value =
-        (snapshot.val() as { drivers?: PositionMap; passengers?: PositionMap } | null) ??
-        {};
+  const drivers: PositionMap = {};
+  const passengers: PositionMap = {};
 
+  const unsubscribeDrivers = onValue(
+    ref(rtdb, 'positions/drivers'),
+    (snapshot) => {
       callback({
-        drivers: value.drivers ?? {},
-        passengers: value.passengers ?? {},
+        drivers: (snapshot.val() as PositionMap | null) ?? {},
+        passengers,
       });
     },
-    (error) => console.warn('[rtdb] subscribeToAllPositions :', error),
+    (error) => console.warn('[rtdb] subscribeToAllPositions (drivers) :', error),
   );
+
+  const unsubscribePassengers = onValue(
+    ref(rtdb, 'positions/passengers'),
+    (snapshot) => {
+      callback({
+        drivers,
+        passengers: (snapshot.val() as PositionMap | null) ?? {},
+      });
+    },
+    (error) => console.warn('[rtdb] subscribeToAllPositions (passengers) :', error),
+  );
+
+  return () => {
+    unsubscribeDrivers();
+    unsubscribePassengers();
+  };
 }
 
 /** Supprime la position publiée (conducteur hors ligne). */
@@ -149,6 +167,9 @@ export async function removeDriverPosition(driverId: string): Promise<void> {
 
 /**
  * Publie le statut en ligne/hors ligne d'un conducteur.
+ *
+ * ⚠️ La valeur écrite est un BOOLÉEN (contrainte des règles RTDB) et la clé
+ * doit être l'uid Firebase (`auth.uid === $driverId`).
  * En passant en ligne, un `onDisconnect` remet automatiquement le statut à
  * `false` si l'application est fermée ou perd le réseau.
  */
@@ -162,10 +183,10 @@ export async function publishOnlineStatus(
   const statusRef = ref(rtdb, `online/drivers/${driverId}`);
 
   try {
-    await set(statusRef, { online: isOnline, updatedAt: Date.now() });
+    await set(statusRef, isOnline);
 
     if (isOnline) {
-      await onDisconnect(statusRef).set({ online: false, updatedAt: Date.now() });
+      await onDisconnect(statusRef).set(false);
     } else {
       await onDisconnect(statusRef).cancel();
       await remove(ref(rtdb, `positions/drivers/${driverId}`));
