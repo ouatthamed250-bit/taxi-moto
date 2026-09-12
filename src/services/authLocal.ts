@@ -198,6 +198,26 @@ export function logout(): void {
   }
 }
 
+/** Liste tous les comptes inscrits (clients + conducteurs). */
+export function listUsers(): User[] {
+  return readUsers();
+}
+
+/** Bloque ou débloque un compte (par numéro). */
+export function setUserBlocked(phone: string, blocked: boolean): void {
+  const normalized = normalizePhone(phone);
+  const users = readUsers();
+  const next = users.map((user) =>
+    normalizePhone(user.phone) === normalized ? { ...user, blocked } : user,
+  );
+  writeUsers(next);
+
+  const current = getCurrentUser();
+  if (current && normalizePhone(current.phone) === normalized) {
+    setCurrentUser({ ...current, blocked });
+  }
+}
+
 /** Retourne la question de sécurité liée à un numéro (null si compte inconnu). */
 export function getSecurityQuestion(phone: string): string | null {
   const normalized = normalizePhone(phone);

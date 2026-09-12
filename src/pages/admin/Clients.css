@@ -1,0 +1,22 @@
+/* ==========================================================================
+   Admin Clients — cellules utilisateur
+   ========================================================================== */
+
+.admin-user-cell {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.admin-user-cell strong {
+  color: var(--taxi-navy, #062b67);
+  font-size: 13px;
+  font-weight: 900;
+  white-space: nowrap;
+}
+
+.admin-toggle svg {
+  vertical-align: -2px;
+  margin-right: 4px;
+}

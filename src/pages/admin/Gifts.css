@@ -1,0 +1,19 @@
+/* ==========================================================================
+   Admin Gifts
+   ========================================================================== */
+
+.admin-gifts-total {
+  display: block;
+  margin: 12px 0 16px;
+  color: var(--taxi-orange, #ff9900);
+  font-size: 26px;
+  font-weight: 900;
+  letter-spacing: -0.8px;
+}
+
+.admin-gift-amount {
+  color: var(--taxi-orange, #ff9900);
+  font-size: 13px;
+  font-weight: 900;
+  white-space: nowrap;
+}

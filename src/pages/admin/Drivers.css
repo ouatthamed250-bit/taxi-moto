@@ -1,0 +1,44 @@
+/* ==========================================================================
+   Admin Drivers — solde + miniatures photos
+   ========================================================================== */
+
+.admin-drivers-balance {
+  display: block;
+  margin-top: 12px;
+  color: var(--taxi-orange, #ff9900);
+  font-size: 26px;
+  font-weight: 900;
+  letter-spacing: -0.8px;
+}
+
+.admin-photos {
+  display: flex;
+  gap: 8px;
+}
+
+.admin-photo {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 46px;
+  height: 46px;
+  flex: 0 0 46px;
+  padding: 0;
+  overflow: hidden;
+  border: 1px solid rgba(6, 43, 103, 0.14);
+  border-radius: 12px;
+  background: #f4f6fa;
+  cursor: zoom-in;
+}
+
+.admin-photo img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.admin-photo--empty {
+  color: var(--taxi-gray-500, #7a879b);
+  font-size: 18px;
+  cursor: default;
+}

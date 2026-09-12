@@ -30,9 +30,6 @@ import {
 import { useApp } from '../../store/useApp';
 import './Dashboard.css';
 
-/** Seuil d'alerte « solde faible » (FCFA). */
-const LOW_BALANCE_THRESHOLD = 200;
-
 export default function DriverDashboard() {
   const navigate = useNavigate();
   const {
@@ -50,10 +47,11 @@ export default function DriverDashboard() {
     driverBalance,
     phone,
     rechargeRequests,
+    appSettings,
   } = useApp();
   const [fare, setFare] = useState(1500);
 
-  const isLowBalance = driverBalance < LOW_BALANCE_THRESHOLD;
+  const isLowBalance = driverBalance < appSettings.lowBalanceThreshold;
 
   const myDriverId = phone || 'driver-local';
   const pendingRecharges = rechargeRequests.filter(

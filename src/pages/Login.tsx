@@ -21,7 +21,7 @@ type Mode = 'passenger' | 'driver';
 
 export default function Login() {
   const navigate = useNavigate();
-  const { login } = useApp();
+  const { login, loginAsAdmin } = useApp();
 
   const [mode, setMode] = useState<Mode>('passenger');
   const [phone, setPhone] = useState('');
@@ -255,10 +255,17 @@ export default function Login() {
 
           {/* Admin */}
           <footer className="login-footer">
-            <Link to="/admin">
+            <button
+              type="button"
+              className="login-footer-admin"
+              onClick={() => {
+                loginAsAdmin();
+                navigate('/admin');
+              }}
+            >
               <LockKeyhole size={14} />
               Espace administrateur
-            </Link>
+            </button>
 
             <div className="login-footer-brand">
               <span className="login-footer-dot" />

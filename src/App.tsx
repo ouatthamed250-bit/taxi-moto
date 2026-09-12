@@ -27,7 +27,15 @@ const DriverRides = lazy(() => import('./pages/driver/Rides'));
 const DriverEarnings = lazy(() => import('./pages/driver/Earnings'));
 const DriverProfile = lazy(() => import('./pages/driver/Profile'));
 const DriverRecharge = lazy(() => import('./pages/driver/Recharge'));
-const AdminDashboard = lazy(() => import('./pages/admin/Dashboard'));
+const AdminLayout = lazy(() => import('./pages/admin/AdminLayout'));
+const AdminOverview = lazy(() => import('./pages/admin/Overview'));
+const AdminClients = lazy(() => import('./pages/admin/Clients'));
+const AdminDrivers = lazy(() => import('./pages/admin/Drivers'));
+const AdminDeposits = lazy(() => import('./pages/admin/Deposits'));
+const AdminGifts = lazy(() => import('./pages/admin/Gifts'));
+const AdminLiveMap = lazy(() => import('./pages/admin/LiveMap'));
+const AdminSettings = lazy(() => import('./pages/admin/Settings'));
+const AdminProfile = lazy(() => import('./pages/admin/Profile'));
 
 function App() {
   return (
@@ -57,7 +65,16 @@ function App() {
             <Route path="/driver/profile" element={<DriverProfile />} />
             <Route path="/driver/recharge" element={<DriverRecharge />} />
 
-            <Route path="/admin" element={<AdminDashboard />} />
+            <Route path="/admin" element={<AdminLayout />}>
+              <Route index element={<AdminOverview />} />
+              <Route path="clients" element={<AdminClients />} />
+              <Route path="drivers" element={<AdminDrivers />} />
+              <Route path="deposits" element={<AdminDeposits />} />
+              <Route path="gifts" element={<AdminGifts />} />
+              <Route path="map" element={<AdminLiveMap />} />
+              <Route path="settings" element={<AdminSettings />} />
+              <Route path="profile" element={<AdminProfile />} />
+            </Route>
           </Routes>
         </Suspense>
 

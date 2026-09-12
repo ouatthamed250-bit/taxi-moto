@@ -119,6 +119,30 @@ export interface DriverGiftInput {
   message?: string;
 }
 
+/** Paramètres applicatifs modifiables par l'administrateur. */
+export interface AppSettings {
+  passengerRegistrationEnabled: boolean;
+  driverRegistrationEnabled: boolean;
+  orderingEnabled: boolean;
+  mobileMoneyEnabled: boolean;
+  pushNotificationsEnabled: boolean;
+  maintenanceMode: boolean;
+  /** Taux de commission plateforme (0.10 = 10 %). */
+  commissionRate: number;
+  /** Numéros de dépôt mobile money par opérateur. */
+  depositNumbers: {
+    orange: string;
+    wave: string;
+    mtn: string;
+    moov: string;
+  };
+  /** Bornes de recharge conducteur (FCFA). */
+  minRecharge: number;
+  maxRecharge: number;
+  /** Seuil d'alerte « solde faible » (FCFA). */
+  lowBalanceThreshold: number;
+}
+
 /** Rôle d'un compte utilisateur (hors visiteur / administration). */
 export type UserRole = 'passenger' | 'driver';
 
@@ -140,6 +164,8 @@ export interface User {
   securityQuestion?: string;
   /** Réponse de sécurité hachée (normalisée : minuscules, sans espaces superflus). */
   securityAnswer?: string;
+  /** Compte bloqué par l'administration. */
+  blocked?: boolean;
   createdAt: number;
 }
 

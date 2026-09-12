@@ -1,6 +1,7 @@
 import { createContext } from 'react';
 import type {
   AdminStats,
+  AppSettings,
   AuthResult,
   DriverGift,
   DriverGiftInput,
@@ -94,6 +95,11 @@ export interface AppContextValue {
   updateZoneRule: (zone: string, patch: Partial<ZonePriceRule>) => void;
   adminDrivers: DriverProfile[];
   toggleDriverStatus: (id: string) => void;
+
+  /* ---- Paramètres applicatifs ---- */
+  appSettings: AppSettings;
+  updateAppSettings: (partial: Partial<AppSettings>) => void;
+  loadAppSettings: () => AppSettings;
 }
 
 export const AppContext = createContext<AppContextValue | null>(null);

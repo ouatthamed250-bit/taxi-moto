@@ -1,0 +1,17 @@
+/* ==========================================================================
+   Admin Deposits
+   ========================================================================== */
+
+.admin-avatar {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  flex: 0 0 40px;
+  border-radius: 50%;
+  color: #fff;
+  background: linear-gradient(145deg, #0b5fff, #062b67 80%);
+  font-size: 15px;
+  font-weight: 900;
+}

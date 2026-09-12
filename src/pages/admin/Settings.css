@@ -1,0 +1,188 @@
+/* ==========================================================================
+   Admin Settings — toggles, champs, bouton d'enregistrement
+   ========================================================================== */
+
+.admin-settings-save {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 13px 18px;
+  border: none;
+  border-radius: 15px;
+  color: #fff;
+  background: linear-gradient(145deg, #ffb52e, #ff9900);
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 900;
+  cursor: pointer;
+  box-shadow:
+    0 5px 0 rgba(178, 106, 0, 0.5),
+    0 12px 24px rgba(255, 153, 0, 0.3);
+  transition:
+    transform 0.12s ease,
+    box-shadow 0.12s ease;
+}
+
+.admin-settings-save:active {
+  transform: translateY(3px);
+  box-shadow: 0 2px 0 rgba(178, 106, 0, 0.5);
+}
+
+.admin-settings-save--full {
+  width: 100%;
+  padding: 16px;
+  font-size: 14px;
+}
+
+/* ---------- TOGGLES ---------- */
+.admin-toggle-list {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 10px;
+  margin-top: 12px;
+}
+
+.admin-toggle-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 13px 14px;
+  border: 1.5px solid rgba(6, 43, 103, 0.1);
+  border-radius: 16px;
+  background: #ffffff;
+  font-family: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition:
+    border-color 0.15s ease,
+    box-shadow 0.15s ease;
+}
+
+.admin-toggle-row--on {
+  border-color: rgba(0, 158, 96, 0.4);
+  box-shadow: 0 0 0 4px rgba(0, 158, 96, 0.08);
+}
+
+.admin-toggle-emoji {
+  font-size: 18px;
+  line-height: 1;
+}
+
+.admin-toggle-text {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-width: 0;
+}
+
+.admin-toggle-text strong {
+  color: var(--taxi-navy, #062b67);
+  font-size: 13px;
+  font-weight: 900;
+}
+
+.admin-toggle-text small {
+  margin-top: 2px;
+  color: var(--taxi-gray-500, #7a879b);
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.admin-switch {
+  position: relative;
+  width: 44px;
+  height: 26px;
+  flex: 0 0 44px;
+  border-radius: 999px;
+  background: #d7dee9;
+  transition: background 0.18s ease;
+}
+
+.admin-switch-knob {
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: #ffffff;
+  box-shadow: 0 2px 6px rgba(6, 43, 103, 0.25);
+  transition: transform 0.18s ease;
+}
+
+.admin-toggle-row--on .admin-switch {
+  background: linear-gradient(145deg, #00b45f, #009e60);
+}
+
+.admin-toggle-row--on .admin-switch-knob {
+  transform: translateX(18px);
+}
+
+/* ---------- CHAMPS ---------- */
+.admin-fields-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 14px;
+  margin-top: 12px;
+}
+
+.admin-field {
+  display: block;
+}
+
+.admin-field span {
+  display: block;
+  margin-bottom: 7px;
+  color: var(--taxi-navy, #062b67);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.admin-field input {
+  width: 100%;
+  padding: 13px 14px;
+  border: 1.5px solid rgba(6, 43, 103, 0.12);
+  border-radius: 14px;
+  color: var(--taxi-navy, #062b67);
+  background: #ffffff;
+  font-family: inherit;
+  font-size: 15px;
+  font-weight: 800;
+  outline: none;
+  transition:
+    border-color 0.15s ease,
+    box-shadow 0.15s ease;
+}
+
+.admin-field input:focus {
+  border-color: rgba(255, 153, 0, 0.6);
+  box-shadow: 0 0 0 4px rgba(255, 153, 0, 0.12);
+}
+
+.admin-field small {
+  display: block;
+  margin-top: 6px;
+  color: var(--taxi-gray-500, #7a879b);
+  font-size: 10px;
+  font-weight: 600;
+}
+
+@media (min-width: 640px) {
+  .admin-toggle-list {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .admin-fields-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .admin-settings-save,
+  .admin-toggle-row,
+  .admin-switch,
+  .admin-switch-knob {
+    transition: none;
+  }
+}

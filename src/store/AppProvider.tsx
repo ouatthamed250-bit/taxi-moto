@@ -4,6 +4,7 @@ import { AppContext } from './context';
 import type { AppContextValue } from './context';
 import type {
   AdminStats,
+  AppSettings,
   AuthResult,
   DriverGift,
   DriverGiftInput,
@@ -35,6 +36,7 @@ import {
   registerDriver as authRegisterDriver,
   registerPassenger as authRegisterPassenger,
 } from '../services/authLocal';
+import { readAppSettings, writeAppSettings } from '../services/settingsLocal';
 
 /** Ordre du suivi de course. */
 const RIDE_ORDER: RideStatus[] = [
@@ -89,6 +91,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
    * (initialiseur paresseux → aucun setState dans un effet).
    */
   const [restoredUser] = useState(() => getCurrentUser());
+
+  /* ---- Paramètres applicatifs (localStorage) ---- */
+  const [appSettings, setAppSettings] = useState<AppSettings>(() => readAppSettings());
 
   /* ---- Session ---- */
   const [role, setRole] = useState<Role>(restoredUser?.role ?? 'guest');
@@ -413,6 +418,27 @@ export function AppProvider({ children }: { children: ReactNode }) {
     );
   }, []);
 
+  /* ---- Paramètres applicatifs ---- */
+  /** Met à jour partiellement les paramètres (fusion + persistance localStorage). */
+  const updateAppSettings = useCallback((partial: Partial<AppSettings>) => {
+    setAppSettings((current) => {
+      const next: AppSettings = {
+        ...current,
+        ...partial,
+        depositNumbers: { ...current.depositNumbers, ...(partial.depositNumbers ?? {}) },
+      };
+      writeAppSettings(next);
+      return next;
+    });
+  }, []);
+
+  /** Recharge les paramètres depuis localStorage. */
+  const loadAppSettings = useCallback((): AppSettings => {
+    const loaded = readAppSettings();
+    setAppSettings(loaded);
+    return loaded;
+  }, []);
+
   const driverRevenue = useMemo(
     () => driverRidesToday.reduce((total, ride) => total + ride.price, 0),
     [driverRidesToday],
@@ -491,6 +517,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
     updateZoneRule,
     adminDrivers,
     toggleDriverStatus,
+
+    appSettings,
+    updateAppSettings,
+    loadAppSettings,
   };
 
   return <AppContext.Provider value={value}>{children}</AppContext.Provider>;

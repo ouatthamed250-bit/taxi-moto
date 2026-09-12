@@ -1,0 +1,121 @@
+/* ==========================================================================
+   Admin Profile
+   ========================================================================== */
+
+.admin-profile-card {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.admin-profile-avatar {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 68px;
+  height: 68px;
+  flex: 0 0 68px;
+  border-radius: 50%;
+  color: #fff;
+  background: linear-gradient(145deg, #0b5fff, #062b67 80%);
+  font-size: 26px;
+  font-weight: 900;
+  box-shadow: 0 10px 24px rgba(6, 43, 103, 0.28);
+}
+
+.admin-profile-info {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.admin-profile-name {
+  color: var(--taxi-navy, #062b67);
+  font-size: 18px;
+  font-weight: 900;
+  letter-spacing: -0.3px;
+}
+
+.admin-profile-email {
+  color: var(--taxi-gray-500, #7a879b);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.admin-profile-badge {
+  margin-top: 4px;
+}
+
+.admin-profile-menu {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 10px;
+  margin-top: 12px;
+}
+
+.admin-profile-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 13px 14px;
+  border: 1px solid rgba(6, 43, 103, 0.08);
+  border-radius: 16px;
+  background: #f8fafd;
+  font-family: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition:
+    transform 0.14s ease,
+    box-shadow 0.14s ease,
+    border-color 0.14s ease;
+}
+
+.admin-profile-item:hover {
+  transform: translateY(-2px);
+  border-color: rgba(255, 153, 0, 0.4);
+  box-shadow: 0 10px 22px rgba(255, 153, 0, 0.18);
+}
+
+.admin-profile-item-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 38px;
+  height: 38px;
+  flex: 0 0 38px;
+  border-radius: 12px;
+  color: #fff;
+  background: linear-gradient(145deg, #0b5fff, #062b67 80%);
+}
+
+.admin-profile-item-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.admin-profile-item-text strong {
+  color: var(--taxi-navy, #062b67);
+  font-size: 13px;
+  font-weight: 900;
+}
+
+.admin-profile-item-text small {
+  margin-top: 2px;
+  color: var(--taxi-gray-500, #7a879b);
+  font-size: 11px;
+  font-weight: 600;
+}
+
+@media (min-width: 640px) {
+  .admin-profile-menu {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .admin-profile-item {
+    transition: none;
+  }
+}

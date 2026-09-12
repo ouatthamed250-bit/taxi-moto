@@ -20,8 +20,6 @@ import './Recharge.css';
 
 /** Montants rapides proposés (FCFA). */
 const PRESET_AMOUNTS = [500, 1000, 2000, 3000, 5000];
-const MIN_RECHARGE = 500;
-const MAX_RECHARGE = 5000;
 const MAX_FILE_MB = 5;
 
 type OperatorTone = 'orange' | 'wave' | 'mtn' | 'moov';
@@ -179,7 +177,21 @@ function openOperatorApp(operator: MobileOperator): void {
 
 export default function DriverRecharge() {
   const navigate = useNavigate();
-  const { userName, phone, driverBalance, submitRechargeRequest } = useApp();
+  const { userName, phone, driverBalance, submitRechargeRequest, appSettings } = useApp();
+
+  const minRecharge = appSettings.minRecharge;
+  const maxRecharge = appSettings.maxRecharge;
+
+  /* Numéros de dépôt pilotés par les paramètres admin (sinon valeurs par défaut). */
+  const depositNumbers: Record<string, string> = appSettings.depositNumbers;
+  const operators = OPERATORS.map((item) => {
+    const number = depositNumbers[item.key];
+    return {
+      ...item,
+      phone: number || item.phone,
+      depositNumber: number || item.depositNumber,
+    };
+  });
 
   const [preset, setPreset] = useState<number | null>(null);
   const [customAmount, setCustomAmount] = useState('');
@@ -190,10 +202,10 @@ export default function DriverRecharge() {
   const [fileError, setFileError] = useState('');
   const [sent, setSent] = useState(false);
 
-  const operator = OPERATORS.find((item) => item.key === operatorKey) ?? null;
+  const operator = operators.find((item) => item.key === operatorKey) ?? null;
   const amount = customAmount.trim() !== '' ? Number(customAmount) : preset;
   const amountValid =
-    amount !== null && Number.isFinite(amount) && amount >= MIN_RECHARGE && amount <= MAX_RECHARGE;
+    amount !== null && Number.isFinite(amount) && amount >= minRecharge && amount <= maxRecharge;
   const canContinue = amountValid && operator?.available === true;
 
   const depositFee = getDepositFee(amount ?? 0);
@@ -333,7 +345,7 @@ export default function DriverRecharge() {
               <span className="driver-recharge-custom-suffix">FCFA</span>
             </div>
             <small className="driver-recharge-custom-hint">
-              Minimum 500 FCFA · Maximum 5 000 FCFA
+              Minimum {fcfa(minRecharge)} · Maximum {fcfa(maxRecharge)}
             </small>
           </label>
         </section>
@@ -343,7 +355,7 @@ export default function DriverRecharge() {
           <h2 className="driver-recharge-section-title">Choisissez la méthode</h2>
 
           <div className="driver-recharge-operators">
-            {OPERATORS.map((item) => {
+            {operators.map((item) => {
               const active = operatorKey === item.key;
               return (
                 <button

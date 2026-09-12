@@ -1,0 +1,138 @@
+/* ==========================================================================
+   Admin Live Map
+   ========================================================================== */
+
+.admin-live-map {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.admin-live-map-canvas {
+  position: relative;
+  height: 420px;
+  overflow: hidden;
+  border-radius: 22px;
+  border: 1px solid rgba(255, 255, 255, 0.9);
+  box-shadow: 0 18px 45px rgba(6, 43, 103, 0.16);
+  background: #dfe7f2;
+}
+
+.admin-live-legend {
+  position: absolute;
+  left: 12px;
+  bottom: 12px;
+  z-index: 500;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  padding: 9px 12px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.92);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  box-shadow: 0 10px 24px rgba(6, 43, 103, 0.2);
+}
+
+.admin-live-legend-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--taxi-navy, #062b67);
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.admin-live-dot {
+  width: 10px;
+  height: 10px;
+  flex: 0 0 10px;
+  border-radius: 50%;
+  box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.9);
+}
+
+.admin-live-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 16px;
+  border: 1px solid rgba(255, 255, 255, 0.9);
+  border-radius: 20px;
+  background: rgba(255, 255, 255, 0.9);
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+  box-shadow: 0 14px 34px rgba(6, 43, 103, 0.1);
+}
+
+.admin-live-panel-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--taxi-navy, #062b67);
+}
+
+.admin-live-panel-head strong {
+  font-size: 14px;
+  font-weight: 900;
+}
+
+.admin-live-group {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.admin-live-group-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--taxi-gray-500, #7a879b);
+  font-size: 11px;
+  font-weight: 900;
+  letter-spacing: 0.6px;
+  text-transform: uppercase;
+}
+
+.admin-live-row {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.admin-live-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--taxi-navy, #062b67);
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.admin-live-empty {
+  margin: 0;
+  color: var(--taxi-gray-500, #7a879b);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+@media (min-width: 1024px) {
+  .admin-live-map {
+    flex-direction: row;
+    align-items: stretch;
+  }
+
+  .admin-live-map-canvas {
+    flex: 1;
+    height: 560px;
+  }
+
+  .admin-live-panel {
+    width: 300px;
+    flex: 0 0 300px;
+    max-height: 560px;
+    overflow-y: auto;
+  }
+}

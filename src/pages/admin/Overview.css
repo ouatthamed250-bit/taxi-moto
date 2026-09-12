@@ -1,0 +1,55 @@
+/* ==========================================================================
+   Admin Overview — actions rapides
+   ========================================================================== */
+
+.admin-quick-actions {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 10px;
+}
+
+.admin-quick-action {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  padding: 13px 14px;
+  border: 1px solid rgba(6, 43, 103, 0.08);
+  border-radius: 15px;
+  color: var(--taxi-navy, #062b67);
+  background: #f8fafd;
+  font-size: 13px;
+  font-weight: 800;
+  text-decoration: none;
+  transition:
+    transform 0.14s ease,
+    box-shadow 0.14s ease,
+    border-color 0.14s ease;
+}
+
+.admin-quick-action:hover {
+  transform: translateY(-2px);
+  border-color: rgba(255, 153, 0, 0.4);
+  box-shadow: 0 10px 22px rgba(255, 153, 0, 0.18);
+}
+
+.admin-quick-emoji {
+  font-size: 17px;
+  line-height: 1;
+}
+
+.admin-quick-arrow {
+  margin-left: auto;
+  color: var(--taxi-gray-500, #7a879b);
+}
+
+@media (min-width: 640px) {
+  .admin-quick-actions {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .admin-quick-action {
+    transition: none;
+  }
+}
