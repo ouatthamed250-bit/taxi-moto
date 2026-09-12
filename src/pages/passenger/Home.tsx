@@ -436,8 +436,8 @@ export default function PassengerHome() {
 
               <div className="home-estimate-rows">
                 <div className="home-estimate-row">
-                  <span>Prix minimum</span>
-                  <strong>{fcfa(estimate.min)}</strong>
+                  <span>Prix conseillé</span>
+                  <strong>{fcfa(estimate.exact)}</strong>
                 </div>
 
                 <div className="home-estimate-row">
@@ -446,8 +446,10 @@ export default function PassengerHome() {
                 </div>
 
                 <div className="home-estimate-row home-estimate-row--total">
-                  <span>Prix total estimé</span>
-                  <strong>{fcfa(estimate.max)}</strong>
+                  <span>Fourchette</span>
+                  <strong>
+                    {fcfa(estimate.min)} – {fcfa(estimate.max)}
+                  </strong>
                 </div>
               </div>
 

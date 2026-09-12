@@ -24,9 +24,12 @@ import type { MapMarker } from '../../components/MapComponent';
 import {
   ABIDJAN_CENTER,
   COLORS,
+  MAX_FARE,
   MIN_FARE,
   VEHICLES,
+  clampFare,
   commissionOf,
+  estimateFare,
   fcfa,
   netEarnings,
 } from '../../theme';
@@ -64,7 +67,10 @@ export default function DriverDashboard() {
     livePassengerPositions,
     accountId,
   } = useApp();
-  const [fare, setFare] = useState(1500);
+  const [fareAdjust, setFareAdjust] = useState<{ id: string; delta: number }>({
+    id: '',
+    delta: 0,
+  });
 
   /**
    * Publication de la position conducteur.
@@ -87,6 +93,26 @@ export default function DriverDashboard() {
 
   const isLowBalance = driverBalance < appSettings.lowBalanceThreshold;
 
+  /* ---- Prix conseillé (barème unique — aucun prix en dur) ---- */
+  const fareEstimate = estimateFare(incomingRequest?.distanceKm ?? 0);
+
+  /**
+   * Ajustement manuel du conducteur, mémorisé PAR demande (`id`) : dès qu'une
+   * nouvelle demande arrive, le prix conseillé est réappliqué automatiquement.
+   */
+  const fareDelta =
+    fareAdjust.id === (incomingRequest?.id ?? '') ? fareAdjust.delta : 0;
+  const fare = clampFare(fareEstimate.exact + fareDelta);
+  const fareOutOfRange = fare < fareEstimate.min || fare > fareEstimate.max;
+
+  /** Fixe le prix proposé (borné au barème 1 000 – 3 000 F). */
+  const changeFare = (next: number) => {
+    setFareAdjust({
+      id: incomingRequest?.id ?? '',
+      delta: clampFare(next) - fareEstimate.exact,
+    });
+  };
+
   const myDriverId = accountId || phone || 'driver-local';
   const pendingRecharges = rechargeRequests.filter(
     (request) =>
@@ -101,7 +127,7 @@ export default function DriverDashboard() {
   };
 
   const handleAccept = () => {
-    const lockedFare = Math.max(MIN_FARE, fare);
+    const lockedFare = clampFare(fare);
     const accepted = acceptIncoming(lockedFare);
 
     if (accepted) {
@@ -534,14 +560,17 @@ export default function DriverDashboard() {
                 </div>
               )}
 
-              <p className="driver-dashboard-fare-label">Proposez votre tarif</p>
+              <p className="driver-dashboard-fare-label">
+                Prix conseillé : <strong>{fcfa(fareEstimate.exact)}</strong> (fourchette{' '}
+                {fcfa(fareEstimate.min)} – {fcfa(fareEstimate.max)})
+              </p>
 
               <div className="driver-dashboard-fare">
                 <button
                   type="button"
                   className="driver-dashboard-fare-btn"
                   aria-label="Diminuer le tarif"
-                  onClick={() => setFare((value) => Math.max(MIN_FARE, value - 100))}
+                  onClick={() => changeFare(fare - 100)}
                 >
                   −
                 </button>
@@ -551,18 +580,27 @@ export default function DriverDashboard() {
                   className="driver-dashboard-fare-input"
                   value={fare}
                   min={MIN_FARE}
-                  onChange={(event) => setFare(Number(event.target.value))}
+                  max={MAX_FARE}
+                  step={100}
+                  onChange={(event) => changeFare(Number(event.target.value))}
                 />
 
                 <button
                   type="button"
                   className="driver-dashboard-fare-btn"
                   aria-label="Augmenter le tarif"
-                  onClick={() => setFare((value) => value + 100)}
+                  onClick={() => changeFare(fare + 100)}
                 >
                   +
                 </button>
               </div>
+
+              {fareOutOfRange && (
+                <p className="driver-dashboard-fare-hint">
+                  Hors fourchette conseillée — justifiez ce prix auprès du client
+                  (négociation).
+                </p>
+              )}
 
               <p className="driver-dashboard-net">
                 Prix client : <strong>{fcfa(fare)}</strong> · Commission 10 % (
