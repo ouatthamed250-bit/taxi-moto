@@ -45,16 +45,25 @@ export async function publishDriverPosition(
   if (!rtdb || !driverId) return false;
 
   try {
-    await set(ref(rtdb, `positions/drivers/${driverId}`), {
-      latitude: position.latitude,
-      longitude: position.longitude,
-      updatedAt: Date.now(),
-    });
+    await set(ref(rtdb, `positions/drivers/${driverId}`), payloadOf(position));
     return true;
   } catch (error) {
     console.warn('[rtdb] publishDriverPosition :', error);
     return false;
   }
+}
+
+/** Charge utile d'une position (accuracy incluse seulement si connue). */
+function payloadOf(position: GeoPosition): Record<string, number> {
+  const payload: Record<string, number> = {
+    latitude: position.latitude,
+    longitude: position.longitude,
+    updatedAt: Date.now(),
+  };
+
+  if (typeof position.accuracy === 'number') payload.accuracy = position.accuracy;
+
+  return payload;
 }
 
 /** Écoute la position d'un conducteur en temps réel. */
@@ -81,11 +90,7 @@ export async function publishPassengerPosition(
   if (!rtdb || !passengerId) return false;
 
   try {
-    await set(ref(rtdb, `positions/passengers/${passengerId}`), {
-      latitude: position.latitude,
-      longitude: position.longitude,
-      updatedAt: Date.now(),
-    });
+    await set(ref(rtdb, `positions/passengers/${passengerId}`), payloadOf(position));
     return true;
   } catch (error) {
     console.warn('[rtdb] publishPassengerPosition :', error);

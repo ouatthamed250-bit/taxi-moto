@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react';
+import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   AlertTriangle,
@@ -31,8 +31,12 @@ import {
 } from '../../theme';
 import { useApp } from '../../store/useApp';
 import { useGeolocation } from '../../hooks/useGeolocation';
+import { MIN_MOVE_KM } from '../../services/geolocation';
 import { callPhone, messagePhone, resolvePassengerPhone } from '../../services/contacts';
 import './Dashboard.css';
+
+/** Intervalle minimal entre deux publications de position (5 s). */
+const PUBLISH_INTERVAL_MS = 5000;
 
 export default function DriverDashboard() {
   const navigate = useNavigate();
@@ -55,13 +59,15 @@ export default function DriverDashboard() {
   } = useApp();
   const [fare, setFare] = useState(1500);
 
-  /* Publication de la position conducteur (max 1 envoi / 5 s). */
-  const lastSentAt = useRef(0);
+  /**
+   * Publication de la position conducteur.
+   * Filtrage assuré par le hook : 10 m minimum de déplacement ET 5 secondes
+   * minimum entre deux publications (fini les sauts du GPS).
+   */
   const geo = useGeolocation({
+    minDistanceKm: MIN_MOVE_KM,
+    minIntervalMs: PUBLISH_INTERVAL_MS,
     onUpdate: (position) => {
-      const now = Date.now();
-      if (now - lastSentAt.current < 5000) return;
-      lastSentAt.current = now;
       setDriverPosition(position);
     },
   });

@@ -39,6 +39,7 @@ export function getCurrentPosition(): Promise<GeoPosition> {
         resolve({
           latitude: position.coords.latitude,
           longitude: position.coords.longitude,
+          accuracy: position.coords.accuracy,
         }),
       (error) => reject(error),
       { enableHighAccuracy: true, timeout: 15000, maximumAge: 5000 },
@@ -58,6 +59,7 @@ export function watchPosition(
       callback({
         latitude: position.coords.latitude,
         longitude: position.coords.longitude,
+        accuracy: position.coords.accuracy,
         timestamp: position.timestamp ?? Date.now(),
       }),
     (error) => onError?.(error),
@@ -92,8 +94,8 @@ export function requestPermission(): Promise<GeoPosition> {
   return getCurrentPosition();
 }
 
-/** Distance entre deux points (km) — formule de Haversine. */
-export function getDistanceKm(
+/** Distance exacte entre deux points (km, NON arrondie) — filtres fins. */
+export function getDistanceKmExact(
   lat1: number,
   lon1: number,
   lat2: number,
@@ -108,5 +110,51 @@ export function getDistanceKm(
       Math.cos((lat2 * Math.PI) / 180) *
       Math.sin(dLon / 2) ** 2;
 
-  return Math.round(2 * earthRadiusKm * Math.asin(Math.sqrt(a)) * 10) / 10;
+  return 2 * earthRadiusKm * Math.asin(Math.sqrt(a));
+}
+
+/** Distance entre deux points (km) — arrondie à 100 m près pour l'affichage. */
+export function getDistanceKm(
+  lat1: number,
+  lon1: number,
+  lat2: number,
+  lon2: number,
+): number {
+  return Math.round(getDistanceKmExact(lat1, lon1, lat2, lon2) * 10) / 10;
+}
+
+/** Déplacement minimal (km) considéré comme significatif — 10 m par défaut. */
+export const MIN_MOVE_KM = 0.01;
+
+/** Précision maximale acceptée (mètres) : au-delà, la position est ignorée. */
+export const MAX_ACCURACY_METERS = 50;
+
+/**
+ * Filtre anti-jitter : le GPS d'un téléphone immobile saute de quelques mètres.
+ * On ne considère un déplacement que s'il dépasse `minKm` (distance EXACTE,
+ * l'arrondi à 100 m de `getDistanceKm` étant trop grossier pour 10 m).
+ */
+export function hasMovedEnough(
+  previous: GeoPosition | null,
+  next: GeoPosition,
+  minKm = MIN_MOVE_KM,
+): boolean {
+  if (!previous) return true;
+
+  const moved = getDistanceKmExact(
+    previous.latitude,
+    previous.longitude,
+    next.latitude,
+    next.longitude,
+  );
+
+  return moved >= minKm;
+}
+
+/** La position est-elle trop imprécise pour être utile ? */
+export function isTooImprecise(
+  position: GeoPosition,
+  maxMeters = MAX_ACCURACY_METERS,
+): boolean {
+  return typeof position.accuracy === 'number' && position.accuracy > maxMeters;
 }

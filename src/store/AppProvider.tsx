@@ -48,6 +48,7 @@ import {
   subscribeToRides,
   subscribeToUsers,
   updateRechargeRequest,
+  updateUser,
 } from '../services/firestore';
 import {
   publishDriverPosition,
@@ -61,6 +62,7 @@ import {
 } from '../services/realtimeDb';
 import type { LivePosition } from '../services/realtimeDb';
 import { playAlertSound, unlockAudio } from '../services/notification';
+import { INITIAL_DRIVER_BALANCE } from '../services/wallet';
 import { readAppSettings, writeAppSettings } from '../services/settingsLocal';
 import { isAdminAuthenticated } from '../services/adminAuth';
 
@@ -75,7 +77,9 @@ function toGeoMap(positions: Record<string, LivePosition>): Record<string, GeoPo
   return result;
 }
 
-/** Ordre du suivi de course. */
+/**
+ * Ordre du suivi de course.
+ */
 const RIDE_ORDER: RideStatus[] = [
   'driver_found',
   'driver_arriving',
@@ -84,11 +88,8 @@ const RIDE_ORDER: RideStatus[] = [
   'completed',
 ];
 
-/**
- * Solde virtuel initial du conducteur (FCFA).
- * 5 000 FCFA permet de tester plusieurs courses (commission 10 %).
- */
-const INITIAL_DRIVER_BALANCE = 5000;
+/** Intervalle de répétition du bip d'une demande en attente (ms). */
+const ALERT_REPEAT_MS = 6000;
 
 function nowDate(): string {
   return new Date().toLocaleDateString('fr-FR');
@@ -178,6 +179,14 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [cloudReady, setCloudReady] = useState(false);
   /** Dernière demande vue → évite de rejouer le son d'alerte en boucle. */
   const lastRequestId = useRef('');
+  /** Demande déjà traitée (acceptée/refusée) → ne plus alerter. */
+  const dismissedRequestId = useRef('');
+  /** Minuterie du bip répété (demande en attente de réponse). */
+  const alertTimerRef = useRef<number | null>(null);
+  /** Course déjà attribuée par un conducteur (évite de rejouer la transition). */
+  const acceptedRideIdRef = useRef('');
+  /** Statut courant, lu par les abonnements sans re-souscription. */
+  const rideStatusRef = useRef<RideStatus>('idle');
   /** Demande publiée par le client (retirée à l'annulation). */
   const activeRequestId = useRef('');
   /** uids en ligne (lu par d'autres abonnements sans re-souscription). */
@@ -189,17 +198,88 @@ export function AppProvider({ children }: { children: ReactNode }) {
    * peut dater d'un autre appareil), sauf en mode local (pas de session).
    */
   const liveUserId = currentFirebaseUid() ?? currentUser?.id ?? '';
+  /** Id du document Firestore du compte (filtres, écritures `users/{id}`). */
+  const accountId = currentUser?.id ?? '';
+  /** Le compte connecté est-il un conducteur ? (réception des demandes) */
+  const isDriverAccount = currentUser?.role === 'driver';
 
-  /* ---- Solde virtuel conducteur ---- */
+  /** Arrête le bip répété d'une demande entrante. */
+  const stopIncomingAlert = useCallback(() => {
+    if (alertTimerRef.current !== null) {
+      window.clearInterval(alertTimerRef.current);
+      alertTimerRef.current = null;
+    }
+  }, []);
+
+  /* Mémorise le statut courant pour les abonnements temps réel. */
+  useEffect(() => {
+    rideStatusRef.current = rideStatus;
+  }, [rideStatus]);
+
+  /**
+   * Course attribuée par un conducteur (Firestore, statut « driver_found ») :
+   * le CLIENT passe en « Chauffeur en route » avec le suivi de la position.
+   * On n'applique la transition que si une commande est en cours.
+   */
+  const applyAcceptedRide = useCallback((ride: Ride) => {
+    const status = rideStatusRef.current;
+    if (status !== 'searching' && status !== 'offers') return;
+    if (acceptedRideIdRef.current === ride.id) return;
+
+    acceptedRideIdRef.current = ride.id;
+
+    setSelectedOffer({
+      id: ride.id,
+      price: ride.price,
+      driver: {
+        id: ride.driverId ?? '',
+        name: ride.driverName || 'Conducteur',
+        rating: 0,
+        rides: 0,
+        vehicle: ride.vehicle,
+        plate: ride.driverPlate ?? '—',
+        model: ride.vehicle === 'tricycle' ? 'Tricycle' : 'Moto',
+        online: true,
+        zone: 'Zone couverte',
+        availableSeats: 1,
+        phone: ride.driverPhone,
+      },
+    });
+    setRideStatus('driver_found');
+  }, []);
+
+  /* ---- Solde virtuel conducteur (persisté dans Firestore) ---- */
+  /** Écrit le nouveau solde en base (sans bloquer l'interface). */
+  const persistDriverBalance = useCallback(
+    (next: number) => {
+      if (!isCloudEnabled() || !accountId) return;
+      void updateUser(accountId, { driverBalance: next });
+    },
+    [accountId],
+  );
+
   /** Fixe le solde (jamais négatif). */
-  const setDriverBalance = useCallback((amount: number) => {
-    setDriverBalanceState(Math.max(0, Math.round(amount)));
-  }, []);
+  const setDriverBalance = useCallback(
+    (amount: number) => {
+      const next = Math.max(0, Math.round(amount));
+      setDriverBalanceState(next);
+      persistDriverBalance(next);
+    },
+    [persistDriverBalance],
+  );
 
-  /** Crédite le solde (recharge — branchement mobile money à venir). */
-  const creditDriverBalance = useCallback((amount: number) => {
-    setDriverBalanceState((current) => current + Math.max(0, Math.round(amount)));
-  }, []);
+  /** Crédite le solde (recharge, cadeau). */
+  const creditDriverBalance = useCallback(
+    (amount: number) => {
+      const value = Math.max(0, Math.round(amount));
+      setDriverBalanceState((current) => {
+        const next = current + value;
+        persistDriverBalance(next);
+        return next;
+      });
+    },
+    [persistDriverBalance],
+  );
 
   /** Débite le solde ; refusé + warning si insuffisant. */
   const debitDriverBalance = useCallback(
@@ -211,9 +291,13 @@ export function AppProvider({ children }: { children: ReactNode }) {
         );
         return;
       }
-      setDriverBalanceState((current) => Math.max(0, current - debit));
+      setDriverBalanceState((current) => {
+        const next = Math.max(0, current - debit);
+        persistDriverBalance(next);
+        return next;
+      });
     },
-    [driverBalance],
+    [driverBalance, persistDriverBalance],
   );
 
   /* ---- Recharges mobile money ---- */
@@ -290,6 +374,15 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setUserName(user.name);
     setPhone(user.phone);
     if (user.role === 'driver' && user.vehicle) setVehicle(user.vehicle);
+
+    // Solde conducteur : valeur persistée dans Firestore (200 FCFA à la création).
+    if (user.role === 'driver') {
+      setDriverBalanceState(
+        typeof user.driverBalance === 'number'
+          ? user.driverBalance
+          : INITIAL_DRIVER_BALANCE,
+      );
+    }
   }, []);
 
   const login = useCallback(
@@ -369,6 +462,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         distanceKm,
         destinationLibre,
         passengerId: liveUserId,
+        passengerAccountId: accountId,
         passengerName: userName || 'Passager',
         passengerPhone: phone,
       });
@@ -383,6 +477,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     distanceKm,
     destinationLibre,
     liveUserId,
+    accountId,
     userName,
     phone,
   ]);
@@ -509,7 +604,14 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setDestinationLibre(Boolean(lieu.libre));
   }, []);
 
-  const rejectIncoming = useCallback(() => setIncomingRequest(null), []);
+  /** Refuse la demande : le bip s'arrête et la demande ne revient plus. */
+  const rejectIncoming = useCallback(() => {
+    const requestId = incomingRequest?.id ?? '';
+    dismissedRequestId.current = requestId;
+    lastRequestId.current = requestId;
+    stopIncomingAlert();
+    setIncomingRequest(null);
+  }, [incomingRequest, stopIncomingAlert]);
 
   const acceptIncoming = useCallback(
     (fare: number): boolean => {
@@ -552,16 +654,54 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
       // La commission (10 %) est débitée du solde conducteur.
       debitDriverBalance(commission);
-      setIncomingRequest(null);
 
-      // Course acceptée : archivage Firestore.
-      // ⚠️ Le retrait de la demande RTDB est réservé au client (les règles
-      //    n'autorisent que `data.child('passengerId').val() === auth.uid`).
-      void createRide(ride);
+      /*
+       * Publication de l'ACCEPTATION dans Firestore : le client suit les
+       * courses qui lui sont attribuées (statut « driver_found ») et passe
+       * ainsi en « Chauffeur en route ».
+       *
+       * ⚠️ Le retrait de la demande RTDB est réservé au client (les règles
+       *    n'autorisent que `data.child('passengerId').val() === auth.uid`) :
+       *    on marque simplement la demande comme traitée de notre côté.
+       */
+      void createRide({
+        id: ride.id,
+        passengerName: request.passengerName ?? 'Passager',
+        driverName: userName || 'Conducteur',
+        driverPhone: phone,
+        driverPlate: currentUser?.plate,
+        vehicle: request.vehicle,
+        pickup: request.pickup,
+        destination: request.destination,
+        distanceKm: request.distanceKm,
+        price: fare,
+        commission,
+        status: 'driver_found',
+        date: ride.date,
+        time: ride.time,
+        passengerId: request.passengerAccountId ?? request.passengerId,
+        driverId: accountId || liveUserId,
+      });
+
+      // Fin du bip : la demande est traitée.
+      dismissedRequestId.current = request.id;
+      lastRequestId.current = request.id;
+      stopIncomingAlert();
+      setIncomingRequest(null);
 
       return true;
     },
-    [incomingRequest, driverBalance, debitDriverBalance, liveUserId, phone],
+    [
+      incomingRequest,
+      driverBalance,
+      debitDriverBalance,
+      liveUserId,
+      accountId,
+      userName,
+      currentUser,
+      phone,
+      stopIncomingAlert,
+    ],
   );
 
   const approveDriver = useCallback(() => setDriverApproved(true), []);
@@ -739,26 +879,51 @@ export function AppProvider({ children }: { children: ReactNode }) {
     });
   }, [cloudReady]);
 
-  /** Demandes de course entrantes → son d'alerte FORT + carte conducteur. */
-  useEffect(() => {
-    if (!isCloudEnabled() || !cloudReady) return undefined;
+/**
+ * Demandes de course entrantes — CÔTÉ CONDUCTEUR uniquement.
+ *
+ *   • le client ne s'alerte jamais lui-même (demandes par d'autres ignorées) ;
+ *   • le SON D'ALERTE SE RÉPÈTE toutes les `ALERT_REPEAT_MS` tant que la
+ *     demande n'est ni acceptée ni refusée ;
+ *   • une demande déjà traitée (acceptée/refusée) ne re-déclenche plus le bip.
+ */
+useEffect(() => {
+  if (!isCloudEnabled() || !cloudReady) return undefined;
 
-    return subscribeToRideRequests((requests) => {
-      const first = requests[0] ?? null;
+  const unsubscribe = subscribeToRideRequests((requests) => {
+    if (!isDriverAccount) return;
 
-      if (!first) {
-        lastRequestId.current = '';
-        setIncomingRequest(null);
-        return;
-      }
+    const pending =
+      requests.find(
+        (request) =>
+          request.passengerId !== liveUserId &&
+          request.id !== dismissedRequestId.current,
+      ) ?? null;
 
-      if (first.id === lastRequestId.current) return;
+    if (!pending) {
+      lastRequestId.current = '';
+      stopIncomingAlert();
+      setIncomingRequest(null);
+      return;
+    }
 
-      lastRequestId.current = first.id;
-      playAlertSound();
-      setIncomingRequest(first);
-    });
-  }, [cloudReady]);
+    setIncomingRequest(pending);
+
+    if (pending.id === lastRequestId.current) return;
+
+    lastRequestId.current = pending.id;
+    playAlertSound();
+
+    // Bip répété : le conducteur doit l'entendre jusqu'à sa réponse.
+    stopIncomingAlert();
+    alertTimerRef.current = window.setInterval(playAlertSound, ALERT_REPEAT_MS);
+  });
+
+  return () => {
+    stopIncomingAlert();
+    unsubscribe();
+  };
+}, [cloudReady, isDriverAccount, liveUserId, stopIncomingAlert]);
 
   /** Recharges, cadeaux et historique client : synchronisation Firestore. */
   useEffect(() => {
@@ -772,9 +937,16 @@ export function AppProvider({ children }: { children: ReactNode }) {
       setDriverGifts([...gifts].sort((a, b) => b.createdAt - a.createdAt));
     });
 
-    const accountId = currentUser?.id;
     const unsubscribeRides = subscribeToRides(
-      (rides) => setPassengerHistory(rides),
+      (rides) => {
+        setPassengerHistory(rides);
+
+        // Un conducteur a accepté : on bascule le client en suivi de course.
+        const accepted = rides.find(
+          (ride) => ride.status === 'driver_found' && Boolean(ride.driverId),
+        );
+        if (accepted) applyAcceptedRide(accepted);
+      },
       accountId ? { field: 'passengerId', value: accountId } : undefined,
     );
 
@@ -783,7 +955,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       unsubscribeGifts();
       unsubscribeRides();
     };
-  }, [cloudReady, currentUser]);
+  }, [cloudReady, accountId, applyAcceptedRide]);
 
   const driverRevenue = useMemo(
     () => driverRidesToday.reduce((total, ride) => total + ride.price, 0),

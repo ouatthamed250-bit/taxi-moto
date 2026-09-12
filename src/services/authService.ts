@@ -27,6 +27,7 @@ import {
 } from './firebase';
 import { createUser, findUserByPhone, getUser, updateUser } from './firestore';
 import { normalizePhone, phoneVariants } from './phone';
+import { INITIAL_DRIVER_BALANCE } from './wallet';
 import * as local from './authLocal';
 
 /* ---------------- Constantes (identiques dans les deux modes) ---------------- */
@@ -375,6 +376,8 @@ export async function registerDriver(
     vehiclePhoto: input.vehiclePhoto,
     securityQuestion: input.securityQuestion,
     securityAnswer: local.hashSecurityAnswer(input.securityAnswer),
+    // Solde virtuel initial (persisté dans Firestore).
+    driverBalance: INITIAL_DRIVER_BALANCE,
     createdAt: Date.now(),
   };
 

@@ -31,9 +31,6 @@ const TRIP_STATES = [
   'in_progress',
 ];
 
-/** Inclut 'completed' : l'écran de notation s'affiche une fois la course finie. */
-const ACTIVE = [...TRIP_STATES, 'completed'];
-
 export default function PassengerRide() {
   const navigate = useNavigate();
   const {
@@ -51,9 +48,17 @@ export default function PassengerRide() {
   const [comment, setComment] = useState('');
   const [vehicleImageBroken, setVehicleImageBroken] = useState(false);
 
-  const isActive = ACTIVE.includes(rideStatus);
   const onTrip = TRIP_STATES.includes(rideStatus);
-  const showRecap = !onTrip && (isActive || Boolean(lastRide));
+  /**
+   * Récap « Course terminée ! » UNIQUEMENT pour une course réellement finie :
+   * `lastRide` n'est créé qu'à la complétion (advanceRide). Après une
+   * ANNULATION ou pendant une recherche, on affiche l'état vide ou « En cours »
+   * — jamais un faux « Course terminée ».
+   */
+  const showRecap =
+    !onTrip &&
+    Boolean(lastRide) &&
+    (rideStatus === 'completed' || rideStatus === 'idle');
 
   const follow = () => {
     if (rideStatus === 'searching') {

@@ -47,6 +47,8 @@ export interface RideRequest {
   destinationLibre?: boolean;
   /** Identifiant du compte client réel (authLocal). */
   passengerId?: string;
+  /** Identifiant Firestore du compte client (filtres `rides`). */
+  passengerAccountId?: string;
   /** Nom du client (affichage + repli de recherche du numéro). */
   passengerName?: string;
   /** Téléphone du client (compte réel authLocal). */
@@ -71,6 +73,10 @@ export interface Ride {
   passengerId?: string;
   /** uid du conducteur (compte Firebase) — filtres Firestore. */
   driverId?: string;
+  /** Téléphone du conducteur (bouton Appeler côté client). */
+  driverPhone?: string;
+  /** Plaque du conducteur (affichage suivi de course). */
+  driverPlate?: string;
 }
 
 export interface ZonePriceRule {
@@ -205,6 +211,8 @@ export interface User {
   securityQuestion?: string;
   /** Réponse de sécurité hachée (normalisée : minuscules, sans espaces superflus). */
   securityAnswer?: string;
+  /** Solde virtuel du conducteur (FCFA) — persisté dans Firestore. */
+  driverBalance?: number;
   /** Compte bloqué par l'administration. */
   blocked?: boolean;
   createdAt: number;
@@ -238,6 +246,8 @@ export interface DriverRegisterInput extends PassengerRegisterInput {
 export interface GeoPosition {
   latitude: number;
   longitude: number;
+  /** Précision estimée en mètres (fournie par le navigateur). */
+  accuracy?: number;
 }
 
 /** Position GPS horodatée. */

@@ -14,8 +14,17 @@ import {
 import { Page } from '../../components/Page';
 import { COLORS, VEHICLES, estimateFare, fcfa } from '../../theme';
 import { useApp } from '../../store/useApp';
-import type { VehicleType } from '../../types';
+import type { RideStatus, VehicleType } from '../../types';
 import './Search.css';
+
+/** États pour lesquels le client doit suivre sa course. */
+const FOLLOW_STATES: RideStatus[] = [
+  'driver_found',
+  'driver_arriving',
+  'driver_arrived',
+  'in_progress',
+  'completed',
+];
 
 const VEHICLE_IMAGES: Record<VehicleType, string> = {
   moto: '/images/moto.jpg',
@@ -42,7 +51,15 @@ export default function Searching() {
   const info = VEHICLES[vehicleKey];
   const estimate = estimateFare(distanceKm);
 
-  /** Raison de l'indisponibilité affichée : zone non couverte ou aucun conducteur. */
+  /**
+   * Suivi de l'état de la course — AUCUNE ANNULATION AUTOMATIQUE.
+   *
+   * La demande reste publiée sur la Realtime Database tant que le client ne
+   * l'annule pas : le conducteur a tout le temps de répondre (bip répété).
+   *   • 'offers'   → écran des propositions de prix ;
+   *   • 'driver_found' et suivants → suivi de course (le conducteur a accepté) ;
+   *   • 'idle'     → aucun conducteur n'était disponible au moment de commander.
+   */
   useEffect(() => {
     if (rideStatus === 'offers') {
       navigate(
@@ -52,14 +69,14 @@ export default function Searching() {
       return;
     }
 
-    if (rideStatus !== 'searching') return;
+    if (FOLLOW_STATES.includes(rideStatus)) {
+      navigate('/passenger/tracking');
+      return;
+    }
 
-    // Aucun moteur d'offres réel pour l'instant → repli propre vers Unavailable.
-    const timer = window.setTimeout(
-      () => navigate('/passenger/unavailable', { state: { reason: 'no-driver' } }),
-      2200,
-    );
-    return () => window.clearTimeout(timer);
+    if (rideStatus === 'idle') {
+      navigate('/passenger/unavailable', { state: { reason: 'no-driver' } });
+    }
   }, [rideStatus, offers, navigate]);
 
   const cancelSearch = () => {
@@ -114,7 +131,8 @@ export default function Searching() {
 
           <h2 className="search-title">Recherche d’un conducteur…</h2>
           <p className="search-subtitle">
-            Nous cherchons le meilleur chauffeur près de vous
+            Votre demande est envoyée aux conducteurs en ligne — elle reste
+            active jusqu’à leur réponse.
           </p>
         </main>
 
