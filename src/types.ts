@@ -136,6 +136,10 @@ export interface User {
   /** Photos encodées en base64 (conducteur uniquement). */
   driverPhoto?: string;
   vehiclePhoto?: string;
+  /** Question de sécurité (récupération de mot de passe). */
+  securityQuestion?: string;
+  /** Réponse de sécurité hachée (normalisée : minuscules, sans espaces superflus). */
+  securityAnswer?: string;
   createdAt: number;
 }
 
@@ -151,6 +155,8 @@ export interface PassengerRegisterInput {
   name: string;
   phone: string;
   password: string;
+  securityQuestion: string;
+  securityAnswer: string;
 }
 
 /** Données d'inscription d'un conducteur. */

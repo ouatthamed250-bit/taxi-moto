@@ -1011,3 +1011,20 @@
   font-size: 12px;
   font-weight: 700;
 }
+
+.login-forgot {
+  display: block;
+  margin: 14px auto 0;
+  padding: 6px 10px;
+  border: none;
+  color: var(--taxi-blue, #0b5fff);
+  background: transparent;
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.login-forgot:hover {
+  text-decoration: underline;
+}

@@ -8,6 +8,7 @@ import {
   EyeOff,
   LockKeyhole,
   Radar,
+  ShieldCheck,
   Smartphone,
   UserPlus,
   UserRound,
@@ -15,6 +16,7 @@ import {
 import { Page } from '../../components/Page';
 import { COLORS } from '../../theme';
 import { useApp } from '../../store/useApp';
+import { SECURITY_QUESTIONS } from '../../services/authLocal';
 import './Register.css';
 
 const inputStyle: CSSProperties = {
@@ -28,6 +30,7 @@ interface FieldErrors {
   phone?: string;
   password?: string;
   confirm?: string;
+  securityAnswer?: string;
 }
 
 export default function PassengerRegister() {
@@ -42,6 +45,8 @@ export default function PassengerRegister() {
   const [showConfirm, setShowConfirm] = useState(false);
   const [errors, setErrors] = useState<FieldErrors>({});
   const [submitError, setSubmitError] = useState('');
+  const [securityQuestion, setSecurityQuestion] = useState<string>(SECURITY_QUESTIONS[0]);
+  const [securityAnswer, setSecurityAnswer] = useState('');
 
   const submit = () => {
     const next: FieldErrors = {};
@@ -58,12 +63,21 @@ export default function PassengerRegister() {
     if (confirmPassword !== password) {
       next.confirm = 'Les mots de passe ne correspondent pas.';
     }
+    if (securityAnswer.trim().length < 2) {
+      next.securityAnswer = 'Réponse trop courte (2 caractères minimum).';
+    }
 
     setErrors(next);
     setSubmitError('');
     if (Object.keys(next).length > 0) return;
 
-    const result = registerPassenger({ name: name.trim(), phone, password });
+    const result = registerPassenger({
+      name: name.trim(),
+      phone,
+      password,
+      securityQuestion,
+      securityAnswer,
+    });
     if (!result.success) {
       setSubmitError(result.error ?? 'Inscription impossible.');
       return;
@@ -247,6 +261,57 @@ export default function PassengerRegister() {
             </div>
 
             {errors.confirm && <span className="register-error">{errors.confirm}</span>}
+          </div>
+
+          {/* Question de sécurité */}
+          <div className="register-field">
+            <label htmlFor="register-question">Question de sécurité</label>
+
+            <div className="register-input-wrapper">
+              <span className="register-input-icon">
+                <ShieldCheck size={18} />
+              </span>
+
+              <select
+                id="register-question"
+                style={inputStyle}
+                className="register-input register-select"
+                value={securityQuestion}
+                onChange={(event) => setSecurityQuestion(event.target.value)}
+              >
+                {SECURITY_QUESTIONS.map((question) => (
+                  <option key={question} value={question}>
+                    {question}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          {/* Réponse de sécurité */}
+          <div className="register-field">
+            <label htmlFor="register-answer">Réponse</label>
+
+            <div className="register-input-wrapper">
+              <span className="register-input-icon">
+                <LockKeyhole size={18} />
+              </span>
+
+              <input
+                id="register-answer"
+                style={inputStyle}
+                className="register-input"
+                type="text"
+                autoComplete="off"
+                placeholder="Votre réponse"
+                value={securityAnswer}
+                onChange={(event) => setSecurityAnswer(event.target.value)}
+              />
+            </div>
+
+            {errors.securityAnswer && (
+              <span className="register-error">{errors.securityAnswer}</span>
+            )}
           </div>
 
           {submitError && (

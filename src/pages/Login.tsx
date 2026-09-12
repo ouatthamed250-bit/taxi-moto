@@ -210,6 +210,14 @@ export default function Login() {
               </span>
             </button>
 
+            <button
+              type="button"
+              className="login-forgot"
+              onClick={() => navigate('/forgot-password')}
+            >
+              Mot de passe oublié ?
+            </button>
+
             {/* Register */}
             <div className="login-register">
               <span>Pas encore de compte ?</span>

@@ -20,6 +20,31 @@ export const MAX_PHOTO_BYTES = 5 * 1024 * 1024;
 /** Plaque d'immatriculation valide : AA-123-BC. */
 const PLATE_RE = /^[A-Z]{2}-\d{3}-[A-Z]{2}$/;
 
+/** Questions de sécurité proposées à l'inscription. */
+export const SECURITY_QUESTIONS = [
+  'Quel est le nom de votre premier animal ?',
+  'Quel est le nom de votre école primaire ?',
+  'Quel est le prénom de votre mère ?',
+  'Quelle est votre ville de naissance ?',
+  'Quel est votre plat préféré ?',
+] as const;
+
+/** Longueur minimale de la réponse de sécurité. */
+const MIN_ANSWER_LENGTH = 2;
+
+/**
+ * Hache une réponse de sécurité. La réponse est normalisée (minuscules,
+ * sans espaces superflus) avant hachage → comparaison insensible à la casse.
+ */
+export function hashSecurityAnswer(answer: string): string {
+  const normalized = answer.trim().toLowerCase();
+  let hash = 0;
+  for (let index = 0; index < normalized.length; index += 1) {
+    hash = (hash * 31 + normalized.charCodeAt(index)) | 0;
+  }
+  return `h${(hash >>> 0).toString(36)}`;
+}
+
 function normalizePhone(phone: string): string {
   return phone.replace(/\D/g, '');
 }
@@ -70,6 +95,14 @@ function validateCommon(input: PassengerRegisterInput, users: User[]): string | 
     return 'Ce numéro est déjà utilisé. Connectez-vous plutôt.';
   }
 
+  if (!input.securityQuestion) {
+    return 'Choisissez une question de sécurité.';
+  }
+
+  if (input.securityAnswer.trim().length < MIN_ANSWER_LENGTH) {
+    return `Réponse de sécurité trop courte (${MIN_ANSWER_LENGTH} caractères minimum).`;
+  }
+
   return null;
 }
 
@@ -85,6 +118,8 @@ export function registerPassenger(input: PassengerRegisterInput): AuthResult {
     name: input.name.trim(),
     phone: normalizePhone(input.phone),
     password: input.password,
+    securityQuestion: input.securityQuestion,
+    securityAnswer: hashSecurityAnswer(input.securityAnswer),
     createdAt: Date.now(),
   };
 
@@ -119,6 +154,8 @@ export function registerDriver(input: DriverRegisterInput): AuthResult {
     plate: input.plate.trim().toUpperCase(),
     driverPhoto: input.driverPhoto,
     vehiclePhoto: input.vehiclePhoto,
+    securityQuestion: input.securityQuestion,
+    securityAnswer: hashSecurityAnswer(input.securityAnswer),
     createdAt: Date.now(),
   };
 
@@ -159,4 +196,61 @@ export function logout(): void {
   } catch {
     // ignore
   }
+}
+
+/** Retourne la question de sécurité liée à un numéro (null si compte inconnu). */
+export function getSecurityQuestion(phone: string): string | null {
+  const normalized = normalizePhone(phone);
+  const user = readUsers().find((item) => normalizePhone(item.phone) === normalized);
+  return user?.securityQuestion ?? null;
+}
+
+/**
+ * Vérifie la réponse de sécurité d'un numéro (étape 2 du mot de passe oublié).
+ * La réponse est normalisée (minuscules, sans espaces superflus) avant hachage.
+ */
+export function verifySecurityAnswer(phone: string, answer: string): boolean {
+  const normalized = normalizePhone(phone);
+  const user = readUsers().find((item) => normalizePhone(item.phone) === normalized);
+  if (!user?.securityAnswer) return false;
+  return hashSecurityAnswer(answer) === user.securityAnswer;
+}
+
+/**
+ * Réinitialise le mot de passe après vérification de la réponse de sécurité.
+ * La réponse est normalisée (minuscules, sans espaces superflus) avant hachage.
+ */
+export function resetPassword(phone: string, answer: string, newPassword: string): AuthResult {
+  const normalized = normalizePhone(phone);
+  const users = readUsers();
+  const index = users.findIndex((item) => normalizePhone(item.phone) === normalized);
+
+  if (index === -1) {
+    return { success: false, error: 'Aucun compte trouvé avec ce numéro.' };
+  }
+
+  const user = users[index];
+  if (!user.securityAnswer || hashSecurityAnswer(answer) !== user.securityAnswer) {
+    return { success: false, error: 'Réponse incorrecte. Réessayez.' };
+  }
+
+  if (newPassword.length < MIN_PASSWORD_LENGTH) {
+    return {
+      success: false,
+      error: `Le mot de passe doit contenir au moins ${MIN_PASSWORD_LENGTH} caractères.`,
+    };
+  }
+
+  const updated: User = { ...user, password: newPassword };
+  const nextUsers = [...users];
+  nextUsers[index] = updated;
+  writeUsers(nextUsers);
+
+  // Met à jour la session courante si c'est le même compte.
+  const current = getCurrentUser();
+  if (current && normalizePhone(current.phone) === normalized) {
+    setCurrentUser(updated);
+  }
+
+  return { success: true, user: updated };
 }

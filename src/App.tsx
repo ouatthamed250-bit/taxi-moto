@@ -11,6 +11,7 @@ import Welcome from './pages/Welcome';
 // ⚠️ Splash et Welcome restent importées statiquement : ce sont les écrans
 // d'entrée, on veut un affichage immédiat (sans aller-retour réseau).
 const Login = lazy(() => import('./pages/Login'));
+const ForgotPassword = lazy(() => import('./pages/ForgotPassword'));
 const PassengerRegister = lazy(() => import('./pages/passenger/Register'));
 const DriverRegister = lazy(() => import('./pages/driver/Register'));
 const PassengerHome = lazy(() => import('./pages/passenger/Home'));
@@ -37,6 +38,7 @@ function App() {
             <Route path="/" element={<Splash />} />
             <Route path="/welcome" element={<Welcome />} />
             <Route path="/login" element={<Login />} />
+            <Route path="/forgot-password" element={<ForgotPassword />} />
             <Route path="/register/passenger" element={<PassengerRegister />} />
             <Route path="/register/driver" element={<DriverRegister />} />
 
