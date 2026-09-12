@@ -14,6 +14,19 @@ export type RideStatus =
   | 'completed'
   | 'cancelled';
 
+/**
+ * Cycle de vie d'une course, PARTAGÉ entre le client et le conducteur.
+ * C'est ce statut qui est persisté dans Firestore (`rides/{id}.status`) et
+ * donc synchronisé en temps réel via `onSnapshot`.
+ */
+export type CourseStatus =
+  | 'pending'
+  | 'accepted'
+  | 'arrived'
+  | 'in_progress'
+  | 'completed'
+  | 'cancelled';
+
 export interface DriverProfile {
   id: string;
   name: string;
@@ -45,6 +58,8 @@ export interface RideRequest {
   distanceKm: number;
   /** true = destination hors base de quartiers → lieu/prix à confirmer par appel. */
   destinationLibre?: boolean;
+  /** Slug du quartier de destination (repère carte). */
+  destinationId?: string;
   /** Identifiant du compte client réel (authLocal). */
   passengerId?: string;
   /** Identifiant Firestore du compte client (filtres `rides`). */
@@ -65,18 +80,25 @@ export interface Ride {
   distanceKm: number;
   price: number;
   commission: number;
-  status: RideStatus;
+  /** Statut PARTAGÉ (Firestore) — piloté par le conducteur, suivi par le client. */
+  status: CourseStatus;
   date: string;
   time: string;
   rating?: number;
   /** uid du client (compte Firebase) — filtres Firestore. */
   passengerId?: string;
+  /** uid Firebase (Auth) du client — positions temps réel (RTDB). */
+  passengerUid?: string;
   /** uid du conducteur (compte Firebase) — filtres Firestore. */
   driverId?: string;
   /** Téléphone du conducteur (bouton Appeler côté client). */
   driverPhone?: string;
   /** Plaque du conducteur (affichage suivi de course). */
   driverPlate?: string;
+  /** Téléphone du client (bouton Appeler côté conducteur). */
+  passengerPhone?: string;
+  /** Slug du quartier de destination (coordonnées éventuelles). */
+  destinationId?: string;
 }
 
 export interface ZonePriceRule {

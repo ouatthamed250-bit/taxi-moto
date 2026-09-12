@@ -1173,3 +1173,106 @@
     transition: none;
   }
 }
+
+/* ---------- COURSE EN COURS (suivi partage client/conducteur) ---------- */
+.driver-dashboard-trip {
+  position: relative;
+  z-index: 2;
+  margin-top: 14px;
+  padding: 16px;
+  border: 1px solid rgba(0, 158, 96, 0.35);
+  border-radius: 22px;
+  background: rgba(255, 255, 255, 0.92);
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+  box-shadow:
+    0 14px 34px rgba(6, 43, 103, 0.12),
+    0 0 0 4px rgba(0, 158, 96, 0.08);
+}
+
+.driver-dashboard-trip-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.driver-dashboard-trip-badge {
+  padding: 6px 12px;
+  border-radius: 99px;
+  color: #fff;
+  background: linear-gradient(135deg, #22c07a, #009e60);
+  font-size: 11px;
+  font-weight: 900;
+  letter-spacing: 0.3px;
+}
+
+.driver-dashboard-steps {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 14px;
+}
+
+.driver-dashboard-step {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 14px;
+  border: none;
+  border-radius: 16px;
+  color: #fff;
+  background: linear-gradient(145deg, #ffb52e, #ff9900);
+  box-shadow: 0 6px 0 rgba(178, 106, 0, 0.5);
+  font-family: inherit;
+  font-size: 13.5px;
+  font-weight: 900;
+  text-align: left;
+  cursor: pointer;
+  transition: transform 0.12s ease, box-shadow 0.12s ease, opacity 0.12s ease;
+}
+
+.driver-dashboard-step--done {
+  color: var(--taxi-gray-500, #7a879b);
+  background: linear-gradient(145deg, #f2f5fa, #e3e9f2);
+  box-shadow: none;
+  opacity: 0.9;
+}
+
+.driver-dashboard-step:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.driver-dashboard-step--current:disabled {
+  opacity: 1;
+}
+
+.driver-dashboard-step--current:not(:disabled):active {
+  transform: translateY(3px);
+  box-shadow: 0 2px 0 rgba(178, 106, 0, 0.5);
+}
+
+.driver-dashboard-step-index {
+  display: flex;
+  width: 24px;
+  height: 24px;
+  flex: 0 0 24px;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.28);
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.driver-dashboard-step--done .driver-dashboard-step-index {
+  background: rgba(6, 43, 103, 0.08);
+}
+
+.driver-dashboard-trip-note {
+  margin: 12px 0 0;
+  color: var(--taxi-gray-500, #7a879b);
+  font-size: 11px;
+  font-weight: 600;
+}

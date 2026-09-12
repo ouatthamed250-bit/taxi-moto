@@ -680,3 +680,38 @@
   font-weight: 600;
   text-align: center;
 }
+
+/* ---------- MESSAGE D ETAT TEMPS REEL (suivi de course) ---------- */
+.tracking-live-message {
+  position: relative;
+  z-index: 2;
+  margin: 0 0 10px;
+  padding: 12px 14px;
+  border-radius: 16px;
+  border: 1px solid rgba(6, 43, 103, 0.08);
+  background: rgba(255, 255, 255, 0.92);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  box-shadow: 0 12px 26px rgba(6, 43, 103, 0.1);
+  color: var(--taxi-navy, #062b67);
+  font-size: 13px;
+  font-weight: 800;
+  line-height: 1.35;
+}
+
+.tracking-live-message--blue {
+  border-color: rgba(11, 95, 255, 0.3);
+  color: #0b5fff;
+}
+
+.tracking-live-message--orange {
+  border-color: rgba(255, 153, 0, 0.42);
+  color: #8a5a00;
+  background: rgba(255, 249, 240, 0.95);
+}
+
+.tracking-live-message--green {
+  border-color: rgba(0, 158, 96, 0.35);
+  color: #036b45;
+  background: rgba(240, 252, 246, 0.95);
+}

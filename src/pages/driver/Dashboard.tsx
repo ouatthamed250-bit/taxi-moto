@@ -20,6 +20,7 @@ import {
 } from 'lucide-react';
 import { Page } from '../../components/Page';
 import { MapComponent } from '../../components/MapComponent';
+import type { MapMarker } from '../../components/MapComponent';
 import {
   ABIDJAN_CENTER,
   COLORS,
@@ -32,6 +33,8 @@ import {
 import { useApp } from '../../store/useApp';
 import { useGeolocation } from '../../hooks/useGeolocation';
 import { MIN_MOVE_KM } from '../../services/geolocation';
+import { DRIVER_STEPS, COURSE_LABEL, driverStepIndex } from '../../data/courseStatus';
+import { coordsOfQuartier } from '../../data/quartiers';
 import { callPhone, messagePhone, resolvePassengerPhone } from '../../services/contacts';
 import './Dashboard.css';
 
@@ -56,6 +59,9 @@ export default function DriverDashboard() {
     rechargeRequests,
     appSettings,
     setDriverPosition,
+    activeRide,
+    updateRideStatus,
+    livePassengerPositions,
   } = useApp();
   const [fare, setFare] = useState(1500);
 
@@ -108,14 +114,53 @@ export default function DriverDashboard() {
 
   const info = VEHICLES[incomingRequest?.vehicle ?? 'moto'];
 
+  /* ---- Suivi de course partagé (côté conducteur) ---- */
+  const trip = activeRide;
+  const tripStepIndex = trip ? Math.max(0, driverStepIndex(trip.status)) : 0;
+
+  /** Position live du client à aller chercher (publiée sur la RTDB). */
+  const clientPosition = trip?.passengerUid
+    ? livePassengerPositions[trip.passengerUid]
+    : undefined;
+
+  /** Coordonnées du quartier de destination (si relevées sur le terrain). */
+  const destinationCoords = coordsOfQuartier(trip?.destinationId);
+
+  const tripMarkers: MapMarker[] = [];
+
+  if (clientPosition) {
+    tripMarkers.push({
+      id: 'trip-client',
+      position: [clientPosition.latitude, clientPosition.longitude],
+      emoji: '🧍',
+      label: `${trip?.passengerName ?? 'Client'} · point de prise en charge`,
+      color: COLORS.blue,
+      badge: 'Client',
+    });
+  }
+
+  if (destinationCoords) {
+    tripMarkers.push({
+      id: 'trip-destination',
+      position: [destinationCoords.latitude, destinationCoords.longitude],
+      emoji: '🏁',
+      label: trip?.destination ?? 'Destination',
+      color: COLORS.orange,
+      badge: 'Destination',
+    });
+  }
+
   /* Numéro réel du client (compte authLocal) — vide = boutons masqués. */
-  const passengerPhone = incomingRequest
-    ? resolvePassengerPhone({
-        id: incomingRequest.passengerId,
-        name: incomingRequest.passengerName,
-        phone: incomingRequest.passengerPhone,
-      })
-    : '';
+  const passengerPhone = trip
+    ? (trip.passengerPhone ??
+      resolvePassengerPhone({ id: trip.passengerId, name: trip.passengerName }))
+    : incomingRequest
+      ? resolvePassengerPhone({
+          id: incomingRequest.passengerId,
+          name: incomingRequest.passengerName,
+          phone: incomingRequest.passengerPhone,
+        })
+      : '';
 
   return (
     <Page nav="driver" background={COLORS.white}>
@@ -123,7 +168,21 @@ export default function DriverDashboard() {
 
         {/* ===== CARTE ===== */}
         <div className="driver-dashboard-map">
-          <MapComponent center={mapCenter} meLabel="Votre position" />
+          <MapComponent
+            center={mapCenter}
+            meLabel="Votre position"
+            markers={tripMarkers}
+            routeFrom={
+              geo.position
+                ? [geo.position.latitude, geo.position.longitude]
+                : null
+            }
+            routeTo={
+              clientPosition
+                ? [clientPosition.latitude, clientPosition.longitude]
+                : null
+            }
+          />
 
           <header className="driver-dashboard-topbar">
             <div className="driver-dashboard-brand">
@@ -306,8 +365,100 @@ export default function DriverDashboard() {
             </p>
           </section>
 
-          {/* Demande entrante / en attente */}
-          {incomingRequest ? (
+          {/* ===== COURSE EN COURS (statut partagé avec le client) ===== */}
+          {trip ? (
+            <section className="driver-dashboard-trip">
+              <div className="driver-dashboard-trip-head">
+                <span className="driver-dashboard-trip-badge">
+                  {COURSE_LABEL[trip.status]}
+                </span>
+
+                <span className="driver-dashboard-request-people">
+                  <UsersRound size={13} />
+                  {trip.passengerName ?? 'Client'}
+                </span>
+              </div>
+
+              <strong className="driver-dashboard-request-title">
+                {VEHICLES[trip.vehicle].emoji} {VEHICLES[trip.vehicle].label} ·{' '}
+                {fcfa(trip.price)}
+              </strong>
+
+              <div className="driver-dashboard-rows">
+                <div className="driver-dashboard-row">
+                  <span className="driver-dashboard-row-icon driver-dashboard-row-icon--pickup">
+                    <Navigation size={15} />
+                  </span>
+                  <span className="driver-dashboard-row-text">
+                    {trip.pickup}
+                    {clientPosition ? ' · position live' : ''}
+                  </span>
+                </div>
+
+                <div className="driver-dashboard-row">
+                  <span className="driver-dashboard-row-icon driver-dashboard-row-icon--dest">
+                    <MapPin size={15} />
+                  </span>
+                  <span className="driver-dashboard-row-text">
+                    Vers {trip.destination}
+                  </span>
+                </div>
+              </div>
+
+              {passengerPhone && (
+                <div className="driver-dashboard-contact">
+                  <button
+                    type="button"
+                    className="driver-dashboard-contact-btn driver-dashboard-contact-btn--call"
+                    onClick={() => callPhone(passengerPhone)}
+                  >
+                    <Phone size={15} />
+                    Appeler le client
+                  </button>
+
+                  <button
+                    type="button"
+                    className="driver-dashboard-contact-btn driver-dashboard-contact-btn--msg"
+                    onClick={() => messagePhone(passengerPhone)}
+                  >
+                    <MessageCircle size={15} />
+                    Message
+                  </button>
+                </div>
+              )}
+
+              {/* Étapes : gros boutons 3D, dans l'ordre logique de la course. */}
+              <div className="driver-dashboard-steps">
+                {DRIVER_STEPS.map((step, index) => {
+                  const done = index < tripStepIndex;
+                  const current = index === tripStepIndex;
+
+                  return (
+                    <button
+                      key={step.status}
+                      type="button"
+                      className={`driver-dashboard-step${
+                        done ? ' driver-dashboard-step--done' : ''
+                      }${current ? ' driver-dashboard-step--current' : ''}`}
+                      disabled={!current}
+                      onClick={() => {
+                        void updateRideStatus(trip.id, step.status);
+                      }}
+                    >
+                      <span className="driver-dashboard-step-index">
+                        {done ? <Check size={14} /> : index + 1}
+                      </span>
+                      {step.label}
+                    </button>
+                  );
+                })}
+              </div>
+
+              <p className="driver-dashboard-trip-note">
+                Chaque étape est visible en direct par le client dans son application.
+              </p>
+            </section>
+          ) : incomingRequest ? (
             <section className="driver-dashboard-request">
               <div className="driver-dashboard-request-head">
                 <span className="driver-dashboard-request-badge">Nouvelle demande</span>

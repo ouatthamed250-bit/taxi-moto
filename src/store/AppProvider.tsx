@@ -6,6 +6,7 @@ import type {
   AdminStats,
   AppSettings,
   AuthResult,
+  CourseStatus,
   DestinationLieu,
   DriverGift,
   DriverGiftInput,
@@ -48,6 +49,7 @@ import {
   subscribeToRides,
   subscribeToUsers,
   updateRechargeRequest,
+  updateRide,
   updateUser,
 } from '../services/firestore';
 import {
@@ -55,12 +57,14 @@ import {
   publishOnlineStatus,
   publishPassengerPosition,
   publishRideRequest,
+  publishRideStatus,
   removeRideRequest,
   subscribeToAllPositions,
   subscribeToOnlineDrivers,
   subscribeToRideRequests,
 } from '../services/realtimeDb';
 import type { LivePosition } from '../services/realtimeDb';
+import { COURSE_STATUS_BY_RIDE, RIDE_STATUS_BY_COURSE } from '../data/courseStatus';
 import { playAlertSound, unlockAudio } from '../services/notification';
 import { INITIAL_DRIVER_BALANCE } from '../services/wallet';
 import { readAppSettings, writeAppSettings } from '../services/settingsLocal';
@@ -90,6 +94,9 @@ const RIDE_ORDER: RideStatus[] = [
 
 /** Intervalle de répétition du bip d'une demande en attente (ms). */
 const ALERT_REPEAT_MS = 6000;
+
+/** Statuts pour lesquels le conducteur a une course « en cours ». */
+const DRIVER_ACTIVE_STATUSES: CourseStatus[] = ['accepted', 'arrived', 'in_progress'];
 
 function nowDate(): string {
   return new Date().toLocaleDateString('fr-FR');
@@ -140,6 +147,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [selectedOffer, setSelectedOffer] = useState<Offer | null>(null);
   const [lastRide, setLastRide] = useState<Ride | null>(null);
   const [passengerHistory, setPassengerHistory] = useState<Ride[]>([]);
+  /** Course partagée en cours (conducteur : celle qu'il conduit). */
+  const [activeRide, setActiveRide] = useState<Ride | null>(null);
 
   /* ---- Conducteur ---- */
   const [driverOnline, setDriverOnline] = useState(false);
@@ -183,8 +192,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const dismissedRequestId = useRef('');
   /** Minuterie du bip répété (demande en attente de réponse). */
   const alertTimerRef = useRef<number | null>(null);
-  /** Course déjà attribuée par un conducteur (évite de rejouer la transition). */
-  const acceptedRideIdRef = useRef('');
+  /** Id de la course active (suivi partagé client/conducteur). */
+  const activeRideIdRef = useRef('');
   /** Statut courant, lu par les abonnements sans re-souscription. */
   const rideStatusRef = useRef<RideStatus>('idle');
   /** Demande publiée par le client (retirée à l'annulation). */
@@ -217,16 +226,39 @@ export function AppProvider({ children }: { children: ReactNode }) {
   }, [rideStatus]);
 
   /**
-   * Course attribuée par un conducteur (Firestore, statut « driver_found ») :
+   * Met à jour le STATUT PARTAGÉ d'une course :
+   *   1. Firestore `rides/{id}.status` → source de vérité, écoutée par le client
+   *      via `onSnapshot` (temps réel) ;
+   *   2. Realtime Database `/rideStatus/{id}` → canal live complémentaire ;
+   *   3. état local → retour visuel immédiat.
+   */
+  const updateRideStatus = useCallback(
+    async (rideId: string, status: CourseStatus): Promise<void> => {
+      if (!rideId) return;
+
+      await updateRide(rideId, { status });
+      void publishRideStatus(rideId, status);
+
+      setActiveRide((ride) => (ride && ride.id === rideId ? { ...ride, status } : ride));
+
+      // Le statut d'affichage ne concerne que le client.
+      if (!isDriverAccount) setRideStatus(RIDE_STATUS_BY_COURSE[status]);
+    },
+    [isDriverAccount],
+  );
+
+  /**
+   * Course attribuée par un conducteur (Firestore, statut « accepted ») :
    * le CLIENT passe en « Chauffeur en route » avec le suivi de la position.
    * On n'applique la transition que si une commande est en cours.
    */
   const applyAcceptedRide = useCallback((ride: Ride) => {
     const status = rideStatusRef.current;
     if (status !== 'searching' && status !== 'offers') return;
-    if (acceptedRideIdRef.current === ride.id) return;
+    if (activeRideIdRef.current === ride.id) return;
 
-    acceptedRideIdRef.current = ride.id;
+    activeRideIdRef.current = ride.id;
+    setActiveRide(ride);
 
     setSelectedOffer({
       id: ride.id,
@@ -247,7 +279,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
     });
     setRideStatus('driver_found');
   }, []);
-
   /* ---- Solde virtuel conducteur (persisté dans Firestore) ---- */
   /** Écrit le nouveau solde en base (sans bloquer l'interface). */
   const persistDriverBalance = useCallback(
@@ -461,6 +492,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         destination,
         distanceKm,
         destinationLibre,
+        destinationId,
         passengerId: liveUserId,
         passengerAccountId: accountId,
         passengerName: userName || 'Passager',
@@ -476,6 +508,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     destination,
     distanceKm,
     destinationLibre,
+    destinationId,
     liveUserId,
     accountId,
     userName,
@@ -492,6 +525,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
     if (index === -1 || index === RIDE_ORDER.length - 1) return;
     const next = RIDE_ORDER[index + 1];
     setRideStatus(next);
+
+    // Statut PARTAGÉ : le client peut aussi faire avancer la course.
+    const rideId = activeRideIdRef.current;
+    if (rideId) void updateRideStatus(rideId, COURSE_STATUS_BY_RIDE[next]);
 
     if (next === 'completed') {
       const price = selectedOffer?.price ?? 0;
@@ -536,6 +573,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     vehicle,
     debitDriverBalance,
     liveUserId,
+    updateRideStatus,
   ]);
 
   const cancelRide = useCallback(() => {
@@ -543,12 +581,19 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setOffers([]);
     setSelectedOffer(null);
 
+    // Statut partagé : la course en cours est annulée.
+    if (activeRideIdRef.current) {
+      void updateRideStatus(activeRideIdRef.current, 'cancelled');
+      activeRideIdRef.current = '';
+    }
+    setActiveRide(null);
+
     // Retire la demande de la Realtime Database (plus visible par les conducteurs).
     if (activeRequestId.current) {
       void removeRideRequest(activeRequestId.current);
       activeRequestId.current = '';
     }
-  }, []);
+  }, [updateRideStatus]);
 
   const rateRide = useCallback((rating: number) => {
     setLastRide((ride) => (ride ? { ...ride, rating } : ride));
@@ -568,6 +613,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setDistanceKm(0);
     setVehicle(null);
     setPassengers(1);
+
+    // Fin de course : plus de course active.
+    activeRideIdRef.current = '';
+    setActiveRide(null);
 
     // Retire la demande publiée (elle n'est plus d'actualité).
     if (activeRequestId.current) {
@@ -664,7 +713,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
        *    n'autorisent que `data.child('passengerId').val() === auth.uid`) :
        *    on marque simplement la demande comme traitée de notre côté.
        */
-      void createRide({
+      const acceptedRide: Ride = {
         id: ride.id,
         passengerName: request.passengerName ?? 'Passager',
         driverName: userName || 'Conducteur',
@@ -673,15 +722,25 @@ export function AppProvider({ children }: { children: ReactNode }) {
         vehicle: request.vehicle,
         pickup: request.pickup,
         destination: request.destination,
+        destinationId: request.destinationId,
         distanceKm: request.distanceKm,
         price: fare,
         commission,
-        status: 'driver_found',
+        // Statut PARTAGÉ initial : le client passe en « Chauffeur en route ».
+        status: 'accepted',
         date: ride.date,
         time: ride.time,
         passengerId: request.passengerAccountId ?? request.passengerId,
+        passengerUid: request.passengerId,
+        passengerPhone: request.passengerPhone,
         driverId: accountId || liveUserId,
-      });
+      };
+
+      void createRide(acceptedRide);
+      void publishRideStatus(acceptedRide.id, 'accepted');
+
+      // Le conducteur passe immédiatement à la vue « Course en cours ».
+      setActiveRide(acceptedRide);
 
       // Fin du bip : la demande est traitée.
       dismissedRequestId.current = request.id;
@@ -937,17 +996,41 @@ useEffect(() => {
       setDriverGifts([...gifts].sort((a, b) => b.createdAt - a.createdAt));
     });
 
+    /*
+     * Le CLIENT suit les courses qui lui sont attribuées ; le CONDUCTEUR suit
+     * la course qu'il est en train de faire. Dans les deux cas le statut vient
+     * de Firestore → synchronisation temps réel via `onSnapshot`.
+     */
     const unsubscribeRides = subscribeToRides(
       (rides) => {
+        if (isDriverAccount) {
+          const mine =
+            rides.find((ride) => DRIVER_ACTIVE_STATUSES.includes(ride.status)) ?? null;
+          setActiveRide(mine);
+          return;
+        }
+
         setPassengerHistory(rides);
 
-        // Un conducteur a accepté : on bascule le client en suivi de course.
-        const accepted = rides.find(
-          (ride) => ride.status === 'driver_found' && Boolean(ride.driverId),
-        );
+        // 1) Course déjà suivie → on applique le statut partagé (Firestore).
+        const current = activeRideIdRef.current
+          ? rides.find((ride) => ride.id === activeRideIdRef.current)
+          : undefined;
+
+        if (current) {
+          setActiveRide(current);
+          const nextStatus = RIDE_STATUS_BY_COURSE[current.status];
+          setRideStatus((status) => (status === nextStatus ? status : nextStatus));
+          return;
+        }
+
+        // 2) Un conducteur vient d'accepter → bascule en suivi de course.
+        const accepted = rides.find((ride) => ride.status === 'accepted');
         if (accepted) applyAcceptedRide(accepted);
       },
-      accountId ? { field: 'passengerId', value: accountId } : undefined,
+      accountId
+        ? { field: isDriverAccount ? 'driverId' : 'passengerId', value: accountId }
+        : undefined,
     );
 
     return () => {
@@ -955,7 +1038,7 @@ useEffect(() => {
       unsubscribeGifts();
       unsubscribeRides();
     };
-  }, [cloudReady, accountId, applyAcceptedRide]);
+  }, [cloudReady, accountId, applyAcceptedRide, isDriverAccount]);
 
   const driverRevenue = useMemo(
     () => driverRidesToday.reduce((total, ride) => total + ride.price, 0),
@@ -1007,6 +1090,9 @@ useEffect(() => {
     cancelRide,
     rateRide,
     resetBooking,
+
+    activeRide,
+    updateRideStatus,
 
     driverOnline,
     toggleOnline,

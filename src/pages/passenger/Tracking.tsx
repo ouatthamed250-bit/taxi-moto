@@ -17,6 +17,7 @@ import { ABIDJAN_CENTER, COLORS, VEHICLES, commissionOf, fcfa, netEarnings } fro
 import { useApp } from '../../store/useApp';
 import { useGeolocation } from '../../hooks/useGeolocation';
 import { useDriverLivePosition } from '../../hooks/useDriverLivePosition';
+import { coordsOfQuartier } from '../../data/quartiers';
 import { getDistanceKm } from '../../services/geolocation';
 import { callPhone, messagePhone, resolveDriverPhone } from '../../services/contacts';
 import './Tracking.css';
@@ -60,6 +61,7 @@ export default function Tracking() {
     resetBooking,
     vehicle,
     destination,
+    destinationId,
     driverPosition,
     setPassengerPosition,
   } = useApp();
@@ -88,22 +90,23 @@ export default function Tracking() {
   /* Numéro réel du chauffeur (compte authLocal) — vide = boutons masqués. */
   const driverPhone = resolveDriverPhone(driver);
 
-  const driverPin: [number, number] = [ABIDJAN_CENTER[0] + 0.006, ABIDJAN_CENTER[1] + 0.007];
-  const destinationPin: [number, number] = [
-    ABIDJAN_CENTER[0] - 0.008,
-    ABIDJAN_CENTER[1] - 0.006,
-  ];
-
-  /* Positions live : le client suit sa position, le conducteur vient du RTDB. */
+  /* ---- Positions RÉELLES uniquement (aucune position inventée) ---- */
   const driverLivePosition = liveDriver ?? driverPosition;
 
   const passengerPin: [number, number] = geo.position
     ? [geo.position.latitude, geo.position.longitude]
     : ABIDJAN_CENTER;
 
-  const liveDriverPin: [number, number] = driverLivePosition
+  const liveDriverPin: [number, number] | null = driverLivePosition
     ? [driverLivePosition.latitude, driverLivePosition.longitude]
-    : driverPin;
+    : null;
+
+  /** Coordonnées du quartier de destination (si relevées sur le terrain). */
+  const destinationCoords = coordsOfQuartier(destinationId);
+
+  const destinationPin: [number, number] | null = destinationCoords
+    ? [destinationCoords.latitude, destinationCoords.longitude]
+    : null;
 
   const remainingKm =
     driverLivePosition && geo.position
@@ -115,23 +118,46 @@ export default function Tracking() {
         )
       : null;
 
-  const markers: MapMarker[] = [
-    {
+  /** Estimation d'arrivée (≈ 20 km/h en ville), arrondie à la minute. */
+  const etaMinutes =
+    remainingKm !== null ? Math.max(1, Math.round((remainingKm / 20) * 60)) : null;
+
+  /** Message d'état TEMPS RÉEL (statut partagé piloté par le conducteur). */
+  const liveMessage =
+    rideStatus === 'driver_arrived'
+      ? `${driver.name} est arrivé ! Il vous attend dehors.`
+      : rideStatus === 'in_progress'
+        ? `En route vers ${destination || 'votre destination'}.`
+        : rideStatus === 'completed'
+          ? 'Vous êtes arrivé !'
+          : etaMinutes !== null
+            ? `${driver.name} arrive dans ~${etaMinutes} min.`
+            : `${driver.name} a accepté votre course.`;
+
+  const markers: MapMarker[] = [];
+
+  if (liveDriverPin) {
+    markers.push({
       id: driver.id,
       position: liveDriverPin,
       emoji: info.emoji,
       label: `${driver.name} · ${driver.plate}`,
-      color: driverPosition ? LIVE_DRIVER_COLOR : COLORS.navy,
-      badge: driverPosition ? 'Position live' : undefined,
-    },
-    {
+      color: LIVE_DRIVER_COLOR,
+      badge: 'Position live',
+      distanceKm: remainingKm ?? undefined,
+    });
+  }
+
+  if (destinationPin) {
+    markers.push({
       id: 'destination',
       position: destinationPin,
       emoji: '🏁',
       label: destination || 'Destination',
       color: COLORS.orange,
-    },
-  ];
+      badge: 'Destination',
+    });
+  }
 
   const finish = () => {
     if (rating > 0) rateRide(rating);
@@ -150,7 +176,12 @@ export default function Tracking() {
 
         {/* ===== CARTE ===== */}
         <div className="tracking-map">
-          <MapComponent center={passengerPin} markers={markers} />
+          <MapComponent
+            center={passengerPin}
+            markers={markers}
+            routeFrom={liveDriverPin}
+            routeTo={passengerPin}
+          />
 
           <header className="tracking-topbar">
             <button
@@ -179,6 +210,11 @@ export default function Tracking() {
         <section className="tracking-content">
           <span className="tracking-orb tracking-orb--orange" />
           <span className="tracking-orb tracking-orb--blue" />
+
+          {/* Message d'état temps réel (statut partagé piloté par le chauffeur) */}
+          <p className={`tracking-live-message tracking-live-message--${tone}`}>
+            {liveMessage}
+          </p>
 
           {/* Statut */}
           <div className={`tracking-status tracking-status--${tone}`}>

@@ -36,6 +36,14 @@
         ".write": "auth != null && (!data.exists() || data.child('passengerId').val() === auth.uid)",
         ".validate": "newData.hasChildren(['passengerId', 'destination', 'createdAt'])"
       }
+    },
+
+    "rideStatus": {
+      ".read": "auth != null",
+      "$rideId": {
+        ".write": "auth != null",
+        ".validate": "newData.isString() && newData.val().matches(/^(pending|accepted|arrived|in_progress|completed|cancelled)$/)"
+      }
     }
   }
 }

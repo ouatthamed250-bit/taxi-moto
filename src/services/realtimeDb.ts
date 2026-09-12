@@ -266,3 +266,43 @@ export async function removeRideRequest(requestId: string): Promise<void> {
   }
 }
 
+/* ========================= STATUT DE COURSE (live) ========================= */
+
+/**
+ * Publie le statut d'une course sur la Realtime Database (`/rideStatus/{id}`).
+ *
+ * ⚠️ Firestore reste la SOURCE DE VÉRITÉ (le client l'écoute via `onSnapshot`) ;
+ * ce canal est complémentaire (état léger, lecture instantanée).
+ * Ajoutez `rideStatus` aux règles RTDB pour autoriser l'écriture.
+ */
+export async function publishRideStatus(
+  rideId: string,
+  status: string,
+): Promise<boolean> {
+  const rtdb = getRealtimeDb();
+  if (!rtdb || !rideId) return false;
+
+  try {
+    await set(ref(rtdb, `rideStatus/${rideId}`), status);
+    return true;
+  } catch (error) {
+    console.warn('[rtdb] publishRideStatus :', error);
+    return false;
+  }
+}
+
+/** Écoute le statut live d'une course (complément de Firestore). */
+export function subscribeToRideStatus(
+  rideId: string,
+  callback: (status: string | null) => void,
+): Unsubscribe {
+  const rtdb = getRealtimeDb();
+  if (!rtdb || !rideId) return () => {};
+
+  return onValue(
+    ref(rtdb, `rideStatus/${rideId}`),
+    (snapshot) => callback((snapshot.val() as string | null) ?? null),
+    (error) => console.warn('[rtdb] subscribeToRideStatus :', error),
+  );
+}
+

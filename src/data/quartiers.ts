@@ -11,7 +11,7 @@
 //   ⚠️ `id` doit rester unique (slug) et `secteur` sert de regroupement d'affichage.
 // ============================================================================
 
-import type { Quartier } from '../types';
+import type { GeoPosition, Quartier } from '../types';
 
 /**
  * Distance moyenne d'une course dans la zone (km).
@@ -136,4 +136,20 @@ export function findQuartierById(id: string): Quartier | undefined {
 /** Retrouve un quartier par son nom affiché (valeur du sélecteur). */
 export function findQuartierByLabel(label: string): Quartier | undefined {
   return QUARTIERS.find((quartier) => labelQuartier(quartier) === label);
+}
+
+/**
+ * Coordonnées GPS des quartiers (latitude / longitude).
+ *
+ * ⚠️ À RELEVER SUR LE TERRAIN (ou via un service de géocodage) : tant qu'une
+ * entrée est absente, le marqueur de destination n'est pas affiché sur la carte
+ * (on n'invente AUCUNE position). Exemple de saisie :
+ *   'modeste': { latitude: 5.xxxx, longitude: -3.xxxx },
+ */
+export const QUARTIER_COORDS: Record<string, GeoPosition> = {};
+
+/** Coordonnées connues d'un quartier (null si non relevées). */
+export function coordsOfQuartier(quartierId: string | undefined): GeoPosition | null {
+  if (!quartierId) return null;
+  return QUARTIER_COORDS[quartierId] ?? null;
 }

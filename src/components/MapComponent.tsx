@@ -1,6 +1,14 @@
 import { useEffect } from 'react';
 import type { FC } from 'react';
-import { Circle, MapContainer, Marker, Popup, TileLayer, useMap } from 'react-leaflet';
+import {
+  Circle,
+  MapContainer,
+  Marker,
+  Polyline,
+  Popup,
+  TileLayer,
+  useMap,
+} from 'react-leaflet';
 import L from 'leaflet';
 import { Star } from 'lucide-react';
 import 'leaflet/dist/leaflet.css';
@@ -30,6 +38,10 @@ interface MapProps {
   otherMarkers?: MapMarker[];
   /** Rayon (en mètres) du cercle de zone autour du point « me ». 0 = masqué. */
   zoneRadius?: number;
+  /** Tracé d'itinéraire : point de départ (ex. position du chauffeur). */
+  routeFrom?: [number, number] | null;
+  /** Tracé d'itinéraire : point d'arrivée (ex. position du client). */
+  routeTo?: [number, number] | null;
 }
 
 const meIcon = L.divIcon({
@@ -84,6 +96,8 @@ export const MapComponent: FC<MapProps> = ({
   markers = [],
   otherMarkers = [],
   zoneRadius = 2000,
+  routeFrom = null,
+  routeTo = null,
 }) => {
   const allMarkers = [...markers, ...otherMarkers];
   const points: [number, number][] = [
@@ -130,6 +144,20 @@ export const MapComponent: FC<MapProps> = ({
       <Marker position={center} icon={meIcon}>
         <Popup>{meLabel}</Popup>
       </Marker>
+    )}
+
+    {/* Itinéraire temps réel (chauffeur → client) : recalculé à chaque position. */}
+    {routeFrom && routeTo && (
+      <Polyline
+        positions={[routeFrom, routeTo]}
+        pathOptions={{
+          color: COLORS.blue,
+          weight: 4,
+          opacity: 0.8,
+          dashArray: '1 9',
+          lineCap: 'round',
+        }}
+      />
     )}
 
     {allMarkers.map((marker) => {

@@ -3,6 +3,7 @@ import type {
   AdminStats,
   AppSettings,
   AuthResult,
+  CourseStatus,
   DestinationLieu,
   DriverGift,
   DriverGiftInput,
@@ -65,6 +66,15 @@ export interface AppContextValue {
   cancelRide: () => void;
   rateRide: (rating: number) => void;
   resetBooking: () => void;
+
+  /* ---- Suivi de course partagé (client + conducteur) ---- */
+  /**
+   * Course active : celle que le conducteur conduit ou que le client suit.
+   * `status` est le statut PARTAGÉ (Firestore) — piloté par le conducteur.
+   */
+  activeRide: Ride | null;
+  /** Met à jour le statut partagé de la course (Firestore + RTDB). */
+  updateRideStatus: (rideId: string, status: CourseStatus) => Promise<void>;
 
   /* ---- Conducteur ---- */
   driverOnline: boolean;
