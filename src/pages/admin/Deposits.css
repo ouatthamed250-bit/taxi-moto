@@ -15,3 +15,33 @@
   font-size: 15px;
   font-weight: 900;
 }
+
+/* ---------- CAPTURE ILLISIBLE + TELECHARGEMENT ---------- */
+.admin-recharge-shot--broken {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px;
+  border: 1px dashed rgba(6, 43, 103, 0.25);
+  border-radius: 12px;
+  background: #f7f9fc;
+  color: var(--taxi-gray-500, #7a879b);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.admin-recharge-shot-download,
+.admin-shot-download {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 8px;
+  padding: 8px 12px;
+  border-radius: 12px;
+  background: linear-gradient(145deg, #0b5fff, #062b67);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 800;
+  text-decoration: none;
+  box-shadow: 0 4px 0 rgba(6, 43, 103, 0.3);
+}

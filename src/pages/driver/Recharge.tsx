@@ -16,11 +16,18 @@ import {
 import { Page } from '../../components/Page';
 import { COLORS, fcfa } from '../../theme';
 import { useApp } from '../../store/useApp';
+import { compressImageFile } from '../../services/imageCompress';
 import './Recharge.css';
 
 /** Montants rapides proposés (FCFA). */
 const PRESET_AMOUNTS = [500, 1000, 2000, 3000, 5000];
-const MAX_FILE_MB = 5;
+/** Taille maximale du fichier CHOISI, avant compression (Mo). */
+const MAX_FILE_MB = 10;
+/**
+ * Poids maximal de la capture ENVOYÉE à Firestore (Ko).
+ * ⚠️ Firestore limite un document à 1 Mio : on vise 500 Ko pour rester large.
+ */
+const MAX_SHOT_KB = 500;
 
 type OperatorTone = 'orange' | 'wave' | 'mtn' | 'moov';
 
@@ -177,7 +184,8 @@ function openOperatorApp(operator: MobileOperator): void {
 
 export default function DriverRecharge() {
   const navigate = useNavigate();
-  const { userName, phone, driverBalance, submitRechargeRequest, appSettings } = useApp();
+  const { userName, phone, accountId, driverBalance, submitRechargeRequest, appSettings } =
+    useApp();
 
   const minRecharge = appSettings.minRecharge;
   const maxRecharge = appSettings.maxRecharge;
@@ -199,6 +207,9 @@ export default function DriverRecharge() {
   const [modalOpen, setModalOpen] = useState(false);
   const [paid, setPaid] = useState(false);
   const [screenshot, setScreenshot] = useState('');
+  /** Poids de la capture compressée (octets) — affiché et contrôlé. */
+  const [shotBytes, setShotBytes] = useState(0);
+  const [compressing, setCompressing] = useState(false);
   const [fileError, setFileError] = useState('');
   const [sent, setSent] = useState(false);
 
@@ -222,7 +233,7 @@ export default function DriverRecharge() {
     setPreset(null);
   };
 
-  const handleFile = (event: ChangeEvent<HTMLInputElement>) => {
+  const handleFile = async (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) return;
 
@@ -236,25 +247,59 @@ export default function DriverRecharge() {
     }
 
     setFileError('');
-    const reader = new FileReader();
-    reader.onload = () => {
-      setScreenshot(typeof reader.result === 'string' ? reader.result : '');
-    };
-    reader.readAsDataURL(file);
+    setCompressing(true);
+
+    try {
+      /*
+       * COMPRESSION OBLIGATOIRE : la capture est stockée en base64 dans
+       * Firestore (limite 1 Mio par document). On la redimensionne (800 px)
+       * et on baisse la qualité jusqu'à passer sous 500 Ko.
+       */
+      const compressed = await compressImageFile(file, {
+        maxWidth: 800,
+        maxBytes: MAX_SHOT_KB * 1024,
+        quality: 0.6,
+      });
+
+      setScreenshot(compressed.dataUrl);
+      setShotBytes(compressed.bytes);
+    } catch (error) {
+      setScreenshot('');
+      setShotBytes(0);
+      setFileError(
+        error instanceof Error
+          ? error.message
+          : 'Compression de l’image impossible. Réessayez avec une autre capture.',
+      );
+    } finally {
+      setCompressing(false);
+    }
   };
 
   const closeModal = () => {
     setModalOpen(false);
     setPaid(false);
     setScreenshot('');
+    setShotBytes(0);
     setFileError('');
   };
 
   const handleSubmit = () => {
     if (!operator || !amountValid || !screenshot) return;
 
+    if (shotBytes > MAX_SHOT_KB * 1024) {
+      setFileError(
+        `Capture trop lourde (${Math.round(shotBytes / 1024)} Ko). Maximum ${MAX_SHOT_KB} Ko.`,
+      );
+      return;
+    }
+
     submitRechargeRequest({
-      driverId: phone || 'driver-local',
+      /*
+       * `accountId` = docId Firestore `users/{id}` → MÊME clé que celle utilisée
+       * par l'admin (validation, cadeaux). Repli sur le téléphone en mode local.
+       */
+      driverId: accountId || phone || 'driver-local',
       driverName: userName || 'Conducteur',
       amount: amount ?? 0,
       method: operator.name,
@@ -529,16 +574,31 @@ export default function DriverRecharge() {
                       <button
                         type="button"
                         className="driver-recharge-preview-change"
-                        onClick={() => setScreenshot('')}
+                        onClick={() => {
+                          setScreenshot('');
+                          setShotBytes(0);
+                        }}
                       >
                         Changer l'image
                       </button>
+
+                      <small className="driver-recharge-preview-size">
+                        Capture compressée : {Math.round(shotBytes / 1024)} Ko (max{' '}
+                        {MAX_SHOT_KB} Ko)
+                      </small>
                     </div>
                   ) : (
                     <label className="driver-recharge-upload">
                       <ImagePlus size={24} />
-                      <span>Choisir une capture d'écran</span>
-                      <small>PNG ou JPG · max {MAX_FILE_MB} Mo</small>
+                      <span>
+                        {compressing
+                          ? 'Compression de la capture…'
+                          : 'Choisir une capture d’écran'}
+                      </span>
+                      <small>
+                        PNG ou JPG · max {MAX_FILE_MB} Mo (compressée sous{' '}
+                        {MAX_SHOT_KB} Ko)
+                      </small>
                       <input type="file" accept="image/*" onChange={handleFile} />
                     </label>
                   )}
@@ -553,7 +613,7 @@ export default function DriverRecharge() {
                   <button
                     type="button"
                     className="driver-recharge-submit"
-                    disabled={!screenshot}
+                    disabled={!screenshot || compressing}
                     onClick={handleSubmit}
                   >
                     <Send size={16} />

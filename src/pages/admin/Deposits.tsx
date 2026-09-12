@@ -1,5 +1,5 @@
 import { useRef, useState } from 'react';
-import { Check, CircleCheck, Clock, Wallet, X } from 'lucide-react';
+import { Check, CircleCheck, Clock, Download, ImageOff, Wallet, X } from 'lucide-react';
 import { fcfa } from '../../theme';
 import { useApp } from '../../store/useApp';
 import type { RechargeStatus } from '../../types';
@@ -10,6 +10,15 @@ const RECHARGE_TABS: { key: RechargeStatus; label: string }[] = [
   { key: 'approved', label: 'Validées' },
   { key: 'rejected', label: 'Rejetées' },
 ];
+
+/**
+ * Source affichable d'une capture.
+ * Ajoute le préfixe `data:` s'il manque (sinon le navigateur n'affiche rien).
+ */
+function shotSrc(value: string): string {
+  if (!value) return '';
+  return value.startsWith('data:') ? value : `data:image/jpeg;base64,${value}`;
+}
 
 /** Tonalité couleur selon la méthode de paiement. */
 function methodTone(method: string): string {
@@ -24,6 +33,8 @@ export default function Deposits() {
 
   const [tab, setTab] = useState<RechargeStatus>('pending');
   const [previewShot, setPreviewShot] = useState<string | null>(null);
+  /** Captures illisibles (image corrompue) → placeholder + téléchargement. */
+  const [brokenShots, setBrokenShots] = useState<Record<string, boolean>>({});
   const [toast, setToast] = useState('');
   const toastTimer = useRef<number | null>(null);
 
@@ -115,16 +126,39 @@ export default function Deposits() {
                   <span className="admin-recharge-phone">{request.phone}</span>
                 </div>
 
-                {request.screenshot && (
-                  <button
-                    type="button"
-                    className="admin-recharge-shot"
-                    onClick={() => setPreviewShot(request.screenshot)}
-                  >
-                    <img src={request.screenshot} alt="Capture du paiement" />
-                    <span className="admin-recharge-shot-zoom">Agrandir</span>
-                  </button>
-                )}
+                {request.screenshot &&
+                  (brokenShots[request.id] ? (
+                    <div className="admin-recharge-shot admin-recharge-shot--broken">
+                      <ImageOff size={22} />
+                      <span>Capture illisible</span>
+                      <a
+                        className="admin-recharge-shot-download"
+                        href={shotSrc(request.screenshot)}
+                        download={`capture-${request.id}.jpg`}
+                      >
+                        <Download size={14} />
+                        Télécharger
+                      </a>
+                    </div>
+                  ) : (
+                    <button
+                      type="button"
+                      className="admin-recharge-shot"
+                      onClick={() => setPreviewShot(shotSrc(request.screenshot))}
+                    >
+                      <img
+                        src={shotSrc(request.screenshot)}
+                        alt="Capture du paiement"
+                        onError={() =>
+                          setBrokenShots((previous) => ({
+                            ...previous,
+                            [request.id]: true,
+                          }))
+                        }
+                      />
+                      <span className="admin-recharge-shot-zoom">Agrandir</span>
+                    </button>
+                  ))}
 
                 {request.status === 'pending' ? (
                   <div className="admin-recharge-actions">
@@ -181,7 +215,20 @@ export default function Deposits() {
               <X size={20} />
             </button>
 
-            <img src={previewShot} alt="Capture du paiement" />
+            <img
+              src={previewShot}
+              alt="Capture du paiement"
+              onError={() => setPreviewShot(null)}
+            />
+
+            <a
+              className="admin-shot-download"
+              href={previewShot}
+              download="capture-paiement.jpg"
+            >
+              <Download size={15} />
+              Télécharger la capture
+            </a>
           </div>
         </div>
       )}

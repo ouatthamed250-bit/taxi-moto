@@ -48,6 +48,7 @@ import {
   subscribeToRechargeRequests,
   subscribeToRides,
   subscribeToUsers,
+  incrementDriverBalance,
   updateRechargeRequest,
   updateRide,
   updateUser,
@@ -349,15 +350,22 @@ export function AppProvider({ children }: { children: ReactNode }) {
     [],
   );
 
-  /** Valide ou rejette une demande ; crédite le solde si approuvée. */
+  /** Valide ou rejette une demande ; crédite le solde du CONDUCTEUR concerné. */
   const validateRechargeRequest = useCallback(
     (id: string, approved: boolean) => {
       if (approved) {
         const request = rechargeRequests.find((item) => item.id === id);
+
         if (request && request.status === 'pending') {
-          creditDriverBalance(request.amount);
+          // Le solde appartient au conducteur ciblé (`request.driverId` =
+          // docId Firestore) → incrément atomique côté serveur.
+          void incrementDriverBalance(request.driverId, request.amount);
+
+          // Retour visuel immédiat uniquement si c'est NOTRE solde.
+          if (request.driverId === accountId) creditDriverBalance(request.amount);
         }
       }
+
       setRechargeRequests((list) =>
         list.map((request) =>
           request.id === id
@@ -371,7 +379,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         status: approved ? 'approved' : 'rejected',
       });
     },
-    [rechargeRequests, creditDriverBalance],
+    [rechargeRequests, creditDriverBalance, accountId],
   );
 
   /* ---- Cadeaux de recharge ---- */
@@ -390,12 +398,25 @@ export function AppProvider({ children }: { children: ReactNode }) {
         createdAt: Date.now(),
       };
       setDriverGifts((list) => [entry, ...list]);
-      creditDriverBalance(value);
+
+      /*
+       * Crédit du CONDUCTEUR concerné (et non du compte connecté : l'admin
+       * n'est pas le bénéficiaire !). `driverId` = docId Firestore du
+       * conducteur → la même clé partout (recharges, cadeaux, courses).
+       */
+      if (isCloudEnabled() && gift.driverId) {
+        void incrementDriverBalance(gift.driverId, value);
+      }
+
+      // Retour visuel immédiat uniquement si le cadeau nous est destiné.
+      if (!isCloudEnabled() && gift.driverId === accountId) {
+        creditDriverBalance(value);
+      }
 
       // Persistance cloud du cadeau (Firestore).
       void createGift(entry);
     },
-    [userName, creditDriverBalance],
+    [userName, creditDriverBalance, accountId],
   );
 
   /** Applique un compte connecté à l'état de session. */
@@ -894,6 +915,20 @@ export function AppProvider({ children }: { children: ReactNode }) {
     return subscribeToUsers((users) => {
       replaceUserCache(users);
 
+      /*
+       * Solde du conducteur connecté : le crédit (recharge validée ou cadeau)
+       * est écrit par l'ADMIN dans `users/{id}.driverBalance` → on le reflète
+       * en temps réel, sans réécrire (pas de boucle d'écriture).
+       */
+      const me = accountId ? users.find((user) => user.id === accountId) : undefined;
+
+      if (me && typeof me.driverBalance === 'number') {
+        const remoteBalance = me.driverBalance;
+        setDriverBalanceState((current) =>
+          current === remoteBalance ? current : remoteBalance,
+        );
+      }
+
       setAdminDrivers(
         users
           .filter((user) => user.role === 'driver')
@@ -912,7 +947,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
           })),
       );
     });
-  }, [cloudReady]);
+  }, [cloudReady, accountId]);
 
   /** Positions live (conducteurs + clients) publiées sur la Realtime Database. */
   useEffect(() => {
@@ -1057,6 +1092,7 @@ useEffect(() => {
     role,
     userName,
     phone,
+    accountId,
     currentUser,
     login,
     loginAsAdmin,

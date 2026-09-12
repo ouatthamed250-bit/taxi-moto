@@ -917,3 +917,13 @@
 
 
 
+
+/* Poids de la capture compressee */
+.driver-recharge-preview-size {
+  display: block;
+  margin-top: 8px;
+  color: var(--taxi-gray-500, #7a879b);
+  font-size: 11px;
+  font-weight: 700;
+  text-align: center;
+}

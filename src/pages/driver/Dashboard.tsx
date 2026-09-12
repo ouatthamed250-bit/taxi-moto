@@ -62,6 +62,7 @@ export default function DriverDashboard() {
     activeRide,
     updateRideStatus,
     livePassengerPositions,
+    accountId,
   } = useApp();
   const [fare, setFare] = useState(1500);
 
@@ -86,9 +87,13 @@ export default function DriverDashboard() {
 
   const isLowBalance = driverBalance < appSettings.lowBalanceThreshold;
 
-  const myDriverId = phone || 'driver-local';
+  const myDriverId = accountId || phone || 'driver-local';
   const pendingRecharges = rechargeRequests.filter(
-    (request) => request.driverId === myDriverId && request.status === 'pending',
+    (request) =>
+      (request.driverId === accountId ||
+        request.driverId === phone ||
+        request.driverId === myDriverId) &&
+      request.status === 'pending',
   );
 
   const handleRecharge = () => {

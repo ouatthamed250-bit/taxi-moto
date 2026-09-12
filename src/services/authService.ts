@@ -1,6 +1,21 @@
 /**
  * Authentification applicative — couche UNIQUE utilisée par l'UI.
  *
+ * ---------------------------------------------------------------------------
+ * ⚠️ DEUX IDENTIFIANTS — à ne jamais confondre :
+ *
+ *  1. **uid Firebase Auth** (`auth.uid`) : identité de l'APPAREIL (session
+ *     anonyme). Il change à chaque nouvelle session → à utiliser uniquement
+ *     pour la Realtime Database (`positions/*`, `online/*`) car les règles
+ *     imposent `auth.uid === $uid`.
+ *
+ *  2. **docId Firestore `users/{id}`** = `accountId` (exposé par le store) :
+ *     identité du COMPTE, **stable entre appareils** et connue de l'admin.
+ *     C'est LA clé à utiliser partout où client et conducteur doivent se
+ *     retrouver : `driverId` des recharges et des cadeaux, `passengerId`/
+ *     `driverId` des courses, filtres Firestore.
+ * ---------------------------------------------------------------------------
+ *
  * Deux modes, choisis automatiquement :
  *   • **Firebase** (si `.env` est rempli) : la session est ouverte avec une
  *     connexion ANONYME (1 appareil = 1 uid) et le compte est persisté dans

@@ -74,11 +74,22 @@ export default function DriverEarnings() {
     driverNet,
     driverBalance,
     driverGifts,
+    accountId,
+    phone,
   } = useApp();
   const [filter, setFilter] = useState<EarningsFilter>('today');
 
   const commissionRate = Math.round(COMMISSION_RATE * 100);
-  const giftTotal = driverGifts.reduce((sum, gift) => sum + gift.amount, 0);
+
+  /**
+   * Cadeaux DESTINÉS à ce conducteur.
+   * L'admin référence le conducteur par son docId Firestore (`users/{id}`) ;
+   * on accepte aussi le téléphone pour les anciens documents.
+   */
+  const myGifts = driverGifts.filter(
+    (gift) => gift.driverId === accountId || gift.driverId === phone,
+  );
+  const giftTotal = myGifts.reduce((sum, gift) => sum + gift.amount, 0);
 
   const inPeriod = (days: number) => {
     if (filter === 'today') return days === 0;
@@ -344,12 +355,27 @@ export default function DriverEarnings() {
 
           <strong className="driver-earnings-gift-value">{fcfa(giftTotal)}</strong>
           <span className="driver-earnings-gift-hint">
-            {driverGifts.length === 0
+            {myGifts.length === 0
               ? 'Aucun cadeau pour le moment'
-              : `${driverGifts.length} cadeau${driverGifts.length > 1 ? 'x' : ''} reçu${
-                  driverGifts.length > 1 ? 's' : ''
+              : `${myGifts.length} cadeau${myGifts.length > 1 ? 'x' : ''} reçu${
+                  myGifts.length > 1 ? 's' : ''
                 }`}
           </span>
+
+          {myGifts.length > 0 && (
+            <ul className="driver-earnings-gift-list">
+              {myGifts.slice(0, 4).map((gift) => (
+                <li key={gift.id} className="driver-earnings-gift-item">
+                  <span className="driver-earnings-gift-item-amount">
+                    +{fcfa(gift.amount)}
+                  </span>
+                  <span className="driver-earnings-gift-item-label">
+                    {gift.message ?? 'Cadeau Taxi-Moto'}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          )}
         </section>
 
       </div>

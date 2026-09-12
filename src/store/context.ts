@@ -27,6 +27,14 @@ export interface AppContextValue {
   role: Role;
   userName: string;
   phone: string;
+  /**
+   * Identifiant CANONIQUE du compte = docId Firestore `users/{id}`.
+   *
+   * ⚠️ À utiliser PARTOUT (`driverId` des recharges et des cadeaux, filtres
+   * Firestore) : il est **stable entre appareils**, contrairement à l'uid
+   * Firebase Auth qui change à chaque nouvelle session anonyme.
+   */
+  accountId: string;
   currentUser: User | null;
   login: (phone: string, password: string) => Promise<AuthResult>;
   loginAsAdmin: () => void;

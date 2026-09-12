@@ -17,13 +17,14 @@ import {
   doc,
   getDoc,
   getDocs,
+  increment,
   onSnapshot,
   query,
   setDoc,
   updateDoc,
   where,
 } from 'firebase/firestore';
-import type { DocumentData, QueryDocumentSnapshot } from 'firebase/firestore';
+import type { DocumentData, Query, QueryDocumentSnapshot } from 'firebase/firestore';
 import type { DriverGift, RechargeRequest, Ride, User, UserRole } from '../types';
 import { getFirestoreDb, isFirebaseConfigured } from './firebase';
 
@@ -154,10 +155,14 @@ export function subscribeToUsers(onUsers: (users: User[]) => void): () => void {
   const db = getFirestoreDb();
   if (!db) return () => {};
 
-  return onSnapshot(
-    collection(db, 'users'),
-    (snapshot) => onUsers(mapDocs<User>(snapshot.docs)),
-    (error) => console.warn('[firestore] subscribeToUsers :', error),
+  return watchCollection<User>(
+    'users',
+    () => collection(db, 'users'),
+    (docs) => mapDocs<User>(docs),
+    (users) => {
+      console.debug(`[sync] comptes reçus : ${users.length}`);
+      onUsers(users);
+    },
   );
 }
 
@@ -239,14 +244,15 @@ export function subscribeToRides(
   if (!db) return () => {};
 
   const base = collection(db, 'rides');
-  const target = filter
-    ? query(base, where(filter.field, '==', filter.value))
-    : query(base);
 
-  return onSnapshot(
-    target,
-    (snapshot) => onRides(mapDocs<Ride>(snapshot.docs)),
-    (error) => console.warn('[firestore] subscribeToRides :', error),
+  return watchCollection<Ride>(
+    'rides',
+    () => (filter ? query(base, where(filter.field, '==', filter.value)) : query(base)),
+    (docs) => mapDocs<Ride>(docs),
+    (rides) => {
+      console.debug(`[sync] courses reçues : ${rides.length}`);
+      onRides(rides);
+    },
   );
 }
 
@@ -308,10 +314,14 @@ export function subscribeToRechargeRequests(
   const db = getFirestoreDb();
   if (!db) return () => {};
 
-  return onSnapshot(
-    collection(db, 'rechargeRequests'),
-    (snapshot) => onRequests(mapDocs<RechargeRequest>(snapshot.docs)),
-    (error) => console.warn('[firestore] subscribeToRechargeRequests :', error),
+  return watchCollection<RechargeRequest>(
+    'rechargeRequests',
+    () => collection(db, 'rechargeRequests'),
+    (docs) => mapDocs<RechargeRequest>(docs),
+    (requests) => {
+      console.debug(`[sync] demandes de recharge reçues : ${requests.length}`);
+      onRequests(requests);
+    },
   );
 }
 
@@ -355,11 +365,79 @@ export function subscribeToGifts(
   const db = getFirestoreDb();
   if (!db) return () => {};
 
-  return onSnapshot(
-    collection(db, 'gifts'),
-    (snapshot) => onGifts(mapDocs<DriverGift>(snapshot.docs)),
-    (error) => console.warn('[firestore] subscribeToGifts :', error),
+  return watchCollection<DriverGift>(
+    'gifts',
+    () => collection(db, 'gifts'),
+    (docs) => mapDocs<DriverGift>(docs),
+    (gifts) => {
+      console.debug(`[sync] cadeaux reçus : ${gifts.length}`);
+      onGifts(gifts);
+    },
   );
+}
+
+/**
+ * Abonnement Firestore ROBUSTE : un `onSnapshot` en erreur ne se réessaie pas
+ * tout seul (règles non encore propagées, réseau, session qui vient de
+ * s'ouvrir…). On relance donc l'abonnement jusqu'à 3 fois, 3 s plus tard.
+ */
+function watchCollection<T>(
+  label: string,
+  build: () => Query,
+  map: (docs: QueryDocumentSnapshot<DocumentData>[]) => T[],
+  onData: (items: T[]) => void,
+): () => void {
+  const db = getFirestoreDb();
+  if (!db) return () => {};
+
+  let unsubscribe: (() => void) | null = null;
+  let retryTimer: number | null = null;
+  let attempts = 0;
+  let cancelled = false;
+
+  const start = () => {
+    unsubscribe = onSnapshot(
+      build(),
+      (snapshot) => {
+        attempts = 0;
+        onData(map(snapshot.docs));
+      },
+      (error) => {
+        console.warn(`[firestore] abonnement « ${label} » en erreur :`, error);
+
+        if (cancelled || attempts >= 3) return;
+        attempts += 1;
+        console.info(
+          `[firestore] nouvelle tentative « ${label} » (${attempts}/3) dans 3 s…`,
+        );
+        retryTimer = window.setTimeout(start, 3000);
+      },
+    );
+  };
+
+  start();
+
+  return () => {
+    cancelled = true;
+    if (retryTimer !== null) window.clearTimeout(retryTimer);
+    unsubscribe?.();
+  };
+}
+
+/** Incrémente le solde d'un conducteur (`users/{uid}.driverBalance`). */
+export async function incrementDriverBalance(
+  uid: string,
+  amount: number,
+): Promise<WriteResult> {
+  const db = getFirestoreDb();
+  if (!db || !uid) return { ok: false, id: uid, error: 'Firebase non configuré.' };
+
+  try {
+    await updateDoc(doc(db, 'users', uid), { driverBalance: increment(amount) });
+    return { ok: true, id: uid };
+  } catch (error) {
+    return { ok: false, id: uid, error: toWriteError(error) };
+  }
 }
 
 /** Firestore est-il utilisable ? */

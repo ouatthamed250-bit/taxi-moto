@@ -721,3 +721,42 @@
 }
 
 
+
+/* Liste des cadeaux recus */
+.driver-earnings-gift-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 12px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.driver-earnings-gift-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 9px 12px;
+  border-radius: 13px;
+  border: 1px solid rgba(0, 158, 96, 0.22);
+  background: rgba(0, 158, 96, 0.08);
+}
+
+.driver-earnings-gift-item-amount {
+  color: #036b45;
+  font-size: 12.5px;
+  font-weight: 900;
+}
+
+.driver-earnings-gift-item-label {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--taxi-gray-700, #43516a);
+  font-size: 11.5px;
+  font-weight: 600;
+  text-align: right;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
