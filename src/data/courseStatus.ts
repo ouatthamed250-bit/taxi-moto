@@ -37,9 +37,13 @@ export const COURSE_LABEL: Record<CourseStatus, string> = {
   cancelled: 'Course annulée',
 };
 
-/** Étapes du suivi, dans l'ordre logique (pilotées par le conducteur). */
+/**
+ * Étapes du suivi, dans l'ordre logique (pilotées par le conducteur).
+ * ⚠️ Le CLIENT ne fait qu'afficher ces statuts : il n'a aucun bouton pour les
+ * faire avancer (seule l'annulation lui est permise, avant le départ).
+ */
 export const DRIVER_STEPS: { status: CourseStatus; label: string }[] = [
-  { status: 'accepted', label: 'Je vais chercher le client' },
+  { status: 'accepted', label: 'Je suis en route' },
   { status: 'arrived', label: 'Je suis arrivé' },
   { status: 'in_progress', label: 'Démarrer la course' },
   { status: 'completed', label: 'Terminer la course' },

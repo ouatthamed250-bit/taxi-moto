@@ -269,35 +269,22 @@ export function AppProvider({ children }: { children: ReactNode }) {
   }, [rideStatus]);
 
   /**
-   * Met à jour le STATUT PARTAGÉ d'une course :
-   *   1. Firestore `rides/{id}.status` → source de vérité, écoutée par le client
-   *      via `onSnapshot` (temps réel) ;
-   *   2. Realtime Database `/rideStatus/{id}` → canal live complémentaire ;
-   *   3. état local → retour visuel immédiat.
-   */
-  const updateRideStatus = useCallback(
-    async (rideId: string, status: CourseStatus): Promise<void> => {
-      if (!rideId) return;
-
-      await updateRide(rideId, { status });
-      void publishRideStatus(rideId, status);
-
-      setActiveRide((ride) => (ride && ride.id === rideId ? { ...ride, status } : ride));
-
-      // Le statut d'affichage ne concerne que le client.
-      if (!isDriverAccount) setRideStatus(RIDE_STATUS_BY_COURSE[status]);
-    },
-    [isDriverAccount],
-  );
-
-  /**
-   * Course attribuée par un conducteur (Firestore, statut « accepted ») :
-   * le CLIENT passe en « Chauffeur en route » avec le suivi de la position.
-   * On n'applique la transition que si une commande est en cours.
+   * Course attribuée par un conducteur (Firestore) : le CLIENT s'y ATTACHE et
+   * suit le déroulé piloté par le conducteur (statuts + position live).
+   *
+   * ⚠️ On accepte aussi l'état « driver_found » : le client a verrouillé le prix
+   * (il attend la course créée par le conducteur) et DOIT s'attacher dès que la
+   * course existe — sinon son écran ne recevrait AUCUN changement de statut.
    */
   const applyAcceptedRide = useCallback((ride: Ride) => {
     const status = rideStatusRef.current;
-    if (status !== 'searching' && status !== 'offers') return;
+    const attachable =
+      status === 'searching' ||
+      status === 'offers' ||
+      status === 'driver_found' ||
+      status === 'driver_arriving';
+
+    if (!attachable) return;
     if (activeRideIdRef.current === ride.id) return;
 
     activeRideIdRef.current = ride.id;
@@ -320,7 +307,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
         phone: ride.driverPhone,
       },
     });
-    setRideStatus('driver_found');
+    // Statut RÉEL de la course (le conducteur peut déjà l'avoir avancée).
+    setRideStatus(RIDE_STATUS_BY_COURSE[ride.status] ?? 'driver_found');
   }, []);
   /* ---- Solde virtuel conducteur (persisté dans Firestore) ---- */
   /** Écrit le nouveau solde en base (sans bloquer l'interface). */
@@ -372,6 +360,108 @@ export function AppProvider({ children }: { children: ReactNode }) {
       });
     },
     [driverBalance, persistDriverBalance],
+  );
+
+  /**
+   * CONDUCTEUR : clôture DÉFINITIVE de la course (« Terminer la course »).
+   *
+   * Archive la course (Firestore), débite la commission (10 %) du solde
+   * conducteur et met à jour les statistiques admin. Le CLIENT reçoit tout via
+   * Firestore (statut PUSHÉ + récapitulatif) — il ne déclenche JAMAIS l'étape.
+   */
+  const completeRide = useCallback(
+    (rideId: string) => {
+      const price = activeRide?.price ?? selectedOffer?.price ?? 0;
+      const commission = activeRide?.commission ?? commissionOf(price);
+
+      const finished: Ride = {
+        id: rideId,
+        passengerName: activeRide?.passengerName ?? 'Passager',
+        passengerPhone: activeRide?.passengerPhone,
+        passengerId: activeRide?.passengerId,
+        passengerUid: activeRide?.passengerUid,
+        driverName: activeRide?.driverName ?? (userName || 'Conducteur'),
+        driverPhone: activeRide?.driverPhone ?? phone,
+        driverPlate: activeRide?.driverPlate ?? currentUser?.plate,
+        vehicle: activeRide?.vehicle ?? vehicle ?? 'moto',
+        pickup: activeRide?.pickup ?? pickup,
+        destination: activeRide?.destination ?? destination,
+        distanceKm: activeRide?.distanceKm ?? distanceKm,
+        price,
+        commission,
+        status: 'completed',
+        date: activeRide?.date ?? nowDate(),
+        time: activeRide?.time ?? nowTime(),
+        driverId: activeRide?.driverId ?? accountId,
+      };
+
+      // Archivage cloud de la course terminée (docId = celui de la course).
+      void createRide(finished);
+
+      setDriverRidesToday((list) => [finished, ...list]);
+      debitDriverBalance(commission);
+
+      setAdminStats((stats) => ({
+        ...stats,
+        ridesCompleted: stats.ridesCompleted + 1,
+        ridesActive: Math.max(0, stats.ridesActive - 1),
+        revenue: stats.revenue + commission,
+      }));
+
+      console.info(`[course] ${rideId} terminée — commission ${commission} F débitée.`);
+    },
+    [
+      activeRide,
+      selectedOffer,
+      userName,
+      phone,
+      currentUser,
+      vehicle,
+      pickup,
+      destination,
+      distanceKm,
+      accountId,
+      debitDriverBalance,
+    ],
+  );
+
+  /**
+   * Met à jour le STATUT PARTAGÉ d'une course :
+   *   1. Firestore `rides/{id}.status` → source de vérité, écoutée par le client
+   *      via `onSnapshot` (temps réel) ;
+   *   2. Realtime Database `/rideStatus/{id}` → canal live complémentaire ;
+   *   3. état local → retour visuel immédiat.
+   *
+   * ⚠️ GARDE-FOU : seul le CONDUCTEUR pilote le déroulé de la course. Le client
+   * ne peut QU'ANNULER (et uniquement avant le départ) — toutes les autres
+   * transitions sont refusées côté client.
+   */
+  const updateRideStatus = useCallback(
+    async (rideId: string, status: CourseStatus): Promise<void> => {
+      if (!rideId) return;
+
+      if (!isDriverAccount && status !== 'cancelled') {
+        console.warn(
+          `[course] statut « ${status} » refusé côté client : seul le conducteur pilote la course.`,
+        );
+        return;
+      }
+
+      await updateRide(rideId, { status });
+      void publishRideStatus(rideId, status);
+
+      setActiveRide((ride) => (ride && ride.id === rideId ? { ...ride, status } : ride));
+
+      // Le statut d'affichage ne concerne que le client.
+      if (!isDriverAccount) {
+        setRideStatus(RIDE_STATUS_BY_COURSE[status]);
+        return;
+      }
+
+      // « Terminer la course » → comptabilité + historique (côté conducteur).
+      if (status === 'completed') completeRide(rideId);
+    },
+    [isDriverAccount, completeRide],
   );
 
   /* ---- Recharges mobile money ---- */
@@ -629,63 +719,40 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setRideStatus('driver_found');
   }, []);
 
+  /**
+   * Avance la course d'une étape.
+   *
+   * ⚠️ RÉSERVÉ AU CONDUCTEUR. Le client ne pilote JAMAIS le déroulé de la
+   * course : il ne fait qu'OBSERVER le statut poussé par le conducteur
+   * (Firestore `rides/{id}.status`). Tout appel côté passager est ignoré.
+   */
   const advanceRide = useCallback(() => {
+    if (!isDriverAccount) {
+      console.warn('[course] advanceRide ignoré : étape réservée au conducteur.');
+      return;
+    }
+
     const index = RIDE_ORDER.indexOf(rideStatus);
     if (index === -1 || index === RIDE_ORDER.length - 1) return;
+
     const next = RIDE_ORDER[index + 1];
     setRideStatus(next);
 
-    // Statut PARTAGÉ : le client peut aussi faire avancer la course.
+    // Statut PARTAGÉ : le client le reçoit en temps réel via Firestore.
     const rideId = activeRideIdRef.current;
     if (rideId) void updateRideStatus(rideId, COURSE_STATUS_BY_RIDE[next]);
-
-    if (next === 'completed') {
-      const price = selectedOffer?.price ?? 0;
-      const ride: Ride = {
-        id: `C-${Math.floor(10000 + Math.random() * 89999)}`,
-        passengerName: userName || 'Vous',
-        driverName: selectedOffer?.driver.name ?? '—',
-        vehicle: selectedOffer?.driver.vehicle ?? vehicle ?? 'moto',
-        pickup,
-        destination,
-        distanceKm,
-        price,
-        commission: commissionOf(price),
-        status: 'completed',
-        date: nowDate(),
-        time: nowTime(),
-        passengerId: liveUserId,
-        driverId: selectedOffer?.driver.id,
-      };
-      setLastRide(ride);
-      setPassengerHistory((history) => [ride, ...history]);
-
-      // Archivage cloud de la course terminée (Firestore).
-      void createRide(ride);
-      setAdminStats((stats) => ({
-        ...stats,
-        ridesCompleted: stats.ridesCompleted + 1,
-        ridesActive: Math.max(0, stats.ridesActive - 1),
-        revenue: stats.revenue + commissionOf(price),
-      }));
-
-      // La commission (10 %) est débitée automatiquement du solde conducteur.
-      debitDriverBalance(commissionOf(price));
-    }
-  }, [
-    rideStatus,
-    selectedOffer,
-    userName,
-    pickup,
-    destination,
-    distanceKm,
-    vehicle,
-    debitDriverBalance,
-    liveUserId,
-    updateRideStatus,
-  ]);
+  }, [isDriverAccount, rideStatus, updateRideStatus]);
 
   const cancelRide = useCallback(() => {
+    /*
+     * Le CLIENT peut annuler — mais SEULEMENT avant le départ de la course
+     * (une fois « en cours », seul le conducteur peut clôturer la course).
+     */
+    if (rideStatus === 'in_progress') {
+      console.warn('[course] annulation impossible : la course est déjà en cours.');
+      return;
+    }
+
     setRideStatus('cancelled');
     setOffers([]);
     setSelectedOffer(null);
@@ -702,7 +769,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       void removeRideRequest(activeRequestId.current);
       activeRequestId.current = '';
     }
-  }, [updateRideStatus]);
+  }, [rideStatus, updateRideStatus]);
 
   const rateRide = useCallback((rating: number) => {
     setLastRide((ride) => (ride ? { ...ride, rating } : ride));
@@ -1500,15 +1567,32 @@ useEffect(() => {
           : undefined;
 
         if (current) {
+          /*
+           * Le CONDUCTEUR a terminé la course ET le client a déjà fermé sa
+           * réservation (notation faite) : on n'applique rien (sinon on le
+           * renverrait sur l'écran de notation en boucle).
+           */
+          if (current.status === 'completed' && rideStatusRef.current === 'idle') return;
+
           setActiveRide(current);
           const nextStatus = RIDE_STATUS_BY_COURSE[current.status];
           setRideStatus((status) => (status === nextStatus ? status : nextStatus));
+
+          /*
+           * Course TERMINÉE PAR LE CONDUCTEUR : on conserve le récapitulatif
+           * pour l'écran de notation (le client ne déclenche jamais cette étape).
+           */
+          if (current.status === 'completed') {
+            setLastRide((ride) => (ride && ride.id === current.id ? ride : current));
+          }
+
           return;
         }
 
-        // 2) Un conducteur vient d'accepter → bascule en suivi de course.
-        const accepted = rides.find((ride) => ride.status === 'accepted');
-        if (accepted) applyAcceptedRide(accepted);
+        // 2) Une course est en cours avec un conducteur → le client s'y attache
+        //    (même s'il a manqué le premier changement de statut).
+        const running = rides.find((ride) => DRIVER_ACTIVE_STATUSES.includes(ride.status));
+        if (running) applyAcceptedRide(running);
       },
       accountId
         ? { field: isDriverAccount ? 'driverId' : 'passengerId', value: accountId }

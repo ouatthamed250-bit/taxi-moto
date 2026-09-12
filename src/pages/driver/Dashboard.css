@@ -1253,6 +1253,39 @@
   box-shadow: 0 2px 0 rgba(178, 106, 0, 0.5);
 }
 
+/* Étape DÉJÀ atteinte : confirmation (vert) — re-cliquer ne change rien. */
+.driver-dashboard-step--current {
+  background: linear-gradient(145deg, #22c07a, #009e60);
+  box-shadow: 0 6px 0 rgba(0, 120, 72, 0.45);
+}
+
+/* Étape SUIVANTE : l'action à faire, mise en avant (pulse discret). */
+.driver-dashboard-step--next {
+  animation: driverStepPulse 2s ease-in-out infinite;
+}
+
+.driver-dashboard-step--next:not(:disabled):active {
+  transform: translateY(3px);
+  box-shadow: 0 2px 0 rgba(178, 106, 0, 0.5);
+}
+
+@keyframes driverStepPulse {
+  0%,
+  100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.015);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .driver-dashboard-step--next {
+    animation: none;
+  }
+}
+
+
 .driver-dashboard-step-index {
   display: flex;
   width: 24px;

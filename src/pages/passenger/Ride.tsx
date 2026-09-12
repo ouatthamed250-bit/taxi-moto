@@ -50,15 +50,14 @@ export default function PassengerRide() {
 
   const onTrip = TRIP_STATES.includes(rideStatus);
   /**
-   * Récap « Course terminée ! » UNIQUEMENT pour une course réellement finie :
-   * `lastRide` n'est créé qu'à la complétion (advanceRide). Après une
-   * ANNULATION ou pendant une recherche, on affiche l'état vide ou « En cours »
-   * — jamais un faux « Course terminée ».
+   * Récap « Course terminée ! » + notation : affiché UNIQUEMENT quand la course
+   * a été terminée PAR LE CONDUCTEUR (statut 'completed' poussé par Firestore),
+   * ou juste après la notation (statut remis à 'idle' : le récap reste visible
+   * grâce à `lastRide`). Jamais après une annulation ou pendant une recherche.
    */
   const showRecap =
-    !onTrip &&
-    Boolean(lastRide) &&
-    (rideStatus === 'completed' || rideStatus === 'idle');
+    rideStatus === 'completed' ||
+    (!onTrip && Boolean(lastRide) && rideStatus === 'idle');
 
   const follow = () => {
     if (rideStatus === 'searching') {

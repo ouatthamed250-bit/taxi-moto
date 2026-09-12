@@ -517,11 +517,14 @@ export default function DriverDashboard() {
                 </>
               )}
 
-              {/* Étapes : gros boutons 3D, dans l'ordre logique de la course. */}
+              {/* Étapes : gros boutons 3D pilotés par le CONDUCTEUR.
+                  On peut confirmer l'étape en cours ou passer à la SUIVANTE. */}
               <div className="driver-dashboard-steps">
                 {DRIVER_STEPS.map((step, index) => {
                   const done = index < tripStepIndex;
                   const current = index === tripStepIndex;
+                  /** L'étape SUIVANTE est cliquable → le conducteur avance. */
+                  const isNext = index === tripStepIndex + 1;
 
                   return (
                     <button
@@ -529,8 +532,10 @@ export default function DriverDashboard() {
                       type="button"
                       className={`driver-dashboard-step${
                         done ? ' driver-dashboard-step--done' : ''
-                      }${current ? ' driver-dashboard-step--current' : ''}`}
-                      disabled={!current}
+                      }${current ? ' driver-dashboard-step--current' : ''}${
+                        isNext ? ' driver-dashboard-step--next' : ''
+                      }`}
+                      disabled={!current && !isNext}
                       onClick={() => {
                         void updateRideStatus(trip.id, step.status);
                       }}
@@ -545,7 +550,8 @@ export default function DriverDashboard() {
               </div>
 
               <p className="driver-dashboard-trip-note">
-                Chaque étape est visible en direct par le client dans son application.
+                Vous seul faites évoluer la course : chaque étape s’affiche en direct chez le
+                client (il ne peut qu’annuler avant le départ).
               </p>
             </section>
           ) : incomingRequest ? (

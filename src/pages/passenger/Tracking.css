@@ -660,6 +660,51 @@
   align-items: center;
   gap: 7px;
   margin: 0;
+
+/* ---------- COURSE TERMINÉE PAR LE CHAUFFEUR (redirection vers la notation) ---------- */
+.tracking-done {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  margin: 0 0 14px;
+  padding: 20px 16px;
+  border-radius: 20px;
+  border: 1px solid rgba(34, 192, 122, 0.4);
+  background: linear-gradient(135deg, rgba(34, 192, 122, 0.16), rgba(0, 158, 96, 0.08));
+  text-align: center;
+  box-shadow: 0 14px 30px rgba(0, 158, 96, 0.16);
+  animation: trackingArrivalPulse 1.8s ease-in-out infinite;
+}
+
+.tracking-done-icon {
+  font-size: 30px;
+}
+
+.tracking-done-title {
+  color: #036b45;
+  font-size: 17px;
+  font-weight: 900;
+  letter-spacing: -0.3px;
+}
+
+.tracking-done-text {
+  margin: 0;
+  color: #04694a;
+  font-size: 12.5px;
+  font-weight: 700;
+  line-height: 1.4;
+}
+
+/* Rappel : le client ne pilote aucune étape de la course */
+.tracking-secondary-note {
+  color: #7a879b;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1.4;
+  text-align: center;
+}
+
   padding: 8px 13px;
   border-radius: 999px;
   border: 1px solid rgba(0, 158, 96, 0.28);

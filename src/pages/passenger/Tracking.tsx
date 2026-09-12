@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   ArrowLeft,
@@ -59,16 +59,12 @@ export default function Tracking() {
   const {
     selectedOffer,
     rideStatus,
-    advanceRide,
     cancelRide,
-    rateRide,
-    resetBooking,
     vehicle,
     destination,
     driverPosition,
     setPassengerPosition,
   } = useApp();
-  const [rating, setRating] = useState(0);
 
   /* Géolocalisation réelle du client (watch continu). */
   const geo = useGeolocation({ onUpdate: (position) => setPassengerPosition(position) });
@@ -79,6 +75,18 @@ export default function Tracking() {
   useEffect(() => {
     if (!selectedOffer) navigate('/passenger');
   }, [selectedOffer, navigate]);
+
+  /*
+   * ⚠️ Le CLIENT ne pilote AUCUNE étape de la course : c'est le CONDUCTEUR qui
+   * fait évoluer le statut (Firestore). Dès que la course est terminée, le
+   * client est redirigé automatiquement vers l'écran de notation.
+   */
+  useEffect(() => {
+    if (rideStatus !== 'completed') return undefined;
+
+    const timer = window.setTimeout(() => navigate('/passenger/ride'), 1800);
+    return () => window.clearTimeout(timer);
+  }, [rideStatus, navigate]);
 
   if (!selectedOffer) return null;
 
@@ -181,12 +189,6 @@ export default function Tracking() {
       pulse: showNearAlert,
     });
   }
-
-  const finish = () => {
-    if (rating > 0) rateRide(rating);
-    resetBooking();
-    navigate('/passenger/ride');
-  };
 
   const cancel = () => {
     cancelRide();
@@ -347,32 +349,21 @@ export default function Tracking() {
 
           {completed ? (
             <>
-              <div className="tracking-rate">
-                <span className="tracking-rate-title">Notez {driver.name}</span>
-
-                <div className="tracking-rate-stars">
-                  {[1, 2, 3, 4, 5].map((value) => (
-                    <button
-                      key={value}
-                      type="button"
-                      className="tracking-star"
-                      aria-label={`${value} étoiles`}
-                      onClick={() => setRating(value)}
-                    >
-                      <Star
-                        size={30}
-                        color={COLORS.yellow}
-                        fill={value <= rating ? COLORS.yellow : 'none'}
-                      />
-                    </button>
-                  ))}
-                </div>
+              {/* ===== COURSE TERMINÉE PAR LE CONDUCTEUR → notation ===== */}
+              <div className="tracking-done">
+                <span className="tracking-done-icon" aria-hidden="true">
+                  🎉
+                </span>
+                <strong className="tracking-done-title">Vous êtes arrivé !</strong>
+                <p className="tracking-done-text">
+                  Course terminée par {driver.name}. Vous allez pouvoir le noter.
+                </p>
               </div>
 
               <button
                 type="button"
                 className="tracking-cta tracking-cta--green"
-                onClick={finish}
+                onClick={() => navigate('/passenger/ride')}
               >
                 <Star size={19} />
                 Noter la course
@@ -392,40 +383,37 @@ export default function Tracking() {
                 </button>
               )}
 
+              {/* Aucun pouvoir du client sur la course : il OBSERVE le statut. */}
               {rideStatus === 'driver_arrived' && (
-                <button
-                  type="button"
-                  className="tracking-cta tracking-cta--orange"
-                  onClick={advanceRide}
-                >
-                  Je suis monté
+                <button type="button" className="tracking-cta tracking-cta--loading" disabled>
+                  <Loader2 size={19} className="tracking-spin" />
+                  Le chauffeur vous attend — montez à bord
                 </button>
               )}
 
               {rideStatus === 'in_progress' && (
                 <button type="button" className="tracking-cta tracking-cta--loading" disabled>
                   <Loader2 size={19} className="tracking-spin" />
-                  Course en cours…
+                  Le chauffeur vous conduit ({destination || 'destination'})
                 </button>
               )}
 
               <div className="tracking-secondary">
-                <button
-                  type="button"
-                  className="tracking-secondary-btn"
-                  onClick={advanceRide}
-                >
-                  Étape suivante (simulation)
-                </button>
+                {/* Annulation possible UNIQUEMENT avant le départ de la course. */}
+                {rideStatus !== 'in_progress' && (
+                  <button
+                    type="button"
+                    className="tracking-secondary-btn tracking-secondary-btn--danger"
+                    onClick={cancel}
+                  >
+                    <X size={15} />
+                    Annuler la course
+                  </button>
+                )}
 
-                <button
-                  type="button"
-                  className="tracking-secondary-btn tracking-secondary-btn--danger"
-                  onClick={cancel}
-                >
-                  <X size={15} />
-                  Annuler la course
-                </button>
+                <span className="tracking-secondary-note">
+                  Les étapes sont pilotées par le chauffeur : elles s’affichent ici en temps réel.
+                </span>
               </div>
             </>
           )}
