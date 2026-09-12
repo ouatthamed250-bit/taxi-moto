@@ -26,6 +26,8 @@ export interface DriverProfile {
   zone: string;
   /** Nombre de passagers que le véhicule peut réellement accueillir. */
   availableSeats: number;
+  /** Téléphone du conducteur (compte réel `authLocal`) — pour l'appel/SMS. */
+  phone?: string;
 }
 
 export interface Offer {
@@ -41,6 +43,14 @@ export interface RideRequest {
   pickup: string;
   destination: string;
   distanceKm: number;
+  /** true = destination hors base de quartiers → lieu/prix à confirmer par appel. */
+  destinationLibre?: boolean;
+  /** Identifiant du compte client réel (authLocal). */
+  passengerId?: string;
+  /** Nom du client (affichage + repli de recherche du numéro). */
+  passengerName?: string;
+  /** Téléphone du client (compte réel authLocal). */
+  passengerPhone?: string;
 }
 
 export interface Ride {

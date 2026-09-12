@@ -17,6 +17,7 @@ import { ABIDJAN_CENTER, COLORS, VEHICLES, commissionOf, fcfa, netEarnings } fro
 import { useApp } from '../../store/useApp';
 import { useGeolocation } from '../../hooks/useGeolocation';
 import { getDistanceKm } from '../../services/geolocation';
+import { callPhone, messagePhone, resolveDriverPhone } from '../../services/contacts';
 import './Tracking.css';
 
 const LIVE_DRIVER_COLOR = '#009E60';
@@ -79,6 +80,9 @@ export default function Tracking() {
   const tone = STATUS_TONE[rideStatus] ?? 'blue';
   const stepIndex = STEP_INDEX[rideStatus] ?? 0;
   const initial = driver.name.trim().charAt(0).toUpperCase() || 'C';
+
+  /* Numéro réel du chauffeur (compte authLocal) — vide = boutons masqués. */
+  const driverPhone = resolveDriverPhone(driver);
 
   const driverPin: [number, number] = [ABIDJAN_CENTER[0] + 0.006, ABIDJAN_CENTER[1] + 0.007];
   const destinationPin: [number, number] = [
@@ -215,23 +219,31 @@ export default function Tracking() {
             </p>
 
             <div className="tracking-actions">
-              <button
-                type="button"
-                className="tracking-action tracking-action--call"
-                onClick={() => alert(`Appel de ${driver.name}…`)}
-              >
-                <Phone size={17} />
-                Appeler
-              </button>
+              {driverPhone ? (
+                <>
+                  <button
+                    type="button"
+                    className="tracking-action tracking-action--call"
+                    onClick={() => callPhone(driverPhone)}
+                  >
+                    <Phone size={17} />
+                    Appeler
+                  </button>
 
-              <button
-                type="button"
-                className="tracking-action tracking-action--msg"
-                onClick={() => alert(`Message à ${driver.name}…`)}
-              >
-                <MessageCircle size={17} />
-                Message
-              </button>
+                  <button
+                    type="button"
+                    className="tracking-action tracking-action--msg"
+                    onClick={() => messagePhone(driverPhone)}
+                  >
+                    <MessageCircle size={17} />
+                    Message
+                  </button>
+                </>
+              ) : (
+                <span className="tracking-action-hint">
+                  Numéro indisponible — la messagerie de la course reste active.
+                </span>
+              )}
             </div>
           </article>
 
@@ -297,7 +309,8 @@ export default function Tracking() {
                 <button
                   type="button"
                   className="tracking-cta tracking-cta--blue"
-                  onClick={() => alert(`Appel de ${driver.name}…`)}
+                  onClick={() => callPhone(driverPhone)}
+                  disabled={!driverPhone}
                 >
                   <Phone size={19} />
                   Contacter le chauffeur

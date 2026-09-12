@@ -4,8 +4,11 @@ import {
   AlertTriangle,
   Check,
   Clock,
+  Info,
   MapPin,
+  MessageCircle,
   Navigation,
+  Phone,
   Plus,
   Power,
   Radar,
@@ -28,6 +31,7 @@ import {
 } from '../../theme';
 import { useApp } from '../../store/useApp';
 import { useGeolocation } from '../../hooks/useGeolocation';
+import { callPhone, messagePhone, resolvePassengerPhone } from '../../services/contacts';
 import './Dashboard.css';
 
 export default function DriverDashboard() {
@@ -97,6 +101,15 @@ export default function DriverDashboard() {
   };
 
   const info = VEHICLES[incomingRequest?.vehicle ?? 'moto'];
+
+  /* Numéro réel du client (compte authLocal) — vide = boutons masqués. */
+  const passengerPhone = incomingRequest
+    ? resolvePassengerPhone({
+        id: incomingRequest.passengerId,
+        name: incomingRequest.passengerName,
+        phone: incomingRequest.passengerPhone,
+      })
+    : '';
 
   return (
     <Page nav="driver" background={COLORS.white}>
@@ -328,6 +341,36 @@ export default function DriverDashboard() {
                   </span>
                 </div>
               </div>
+
+              {incomingRequest.destinationLibre && (
+                <p className="driver-dashboard-negotiate">
+                  <Info size={13} />
+                  Destination hors base — appelez le client pour confirmer le lieu et
+                  négocier le prix.
+                </p>
+              )}
+
+              {passengerPhone && (
+                <div className="driver-dashboard-contact">
+                  <button
+                    type="button"
+                    className="driver-dashboard-contact-btn driver-dashboard-contact-btn--call"
+                    onClick={() => callPhone(passengerPhone)}
+                  >
+                    <Phone size={15} />
+                    Appeler le client
+                  </button>
+
+                  <button
+                    type="button"
+                    className="driver-dashboard-contact-btn driver-dashboard-contact-btn--msg"
+                    onClick={() => messagePhone(passengerPhone)}
+                  >
+                    <MessageCircle size={15} />
+                    Message
+                  </button>
+                </div>
+              )}
 
               <p className="driver-dashboard-fare-label">Proposez votre tarif</p>
 

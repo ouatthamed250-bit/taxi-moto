@@ -6,6 +6,8 @@ import {
   Car,
   Info,
   MapPin,
+  MessageCircle,
+  Phone,
   Radar,
   RotateCcw,
   Search,
@@ -23,6 +25,7 @@ import {
   netEarnings,
 } from '../../theme';
 import { useApp } from '../../store/useApp';
+import { callPhone, messagePhone, resolveDriverPhone } from '../../services/contacts';
 import type { VehicleType } from '../../types';
 import './Offers.css';
 
@@ -203,6 +206,8 @@ export default function Offers() {
             {offers.map((offer) => {
               const driver = offer.driver;
               const initial = driver.name.trim().charAt(0).toUpperCase() || 'C';
+              // Numéro réel du conducteur (compte authLocal) — vide = boutons masqués.
+              const driverPhone = resolveDriverPhone(driver);
 
               return (
                 <article
@@ -237,6 +242,28 @@ export default function Offers() {
                     Commission 10 % ({fcfa(commissionOf(offer.price))}) · Net
                     chauffeur : {fcfa(netEarnings(offer.price))}
                   </p>
+
+                  {driverPhone && (
+                    <div className="offers-contact">
+                      <button
+                        type="button"
+                        className="offers-contact-btn offers-contact-btn--call"
+                        onClick={() => callPhone(driverPhone)}
+                      >
+                        <Phone size={16} />
+                        Appeler
+                      </button>
+
+                      <button
+                        type="button"
+                        className="offers-contact-btn offers-contact-btn--msg"
+                        onClick={() => messagePhone(driverPhone)}
+                      >
+                        <MessageCircle size={16} />
+                        Message
+                      </button>
+                    </div>
+                  )}
 
                   <button
                     type="button"

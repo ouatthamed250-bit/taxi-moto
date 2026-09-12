@@ -1103,3 +1103,73 @@
 
 
 
+
+/* ---------- CONTACT CLIENT (appel / message) ---------- */
+.driver-dashboard-negotiate {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin: 10px 0 0;
+  padding: 9px 12px;
+  border-radius: 13px;
+  border: 1px solid rgba(255, 153, 0, 0.35);
+  background: rgba(255, 153, 0, 0.1);
+  color: #8a5a00;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1.35;
+}
+
+.driver-dashboard-negotiate svg {
+  flex: 0 0 auto;
+  color: var(--taxi-orange, #ff9900);
+}
+
+.driver-dashboard-contact {
+  display: flex;
+  gap: 10px;
+  margin-top: 10px;
+}
+
+.driver-dashboard-contact-btn {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  padding: 11px;
+  border: none;
+  border-radius: 14px;
+  font-family: inherit;
+  font-size: 12.5px;
+  font-weight: 800;
+  cursor: pointer;
+  transition: transform 0.14s ease, box-shadow 0.14s ease;
+}
+
+.driver-dashboard-contact-btn--call {
+  color: #fff;
+  background: linear-gradient(135deg, #22c07a, #009e60);
+  box-shadow: 0 5px 0 rgba(0, 120, 72, 0.28);
+}
+
+.driver-dashboard-contact-btn--msg {
+  color: #fff;
+  background: linear-gradient(135deg, #0b5fff, #062b67);
+  box-shadow: 0 5px 0 rgba(6, 43, 103, 0.24);
+}
+
+.driver-dashboard-contact-btn:hover {
+  transform: translateY(-2px);
+}
+
+.driver-dashboard-contact-btn:active {
+  transform: translateY(2px);
+  box-shadow: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .driver-dashboard-contact-btn {
+    transition: none;
+  }
+}

@@ -570,3 +570,53 @@
   }
 }
 
+
+/* ---------- CONTACT CHAUFFEUR (appel / message) ---------- */
+.offers-contact {
+  display: flex;
+  gap: 10px;
+  margin-top: 10px;
+}
+
+.offers-contact-btn {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  padding: 11px;
+  border: none;
+  border-radius: 14px;
+  font-family: inherit;
+  font-size: 12.5px;
+  font-weight: 800;
+  cursor: pointer;
+  transition: transform 0.14s ease, box-shadow 0.14s ease;
+}
+
+.offers-contact-btn--call {
+  color: #fff;
+  background: linear-gradient(135deg, #22c07a, #009e60);
+  box-shadow: 0 5px 0 rgba(0, 120, 72, 0.28);
+}
+
+.offers-contact-btn--msg {
+  color: #fff;
+  background: linear-gradient(135deg, #0b5fff, #062b67);
+  box-shadow: 0 5px 0 rgba(6, 43, 103, 0.24);
+}
+
+.offers-contact-btn:hover {
+  transform: translateY(-2px);
+}
+
+.offers-contact-btn:active {
+  transform: translateY(2px);
+  box-shadow: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .offers-contact-btn {
+    transition: none;
+  }
+}
