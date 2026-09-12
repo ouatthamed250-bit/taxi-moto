@@ -106,5 +106,15 @@ export interface DriverGift {
   driverId: string;
   driverName: string;
   amount: number;
+  /** Message optionnel (ex. « Bonus fidélité »). */
+  message?: string;
   createdAt: number;
+}
+
+/** Entrée d'ajout d'un cadeau (saisie par l'admin). */
+export interface DriverGiftInput {
+  driverId: string;
+  amount: number;
+  driverName?: string;
+  message?: string;
 }

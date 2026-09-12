@@ -1,9 +1,12 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Activity,
   AlertTriangle,
+  Check,
+  Clock,
   Coins,
+  Gift,
   LockKeyhole,
   LogOut,
   MapPin,
@@ -15,10 +18,12 @@ import {
   UserRound,
   Users,
   Wallet,
+  X,
 } from 'lucide-react';
 import { COMMISSION_RATE, MIN_FARE, VEHICLES, fcfa } from '../../theme';
 import { useApp } from '../../store/useApp';
 import { ADMIN_RIDES } from '../../data/mock';
+import type { DriverProfile, RechargeStatus } from '../../types';
 import './Dashboard.css';
 
 const STATUS_META: Record<string, { label: string; tone: string }> = {
@@ -33,6 +38,25 @@ const STATUS_META: Record<string, { label: string; tone: string }> = {
   cancelled: { label: 'Annulée', tone: 'red' },
 };
 
+/** Onglets de filtrage des demandes de recharge. */
+const RECHARGE_TABS: { key: RechargeStatus; label: string }[] = [
+  { key: 'pending', label: 'En attente' },
+  { key: 'approved', label: 'Validées' },
+  { key: 'rejected', label: 'Rejetées' },
+];
+
+/** Bornes du cadeau conducteur (FCFA). */
+const MIN_GIFT = 100;
+const MAX_GIFT = 50000;
+
+/** Tonalité couleur selon la méthode de paiement. */
+function methodTone(method: string): string {
+  if (method.includes('Orange')) return 'orange';
+  if (method.includes('Wave')) return 'wave';
+  if (method.includes('MTN')) return 'mtn';
+  return 'gray';
+}
+
 export default function AdminDashboard() {
   const navigate = useNavigate();
   const {
@@ -44,11 +68,35 @@ export default function AdminDashboard() {
     updateZoneRule,
     adminDrivers,
     toggleDriverStatus,
+    rechargeRequests,
+    validateRechargeRequest,
+    addDriverGift,
   } = useApp();
 
   const [drafts, setDrafts] = useState<Record<string, string>>({});
   const [zoneErrors, setZoneErrors] = useState<Record<string, string>>({});
   const [refreshedAt, setRefreshedAt] = useState(() => new Date());
+
+  /* ---- Recharges ---- */
+  const [rechargeTab, setRechargeTab] = useState<RechargeStatus>('pending');
+  const [previewShot, setPreviewShot] = useState<string | null>(null);
+
+  /* ---- Cadeaux ---- */
+  const [giftDriver, setGiftDriver] = useState<DriverProfile | null>(null);
+  const [giftAmount, setGiftAmount] = useState('');
+  const [giftMessage, setGiftMessage] = useState('');
+  const [giftError, setGiftError] = useState('');
+
+  /* ---- Toast ---- */
+  const [toast, setToast] = useState('');
+  const toastTimer = useRef<number | null>(null);
+
+  useEffect(
+    () => () => {
+      if (toastTimer.current !== null) window.clearTimeout(toastTimer.current);
+    },
+    [],
+  );
 
   // PROTECTION : l'écran admin n'est accessible qu'avec le rôle administrateur.
   if (role !== 'admin') {
@@ -146,6 +194,56 @@ export default function AdminDashboard() {
     });
   };
 
+  /* ---- Recharges ---- */
+  const pendingCount = rechargeRequests.filter((request) => request.status === 'pending').length;
+  const filteredRecharges = rechargeRequests.filter((request) => request.status === rechargeTab);
+
+  const showToast = (message: string) => {
+    setToast(message);
+    if (toastTimer.current !== null) window.clearTimeout(toastTimer.current);
+    toastTimer.current = window.setTimeout(() => setToast(''), 2400);
+  };
+
+  const handleValidate = (id: string, approved: boolean) => {
+    validateRechargeRequest(id, approved);
+    showToast(approved ? 'Recharge validée — solde conducteur crédité ✅' : 'Demande rejetée');
+  };
+
+  /* ---- Cadeaux ---- */
+  const openGift = (driver: DriverProfile) => {
+    setGiftDriver(driver);
+    setGiftAmount('');
+    setGiftMessage('');
+    setGiftError('');
+  };
+
+  const closeGift = () => {
+    setGiftDriver(null);
+    setGiftAmount('');
+    setGiftMessage('');
+    setGiftError('');
+  };
+
+  const submitGift = () => {
+    if (!giftDriver) return;
+
+    const value = Number(giftAmount);
+    if (!Number.isFinite(value) || value < MIN_GIFT || value > MAX_GIFT) {
+      setGiftError(`Montant invalide (min ${fcfa(MIN_GIFT)}, max ${fcfa(MAX_GIFT)}).`);
+      return;
+    }
+
+    addDriverGift({
+      driverId: giftDriver.id,
+      driverName: giftDriver.name,
+      amount: value,
+      message: giftMessage.trim() || undefined,
+    });
+
+    showToast(`Cadeau de ${fcfa(value)} envoyé à ${giftDriver.name} 🎁`);
+    closeGift();
+  };
+
   return (
     <div className="admin-page">
       <div className="admin-shell">
@@ -218,6 +316,120 @@ export default function AdminDashboard() {
           </div>
         </section>
 
+        {/* ===== DEMANDES DE RECHARGE ===== */}
+        <section className="admin-section">
+          <div className="admin-section-head">
+            <span className="admin-section-icon">
+              <Wallet size={16} />
+            </span>
+            <h2 className="admin-section-title">Demandes de recharge</h2>
+            <span className="admin-section-count">
+              {pendingCount} en attente · {rechargeRequests.length} au total
+            </span>
+          </div>
+
+          <div className="admin-recharge-tabs">
+            {RECHARGE_TABS.map((tab) => (
+              <button
+                key={tab.key}
+                type="button"
+                className={`admin-recharge-tab${
+                  rechargeTab === tab.key ? ' admin-recharge-tab--active' : ''
+                }`}
+                onClick={() => setRechargeTab(tab.key)}
+              >
+                {tab.label}
+                {tab.key === 'pending' && pendingCount > 0 && (
+                  <span className="admin-recharge-tab-badge">{pendingCount}</span>
+                )}
+              </button>
+            ))}
+          </div>
+
+          {filteredRecharges.length === 0 ? (
+            <p className="admin-recharge-empty">
+              {rechargeTab === 'pending'
+                ? 'Aucune demande en attente'
+                : 'Aucune demande dans cet onglet'}
+            </p>
+          ) : (
+            <div className="admin-recharge-list">
+              {filteredRecharges.map((request) => (
+                <article key={request.id} className="admin-recharge-card">
+                  <div className="admin-recharge-head">
+                    <span className="admin-avatar">
+                      {request.driverName.trim().charAt(0).toUpperCase() || 'C'}
+                    </span>
+
+                    <div className="admin-recharge-who">
+                      <strong>{request.driverName}</strong>
+                      <span className="admin-recharge-date">
+                        <Clock size={11} />
+                        {new Date(request.createdAt).toLocaleString('fr-FR')}
+                      </span>
+                    </div>
+
+                    <strong className="admin-recharge-amount">{fcfa(request.amount)}</strong>
+                  </div>
+
+                  <div className="admin-recharge-meta">
+                    <span
+                      className={`admin-recharge-method admin-recharge-method--${methodTone(
+                        request.method,
+                      )}`}
+                    >
+                      <Wallet size={13} />
+                      {request.method}
+                    </span>
+                    <span className="admin-recharge-phone">{request.phone}</span>
+                  </div>
+
+                  {request.screenshot && (
+                    <button
+                      type="button"
+                      className="admin-recharge-shot"
+                      onClick={() => setPreviewShot(request.screenshot)}
+                    >
+                      <img src={request.screenshot} alt="Capture du paiement" />
+                      <span className="admin-recharge-shot-zoom">Agrandir</span>
+                    </button>
+                  )}
+
+                  {request.status === 'pending' ? (
+                    <div className="admin-recharge-actions">
+                      <button
+                        type="button"
+                        className="admin-recharge-approve"
+                        onClick={() => handleValidate(request.id, true)}
+                      >
+                        <Check size={15} />
+                        Valider
+                      </button>
+
+                      <button
+                        type="button"
+                        className="admin-recharge-reject"
+                        onClick={() => handleValidate(request.id, false)}
+                      >
+                        <X size={15} />
+                        Rejeter
+                      </button>
+                    </div>
+                  ) : (
+                    <span
+                      className={`admin-pill ${
+                        request.status === 'approved' ? 'admin-pill--green' : 'admin-pill--red'
+                      }`}
+                    >
+                      {request.status === 'approved' ? 'Validée' : 'Rejetée'}
+                    </span>
+                  )}
+                </article>
+              ))}
+            </div>
+          )}
+        </section>
+
         {/* ===== GESTION DES CONDUCTEURS ===== */}
         <section className="admin-section">
           <div className="admin-section-head">
@@ -240,6 +452,7 @@ export default function AdminDashboard() {
                   <th>Note</th>
                   <th>Statut</th>
                   <th>Action</th>
+                  <th>Cadeau</th>
                 </tr>
               </thead>
               <tbody>
@@ -279,6 +492,15 @@ export default function AdminDashboard() {
                         onClick={() => toggleDriverStatus(driver.id)}
                       >
                         {driver.online ? 'Suspendre' : 'Réactiver'}
+                      </button>
+                    </td>
+                    <td>
+                      <button
+                        type="button"
+                        className="admin-gift-btn"
+                        onClick={() => openGift(driver)}
+                      >
+                        🎁 Offrir un cadeau
                       </button>
                     </td>
                   </tr>
@@ -428,6 +650,102 @@ export default function AdminDashboard() {
           </div>
         </section>
 
+        {/* ===== MODALE : AGRANDIR LA CAPTURE ===== */}
+        {previewShot && (
+          <div className="admin-shot-modal" role="dialog" aria-modal="true">
+            <button
+              type="button"
+              className="admin-shot-backdrop"
+              aria-label="Fermer"
+              onClick={() => setPreviewShot(null)}
+            />
+
+            <div className="admin-shot-card">
+              <button
+                type="button"
+                className="admin-shot-close"
+                aria-label="Fermer"
+                onClick={() => setPreviewShot(null)}
+              >
+                <X size={20} />
+              </button>
+
+              <img src={previewShot} alt="Capture du paiement" />
+            </div>
+          </div>
+        )}
+
+        {/* ===== MODALE : OFFRIR UN CADEAU ===== */}
+        {giftDriver && (
+          <div className="admin-gift-modal" role="dialog" aria-modal="true">
+            <button
+              type="button"
+              className="admin-gift-backdrop"
+              aria-label="Fermer"
+              onClick={closeGift}
+            />
+
+            <div className="admin-gift-card">
+              <button
+                type="button"
+                className="admin-gift-close"
+                aria-label="Fermer"
+                onClick={closeGift}
+              >
+                <X size={18} />
+              </button>
+
+              <div className="admin-gift-head">
+                <span className="admin-gift-icon">
+                  <Gift size={18} />
+                </span>
+                <div>
+                  <strong className="admin-gift-title">Offrir un cadeau</strong>
+                  <span className="admin-gift-sub">{giftDriver.name}</span>
+                </div>
+              </div>
+
+              <label className="admin-gift-field">
+                <span>Montant (FCFA)</span>
+                <input
+                  type="number"
+                  min={MIN_GIFT}
+                  max={MAX_GIFT}
+                  placeholder="Ex : 1000"
+                  value={giftAmount}
+                  onChange={(event) => setGiftAmount(event.target.value)}
+                />
+                <small>
+                  Minimum {fcfa(MIN_GIFT)} · Maximum {fcfa(MAX_GIFT)}
+                </small>
+              </label>
+
+              <label className="admin-gift-field">
+                <span>Message (optionnel)</span>
+                <input
+                  type="text"
+                  placeholder="Ex : Bonus fidélité"
+                  value={giftMessage}
+                  onChange={(event) => setGiftMessage(event.target.value)}
+                />
+              </label>
+
+              {giftError && (
+                <p className="admin-gift-error">
+                  <AlertTriangle size={14} />
+                  {giftError}
+                </p>
+              )}
+
+              <button type="button" className="admin-gift-submit" onClick={submitGift}>
+                <Gift size={16} />
+                Envoyer le cadeau
+              </button>
+            </div>
+          </div>
+        )}
+
+        {toast && <div className="admin-toast">{toast}</div>}
 
       </div>
     </div>

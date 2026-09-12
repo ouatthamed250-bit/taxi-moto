@@ -2,6 +2,7 @@ import { createContext } from 'react';
 import type {
   AdminStats,
   DriverGift,
+  DriverGiftInput,
   DriverProfile,
   Offer,
   RechargeRequest,
@@ -74,7 +75,7 @@ export interface AppContextValue {
 
   /* ---- Cadeaux de recharge (offerts par l'admin) ---- */
   driverGifts: DriverGift[];
-  addDriverGift: (amount: number, driverId?: string) => void;
+  addDriverGift: (gift: DriverGiftInput) => void;
 
   /* ---- Inscription conducteur ---- */
   driverApproved: boolean;

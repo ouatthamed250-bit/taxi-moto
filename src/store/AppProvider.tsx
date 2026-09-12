@@ -5,6 +5,7 @@ import type { AppContextValue } from './context';
 import type {
   AdminStats,
   DriverGift,
+  DriverGiftInput,
   DriverProfile,
   Offer,
   RechargeRequest,
@@ -178,21 +179,22 @@ export function AppProvider({ children }: { children: ReactNode }) {
   /* ---- Cadeaux de recharge ---- */
   /** Ajoute un cadeau de recharge (offert par l'admin) et crédite le solde. */
   const addDriverGift = useCallback(
-    (amount: number, driverId?: string) => {
-      const value = Math.max(0, Math.round(amount));
+    (gift: DriverGiftInput) => {
+      const value = Math.max(0, Math.round(gift.amount));
       if (value <= 0) return;
 
-      const gift: DriverGift = {
+      const entry: DriverGift = {
         id: `GF-${Math.floor(100000 + Math.random() * 899999)}`,
-        driverId: driverId ?? (phone || 'driver-local'),
-        driverName: userName || 'Conducteur',
+        driverId: gift.driverId,
+        driverName: gift.driverName || userName || 'Conducteur',
         amount: value,
+        message: gift.message?.trim() || undefined,
         createdAt: Date.now(),
       };
-      setDriverGifts((list) => [gift, ...list]);
+      setDriverGifts((list) => [entry, ...list]);
       creditDriverBalance(value);
     },
-    [phone, userName, creditDriverBalance],
+    [userName, creditDriverBalance],
   );
 
   const login = useCallback(
