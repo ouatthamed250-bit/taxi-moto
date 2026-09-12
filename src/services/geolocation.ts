@@ -158,3 +158,28 @@ export function isTooImprecise(
 ): boolean {
   return typeof position.accuracy === 'number' && position.accuracy > maxMeters;
 }
+
+/** Seuil « le chauffeur est tout près » (mètres). */
+export const NEAR_DISTANCE_METERS = 100;
+
+/** Seuil « le chauffeur est sur place » (mètres). */
+export const ARRIVED_DISTANCE_METERS = 30;
+
+/** Distance exacte entre deux points (MÈTRES) — messages de proximité. */
+export function getDistanceMeters(
+  lat1: number,
+  lon1: number,
+  lat2: number,
+  lon2: number,
+): number {
+  return getDistanceKmExact(lat1, lon1, lat2, lon2) * 1000;
+}
+
+/** Distance en mètres entre deux positions (null si l'une manque). */
+export function distanceBetween(
+  from: GeoPosition | null | undefined,
+  to: GeoPosition | null | undefined,
+): number | null {
+  if (!from || !to) return null;
+  return getDistanceMeters(from.latitude, from.longitude, to.latitude, to.longitude);
+}

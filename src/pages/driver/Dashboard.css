@@ -1357,3 +1357,79 @@
   font-weight: 900;
   cursor: pointer;
 }
+
+/* ---------- LOCALISATION REELLE DU CLIENT (carte conducteur) ---------- */
+.driver-dashboard-map-chip {
+  position: absolute;
+  left: 50%;
+  bottom: 14px;
+  z-index: 5;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  transform: translateX(-50%);
+  padding: 9px 14px;
+  border-radius: 99px;
+  border: 1px solid rgba(255, 255, 255, 0.85);
+  background: rgba(6, 43, 103, 0.88);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  color: #fff;
+  font-size: 11.5px;
+  font-weight: 800;
+  white-space: nowrap;
+  box-shadow: 0 10px 24px rgba(6, 43, 103, 0.28);
+}
+
+.driver-dashboard-map-chip strong {
+  color: #ffd08a;
+}
+
+/* Alerte : conducteur sur place (<= 30 m) */
+.driver-dashboard-arrival {
+  margin: 12px 0 0;
+  padding: 12px 14px;
+  border-radius: 16px;
+  border: 1px solid rgba(0, 158, 96, 0.4);
+  background: linear-gradient(135deg, rgba(34, 192, 122, 0.16), rgba(0, 158, 96, 0.1));
+  color: #036b45;
+  font-size: 12.5px;
+  font-weight: 900;
+  line-height: 1.35;
+  animation: driverArrivalPulse 1.6s ease-in-out infinite;
+}
+
+.driver-dashboard-arrived-cta {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: 100%;
+  margin-top: 10px;
+  padding: 15px;
+  border: none;
+  border-radius: 16px;
+  color: #fff;
+  background: linear-gradient(145deg, #22c07a, #009e60);
+  box-shadow: 0 6px 0 rgba(0, 120, 72, 0.45);
+  font-family: inherit;
+  font-size: 14.5px;
+  font-weight: 900;
+  cursor: pointer;
+}
+
+@keyframes driverArrivalPulse {
+  0%,
+  100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.02);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .driver-dashboard-arrival {
+    animation: none;
+  }
+}

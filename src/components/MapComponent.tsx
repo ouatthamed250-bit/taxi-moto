@@ -12,6 +12,7 @@ import {
 import L from 'leaflet';
 import { Star } from 'lucide-react';
 import 'leaflet/dist/leaflet.css';
+import './MapComponent.css';
 import { COLORS } from '../theme';
 
 export interface MapMarker {
@@ -26,6 +27,8 @@ export interface MapMarker {
   rating?: number;
   /** Distance depuis le passager (km) — affichée dans le popup enrichi. */
   distanceKm?: number;
+  /** Animation « pulse » : l'autre partie est tout près (≤ 100 m). */
+  pulse?: boolean;
 }
 
 interface MapProps {
@@ -51,14 +54,24 @@ const meIcon = L.divIcon({
   iconAnchor: [9, 9],
 });
 
-function vehicleIcon(emoji: string, color: string, badge?: string): L.DivIcon {
+function vehicleIcon(
+  emoji: string,
+  color: string,
+  badge?: string,
+  pulse = false,
+): L.DivIcon {
   const badgeHtml = badge
     ? `<span style="margin-top:3px;padding:2px 8px;border-radius:99px;background:${COLORS.navy};color:#fff;font-size:9px;font-weight:800;letter-spacing:0.3px;white-space:nowrap;box-shadow:0 3px 8px rgba(6,43,103,0.35)">${badge}</span>`
     : '';
 
+  // Halo animé : signale que l'autre partie est tout près (≤ 100 m).
+  const pulseHtml = pulse
+    ? `<span class="map-marker-pulse" style="border-color:${color}"></span>`
+    : '';
+
   return L.divIcon({
     className: '',
-    html: `<div style="display:flex;flex-direction:column;align-items:center"><div style="width:38px;height:38px;border-radius:50%;background:${color};display:flex;align-items:center;justify-content:center;font-size:17px;border:2px solid #fff;box-shadow:0 6px 16px rgba(6,43,103,0.35)">${emoji}</div>${badgeHtml}</div>`,
+    html: `<div class="map-marker-wrap"><div style="display:flex;flex-direction:column;align-items:center"><div style="width:38px;height:38px;border-radius:50%;background:${color};display:flex;align-items:center;justify-content:center;font-size:17px;border:2px solid #fff;box-shadow:0 6px 16px rgba(6,43,103,0.35)">${emoji}</div>${badgeHtml}</div>${pulseHtml}</div>`,
     iconSize: [72, badge ? 60 : 38],
     iconAnchor: [36, 19],
   });
@@ -168,7 +181,12 @@ export const MapComponent: FC<MapProps> = ({
         <Marker
           key={marker.id}
           position={marker.position}
-          icon={vehicleIcon(marker.emoji, marker.color ?? COLORS.orange, marker.badge)}
+          icon={vehicleIcon(
+            marker.emoji,
+            marker.color ?? COLORS.orange,
+            marker.badge,
+            marker.pulse,
+          )}
         >
           <Popup>
             {enriched ? (

@@ -715,3 +715,42 @@
   color: #036b45;
   background: rgba(240, 252, 246, 0.95);
 }
+
+/* ---------- ALERTE D ARRIVEE DU CHAUFFEUR (<= 30 m) ---------- */
+.tracking-arrival-banner {
+  position: relative;
+  z-index: 3;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0 0 12px;
+  padding: 14px 16px;
+  border-radius: 18px;
+  border: 1px solid rgba(0, 158, 96, 0.4);
+  background: linear-gradient(135deg, rgba(34, 192, 122, 0.16), rgba(0, 158, 96, 0.1));
+  color: #036b45;
+  font-size: 13.5px;
+  font-weight: 900;
+  box-shadow: 0 14px 30px rgba(0, 158, 96, 0.18);
+  animation: trackingArrivalPulse 1.6s ease-in-out infinite;
+}
+
+.tracking-arrival-icon {
+  font-size: 20px;
+}
+
+@keyframes trackingArrivalPulse {
+  0%,
+  100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.02);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tracking-arrival-banner {
+    animation: none;
+  }
+}

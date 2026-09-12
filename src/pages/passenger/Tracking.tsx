@@ -17,7 +17,11 @@ import { ABIDJAN_CENTER, COLORS, VEHICLES, commissionOf, fcfa, netEarnings } fro
 import { useApp } from '../../store/useApp';
 import { useGeolocation } from '../../hooks/useGeolocation';
 import { useDriverLivePosition } from '../../hooks/useDriverLivePosition';
-import { coordsOfQuartier } from '../../data/quartiers';
+import {
+  ARRIVED_DISTANCE_METERS,
+  NEAR_DISTANCE_METERS,
+  distanceBetween,
+} from '../../services/geolocation';
 import { getDistanceKm } from '../../services/geolocation';
 import { callPhone, messagePhone, resolveDriverPhone } from '../../services/contacts';
 import './Tracking.css';
@@ -61,7 +65,6 @@ export default function Tracking() {
     resetBooking,
     vehicle,
     destination,
-    destinationId,
     driverPosition,
     setPassengerPosition,
   } = useApp();
@@ -101,13 +104,12 @@ export default function Tracking() {
     ? [driverLivePosition.latitude, driverLivePosition.longitude]
     : null;
 
-  /** Coordonnées du quartier de destination (si relevées sur le terrain). */
-  const destinationCoords = coordsOfQuartier(destinationId);
-
-  const destinationPin: [number, number] | null = destinationCoords
-    ? [destinationCoords.latitude, destinationCoords.longitude]
-    : null;
-
+  /*
+   * Positions RÉELLES uniquement : la position du client (son propre GPS) et
+   * celle du chauffeur (Realtime Database). Aucun marqueur de destination fixe :
+   * dans la zone, les motos entrent à l'intérieur des quartiers et le client
+   * est mobile → le point de rendez-vous EST la position du client.
+   */
   const remainingKm =
     driverLivePosition && geo.position
       ? getDistanceKm(
@@ -118,21 +120,49 @@ export default function Tracking() {
         )
       : null;
 
+  /** Distance RÉELLE restante en mètres (messages de proximité). */
+  const remainingMeters = distanceBetween(driverLivePosition, geo.position);
+
   /** Estimation d'arrivée (≈ 20 km/h en ville), arrondie à la minute. */
   const etaMinutes =
-    remainingKm !== null ? Math.max(1, Math.round((remainingKm / 20) * 60)) : null;
+    remainingMeters !== null
+      ? Math.max(1, Math.round((remainingMeters / 1000 / 20) * 60))
+      : null;
 
-  /** Message d'état TEMPS RÉEL (statut partagé piloté par le conducteur). */
-  const liveMessage =
-    rideStatus === 'driver_arrived'
-      ? `${driver.name} est arrivé ! Il vous attend dehors.`
-      : rideStatus === 'in_progress'
-        ? `En route vers ${destination || 'votre destination'}.`
-        : rideStatus === 'completed'
-          ? 'Vous êtes arrivé !'
-          : etaMinutes !== null
-            ? `${driver.name} arrive dans ~${etaMinutes} min.`
-            : `${driver.name} a accepté votre course.`;
+  /** Proximité du chauffeur (100 m = tout près, 30 m = sur place). */
+  const driverIsNear = remainingMeters !== null && remainingMeters < NEAR_DISTANCE_METERS;
+  const driverHasArrived =
+    remainingMeters !== null && remainingMeters < ARRIVED_DISTANCE_METERS;
+
+  /**
+   * Phase de PRISE EN CHARGE : le chauffeur vient chercher le client.
+   * (Une fois la course démarrée, les deux sont ensemble → plus d'alerte.)
+   */
+  const driverIsArriving =
+    rideStatus === 'driver_found' ||
+    rideStatus === 'driver_arriving' ||
+    rideStatus === 'driver_arrived';
+
+  /** Alerte « tout près / sur place » uniquement pendant la prise en charge. */
+  const showNearAlert = driverIsArriving && driverIsNear;
+  const showArrivalAlert = driverIsArriving && driverHasArrived;
+
+  /** Message d'état TEMPS RÉEL (statut partagé + proximité GPS). */
+  const liveMessage = driverIsArriving
+    ? driverHasArrived
+      ? `${driver.name} est arrivé, cherchez-le !`
+      : driverIsNear
+        ? `Le chauffeur est tout près !`
+        : etaMinutes !== null
+          ? `${driver.name} arrive dans ~${etaMinutes} min.`
+          : `${driver.name} — chauffeur en route vers vous.`
+    : rideStatus === 'in_progress'
+      ? `En route vers ${destination || 'votre destination'}.`
+      : rideStatus === 'completed'
+        ? 'Vous êtes arrivé !'
+        : rideStatus === 'cancelled'
+          ? 'Course annulée.'
+          : `${driver.name} — chauffeur en route vers vous.`;
 
   const markers: MapMarker[] = [];
 
@@ -143,19 +173,12 @@ export default function Tracking() {
       emoji: info.emoji,
       label: `${driver.name} · ${driver.plate}`,
       color: LIVE_DRIVER_COLOR,
-      badge: 'Position live',
+      badge:
+        remainingMeters !== null
+          ? `À ${Math.round(remainingMeters)} m`
+          : 'Position live',
       distanceKm: remainingKm ?? undefined,
-    });
-  }
-
-  if (destinationPin) {
-    markers.push({
-      id: 'destination',
-      position: destinationPin,
-      emoji: '🏁',
-      label: destination || 'Destination',
-      color: COLORS.orange,
-      badge: 'Destination',
+      pulse: showNearAlert,
     });
   }
 
@@ -215,6 +238,16 @@ export default function Tracking() {
           <p className={`tracking-live-message tracking-live-message--${tone}`}>
             {liveMessage}
           </p>
+
+          {/* ===== ALERTE D'ARRIVÉE : le chauffeur est sur place (≤ 30 m) ===== */}
+          {showArrivalAlert && (
+            <div className="tracking-arrival-banner" role="status">
+              <span className="tracking-arrival-icon" aria-hidden="true">
+                🚗
+              </span>
+              Le chauffeur est là ! Regardez autour de vous.
+            </div>
+          )}
 
           {/* Statut */}
           <div className={`tracking-status tracking-status--${tone}`}>

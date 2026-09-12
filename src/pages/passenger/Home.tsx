@@ -187,6 +187,15 @@ export default function PassengerHome() {
           <MapComponent center={mapCenter} markers={markers} zoneRadius={2000} />
         </div>
 
+        {/* Position GPS réelle : c'est elle qui sert de point de rendez-vous */}
+        {geo.permission === 'granted' && geo.position && (
+          <p className="home-gps-note">
+            <MapPin size={13} />
+            Position GPS enregistrée — le chauffeur viendra à l’endroit exact où vous
+            êtes.
+          </p>
+        )}
+
         {/* ===== BANDEAU GÉOLOCALISATION ===== */}
         {showGeoBanner && (
           <div className="geo-banner">

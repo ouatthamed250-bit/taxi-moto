@@ -11,7 +11,7 @@
 //   ⚠️ `id` doit rester unique (slug) et `secteur` sert de regroupement d'affichage.
 // ============================================================================
 
-import type { GeoPosition, Quartier } from '../types';
+import type { Quartier } from '../types';
 
 /**
  * Distance moyenne d'une course dans la zone (km).
@@ -139,17 +139,14 @@ export function findQuartierByLabel(label: string): Quartier | undefined {
 }
 
 /**
- * Coordonnées GPS des quartiers (latitude / longitude).
+ * Coordonnées GPS des quartiers — **OBSOLÈTE / SUPPRIMÉ**.
  *
- * ⚠️ À RELEVER SUR LE TERRAIN (ou via un service de géocodage) : tant qu'une
- * entrée est absente, le marqueur de destination n'est pas affiché sur la carte
- * (on n'invente AUCUNE position). Exemple de saisie :
- *   'modeste': { latitude: 5.xxxx, longitude: -3.xxxx },
+ * Pourquoi ? Dans la zone couverte, les quartiers n'ont **pas de point fixe** :
+ * les motos entrent à l'intérieur des ruelles et les clients sont à des
+ * endroits variables. Le nom du quartier ne sert donc QUE de contexte
+ * (affichage, négociation, historique) — il ne détermine JAMAIS la position.
+ *
+ * ➜ Le point de prise en charge est la **position GPS réelle du client**
+ *   (publiée en temps réel sur `/positions/passengers/{uid}`), et l'itinéraire
+ *   relie la position réelle du conducteur à celle du client.
  */
-export const QUARTIER_COORDS: Record<string, GeoPosition> = {};
-
-/** Coordonnées connues d'un quartier (null si non relevées). */
-export function coordsOfQuartier(quartierId: string | undefined): GeoPosition | null {
-  if (!quartierId) return null;
-  return QUARTIER_COORDS[quartierId] ?? null;
-}

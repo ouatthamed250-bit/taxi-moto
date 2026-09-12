@@ -36,10 +36,9 @@ import {
 } from '../../theme';
 import { useApp } from '../../store/useApp';
 import { useGeolocation } from '../../hooks/useGeolocation';
-import { MIN_MOVE_KM } from '../../services/geolocation';
+import { MIN_MOVE_KM, distanceBetween, NEAR_DISTANCE_METERS, ARRIVED_DISTANCE_METERS } from '../../services/geolocation';
 import { DRIVER_STEPS, COURSE_LABEL, driverStepIndex } from '../../data/courseStatus';
 import { describeRounds, roundLabel } from '../../data/negotiation';
-import { coordsOfQuartier } from '../../data/quartiers';
 import { callPhone, messagePhone, resolvePassengerPhone } from '../../services/contacts';
 import './Dashboard.css';
 
@@ -161,17 +160,27 @@ export default function DriverDashboard() {
 
   const info = VEHICLES[incomingRequest?.vehicle ?? 'moto'];
 
-  /* ---- Suivi de course partagé (côté conducteur) ---- */
+  /* ---- Suivi GPS RÉEL : le point de rendez-vous EST le client ---- */
   const trip = activeRide;
   const tripStepIndex = trip ? Math.max(0, driverStepIndex(trip.status)) : 0;
 
-  /** Position live du client à aller chercher (publiée sur la RTDB). */
-  const clientPosition = trip?.passengerUid
-    ? livePassengerPositions[trip.passengerUid]
-    : undefined;
+  /** uid du client à localiser : course en cours OU demande reçue. */
+  const clientUid = trip?.passengerUid ?? incomingRequest?.passengerId;
+  /** Position live du client (publiée sur la RTDB) — jamais un point fixe. */
+  const clientPosition = clientUid ? livePassengerPositions[clientUid] : undefined;
+  const clientName = trip?.passengerName ?? incomingRequest?.passengerName ?? 'Client';
+  /** Quartier choisi par le client : contexte (négociation/historique), pas une position. */
+  const clientQuartier = trip?.destination ?? incomingRequest?.destination ?? '—';
 
-  /** Coordonnées du quartier de destination (si relevées sur le terrain). */
-  const destinationCoords = coordsOfQuartier(trip?.destinationId);
+  /** Distance RÉELLE (mètres) entre le conducteur et le client. */
+  const clientDistanceMeters = distanceBetween(geo.position, clientPosition);
+  const clientIsNear =
+    clientDistanceMeters !== null && clientDistanceMeters < NEAR_DISTANCE_METERS;
+  const clientArrived =
+    clientDistanceMeters !== null && clientDistanceMeters < ARRIVED_DISTANCE_METERS;
+
+  /** Phase de prise en charge : avant le démarrage de la course. */
+  const pickingUp = trip?.status === 'accepted' || trip?.status === 'arrived';
 
   const tripMarkers: MapMarker[] = [];
 
@@ -180,20 +189,13 @@ export default function DriverDashboard() {
       id: 'trip-client',
       position: [clientPosition.latitude, clientPosition.longitude],
       emoji: '🧍',
-      label: `${trip?.passengerName ?? 'Client'} · point de prise en charge`,
+      label: `${clientName} · ${clientQuartier}`,
       color: COLORS.blue,
-      badge: 'Client',
-    });
-  }
-
-  if (destinationCoords) {
-    tripMarkers.push({
-      id: 'trip-destination',
-      position: [destinationCoords.latitude, destinationCoords.longitude],
-      emoji: '🏁',
-      label: trip?.destination ?? 'Destination',
-      color: COLORS.orange,
-      badge: 'Destination',
+      badge:
+        clientDistanceMeters !== null
+          ? `Client à ${Math.round(clientDistanceMeters)} m`
+          : 'Client',
+      pulse: pickingUp && clientIsNear,
     });
   }
 
@@ -230,6 +232,17 @@ export default function DriverDashboard() {
                 : null
             }
           />
+
+          {/* Qui va où : le client est localisé EN DIRECT (aucun point fixe) */}
+          {clientPosition && (
+            <div className="driver-dashboard-map-chip">
+              <MapPin size={13} />
+              Client à {clientQuartier}
+              {clientDistanceMeters !== null && (
+                <strong> · {Math.round(clientDistanceMeters)} m</strong>
+              )}
+            </div>
+          )}
 
           <header className="driver-dashboard-topbar">
             <div className="driver-dashboard-brand">
@@ -480,6 +493,28 @@ export default function DriverDashboard() {
                     Message
                   </button>
                 </div>
+              )}
+
+              {/* ===== ARRIVÉE CHEZ LE CLIENT (≤ 30 m) ===== */}
+              {pickingUp && clientArrived && (
+                <>
+                  <p className="driver-dashboard-arrival">
+                    🚗 Vous êtes arrivé chez le client. Appelez-le si besoin.
+                  </p>
+
+                  {trip.status === 'accepted' && (
+                    <button
+                      type="button"
+                      className="driver-dashboard-arrived-cta"
+                      onClick={() => {
+                        void updateRideStatus(trip.id, 'arrived');
+                      }}
+                    >
+                      <MapPin size={17} />
+                      Je suis arrivé
+                    </button>
+                  )}
+                </>
               )}
 
               {/* Étapes : gros boutons 3D, dans l'ordre logique de la course. */}
