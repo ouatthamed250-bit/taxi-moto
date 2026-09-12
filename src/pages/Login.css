@@ -880,7 +880,7 @@
 .login-footer {
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  justify-content: center;
 
   margin-top: 20px;
   padding: 0 4px;
@@ -897,24 +897,6 @@
   font-weight: 600;
 
   text-decoration: none;
-}
-
-.login-footer-admin {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  padding: 0;
-  border: none;
-  color: #8995a8;
-  background: transparent;
-  font-family: inherit;
-  font-size: 10px;
-  font-weight: 600;
-  cursor: pointer;
-}
-
-.login-footer-admin:hover {
-  color: var(--taxi-navy, #062b67);
 }
 
 .login-footer a:hover {

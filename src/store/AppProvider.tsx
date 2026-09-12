@@ -37,6 +37,7 @@ import {
   registerPassenger as authRegisterPassenger,
 } from '../services/authLocal';
 import { readAppSettings, writeAppSettings } from '../services/settingsLocal';
+import { isAdminAuthenticated } from '../services/adminAuth';
 
 /** Ordre du suivi de course. */
 const RIDE_ORDER: RideStatus[] = [
@@ -91,13 +92,19 @@ export function AppProvider({ children }: { children: ReactNode }) {
    * (initialiseur paresseux → aucun setState dans un effet).
    */
   const [restoredUser] = useState(() => getCurrentUser());
+  /** Session admin active (sessionStorage) → rôle restauré au rechargement. */
+  const [adminSession] = useState(() => isAdminAuthenticated());
 
   /* ---- Paramètres applicatifs (localStorage) ---- */
   const [appSettings, setAppSettings] = useState<AppSettings>(() => readAppSettings());
 
   /* ---- Session ---- */
-  const [role, setRole] = useState<Role>(restoredUser?.role ?? 'guest');
-  const [userName, setUserName] = useState(restoredUser?.name ?? '');
+  const [role, setRole] = useState<Role>(
+    restoredUser?.role ?? (adminSession ? 'admin' : 'guest'),
+  );
+  const [userName, setUserName] = useState(
+    restoredUser?.name ?? (adminSession ? 'Administrateur' : ''),
+  );
   const [phone, setPhone] = useState(restoredUser?.phone ?? '');
   const [currentUser, setCurrentUser] = useState<User | null>(restoredUser);
 

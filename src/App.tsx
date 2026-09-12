@@ -1,6 +1,8 @@
 import { Suspense, lazy } from 'react';
-import { BrowserRouter, Route, Routes } from 'react-router-dom';
+import { BrowserRouter, Navigate, Outlet, Route, Routes } from 'react-router-dom';
 import { AppProvider } from './store/AppProvider';
+import { useApp } from './store/useApp';
+import { isAdminAuthenticated } from './services/adminAuth';
 import { Loader } from './components/Loader';
 import { InstallPWA } from './components/InstallPWA';
 import Splash from './pages/Splash';
@@ -27,6 +29,7 @@ const DriverRides = lazy(() => import('./pages/driver/Rides'));
 const DriverEarnings = lazy(() => import('./pages/driver/Earnings'));
 const DriverProfile = lazy(() => import('./pages/driver/Profile'));
 const DriverRecharge = lazy(() => import('./pages/driver/Recharge'));
+const AdminGate = lazy(() => import('./pages/admin/AdminGate'));
 const AdminLayout = lazy(() => import('./pages/admin/AdminLayout'));
 const AdminOverview = lazy(() => import('./pages/admin/Overview'));
 const AdminClients = lazy(() => import('./pages/admin/Clients'));
@@ -36,6 +39,17 @@ const AdminGifts = lazy(() => import('./pages/admin/Gifts'));
 const AdminLiveMap = lazy(() => import('./pages/admin/LiveMap'));
 const AdminSettings = lazy(() => import('./pages/admin/Settings'));
 const AdminProfile = lazy(() => import('./pages/admin/Profile'));
+
+/** Garde d'accès : réservé au rôle admin ET à une session admin validée. */
+function RequireAdmin() {
+  const { role } = useApp();
+
+  if (role !== 'admin' || !isAdminAuthenticated()) {
+    return <Navigate to="/admin" replace />;
+  }
+
+  return <Outlet />;
+}
 
 function App() {
   return (
@@ -65,15 +79,21 @@ function App() {
             <Route path="/driver/profile" element={<DriverProfile />} />
             <Route path="/driver/recharge" element={<DriverRecharge />} />
 
-            <Route path="/admin" element={<AdminLayout />}>
-              <Route index element={<AdminOverview />} />
-              <Route path="clients" element={<AdminClients />} />
-              <Route path="drivers" element={<AdminDrivers />} />
-              <Route path="deposits" element={<AdminDeposits />} />
-              <Route path="gifts" element={<AdminGifts />} />
-              <Route path="map" element={<AdminLiveMap />} />
-              <Route path="settings" element={<AdminSettings />} />
-              <Route path="profile" element={<AdminProfile />} />
+            {/* Accès admin caché : porte d'entrée (code d'accès). */}
+            <Route path="/admin" element={<AdminGate />} />
+
+            {/* Espace admin protégé : RequireAdmin → AdminLayout → pages. */}
+            <Route path="/admin" element={<RequireAdmin />}>
+              <Route element={<AdminLayout />}>
+                <Route path="overview" element={<AdminOverview />} />
+                <Route path="clients" element={<AdminClients />} />
+                <Route path="drivers" element={<AdminDrivers />} />
+                <Route path="deposits" element={<AdminDeposits />} />
+                <Route path="gifts" element={<AdminGifts />} />
+                <Route path="map" element={<AdminLiveMap />} />
+                <Route path="settings" element={<AdminSettings />} />
+                <Route path="profile" element={<AdminProfile />} />
+              </Route>
             </Route>
           </Routes>
         </Suspense>

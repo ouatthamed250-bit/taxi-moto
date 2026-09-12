@@ -12,6 +12,7 @@ import {
   Wallet,
 } from 'lucide-react';
 import { useApp } from '../../store/useApp';
+import { setAdminAuthenticated } from '../../services/adminAuth';
 import './Dashboard.css';
 import './AdminLayout.css';
 
@@ -24,7 +25,7 @@ interface NavItem {
 }
 
 const NAV_ITEMS: NavItem[] = [
-  { to: '/admin', label: "Vue d'ensemble", emoji: '📊', icon: BarChart3, end: true },
+  { to: '/admin/overview', label: "Vue d'ensemble", emoji: '📊', icon: BarChart3 },
   { to: '/admin/clients', label: 'Clients', emoji: '👥', icon: Users },
   { to: '/admin/drivers', label: 'Conducteurs', emoji: '🏍️', icon: Bike },
   { to: '/admin/deposits', label: 'Dépôts', emoji: '💰', icon: Wallet },
@@ -40,12 +41,13 @@ export default function AdminLayout() {
 
   // PROTECTION : seul un administrateur peut accéder à l'espace admin.
   if (role !== 'admin') {
-    return <Navigate to="/login" replace />;
+    return <Navigate to="/admin" replace />;
   }
 
   const handleLogout = () => {
+    setAdminAuthenticated(false);
     logout();
-    navigate('/login');
+    navigate('/');
   };
 
   return (

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
   ArrowRight,
   Bike,
@@ -39,6 +39,47 @@ export default function Welcome() {
     tricycle: false,
   });
 
+  /* Geste secret : 5 clics rapides (< 2 s) sur le logo. */
+  const secretClicks = useRef<{ count: number; lastClick: number; timer: number | null }>({
+    count: 0,
+    lastClick: 0,
+    timer: null,
+  });
+
+  useEffect(
+    () => () => {
+      if (secretClicks.current.timer !== null) {
+        window.clearTimeout(secretClicks.current.timer);
+      }
+    },
+    [],
+  );
+
+  const handleLogoClick = () => {
+    const state = secretClicks.current;
+    const now = Date.now();
+
+    state.count = now - state.lastClick < 2000 ? state.count + 1 : 1;
+    state.lastClick = now;
+
+    if (state.timer !== null) window.clearTimeout(state.timer);
+    state.timer = window.setTimeout(() => {
+      secretClicks.current.count = 0;
+      secretClicks.current.timer = null;
+    }, 2000);
+
+    if (state.count >= 5) {
+      state.count = 0;
+
+      if (state.timer !== null) {
+        window.clearTimeout(state.timer);
+        state.timer = null;
+      }
+
+      navigate('/admin');
+    }
+  };
+
   const pickDestination = (name: string) => {
     setDestination(name);
     const found = DESTINATIONS.find((item) => item.name === name);
@@ -75,7 +116,12 @@ export default function Welcome() {
 
           <header className="welcome-hero-top">
             <div className="welcome-brand">
-              <img className="welcome-logo-img" src="/images/logo.png" alt="Taxi-Moto" />
+              <img
+                className="welcome-logo-img"
+                src="/images/logo.png"
+                alt="Taxi-Moto"
+                onClick={handleLogoClick}
+              />
             </div>
 
             <div className="welcome-country">
