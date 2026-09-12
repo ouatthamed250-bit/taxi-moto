@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   ArrowLeft,
@@ -55,6 +55,11 @@ export default function Offers() {
     chooseOffer(found);
     navigate('/passenger/tracking');
   };
+
+  // Aucune offre réelle (moteur d'offres à venir) → écran « aucun conducteur ».
+  useEffect(() => {
+    if (offers.length === 0) navigate('/passenger/unavailable');
+  }, [offers, navigate]);
 
   const backToHome = () => {
     cancelRide();

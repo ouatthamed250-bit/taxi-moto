@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import type { ReactNode } from 'react';
 import { AppContext } from './context';
 import type { AppContextValue } from './context';
@@ -21,16 +21,11 @@ import type {
   VehicleType,
   ZonePriceRule,
 } from '../types';
-import {
-  ADMIN_STATS,
-  DRIVERS,
-  DRIVER_TODAY_RIDES,
-  RIDE_HISTORY,
-  ZONE_RULES,
-} from '../data/mock';
-import { MIN_FARE, commissionOf, estimateFare, netEarnings } from '../theme';
+import { ADMIN_STATS } from '../data/mock';
+import { commissionOf, netEarnings } from '../theme';
 import {
   getCurrentUser,
+  listDrivers,
   login as authLogin,
   logout as authLogout,
   registerDriver as authRegisterDriver,
@@ -48,35 +43,11 @@ const RIDE_ORDER: RideStatus[] = [
   'completed',
 ];
 
-const SAMPLE_REQUEST: RideRequest = {
-  id: 'REQ-2045',
-  passengers: 2,
-  vehicle: 'moto',
-  pickup: 'Cocody — Angré 7e Tranche',
-  destination: 'Plateau — Cité Administrative',
-  distanceKm: 6.1,
-};
-
 /**
  * Solde virtuel initial du conducteur (FCFA).
  * 5 000 FCFA permet de tester plusieurs courses (commission 10 %).
  */
 const INITIAL_DRIVER_BALANCE = 5000;
-
-function buildOffers(vehicle: VehicleType, passengers: number, distanceKm: number): Offer[] {
-  const { min, max } = estimateFare(distanceKm);
-  return DRIVERS.filter(
-    (d) => d.vehicle === vehicle && d.online && d.availableSeats >= passengers,
-  ).map((driver, index) => {
-    const spread = index === 0 ? 0 : index === 1 ? 0.15 : 0.3;
-    const price = Math.round((min + (max - min) * spread) / 100) * 100;
-    return {
-      id: `${driver.id}-${distanceKm}`,
-      driver,
-      price: Math.max(MIN_FARE, price),
-    };
-  });
-}
 
 function nowDate(): string {
   return new Date().toLocaleDateString('fr-FR');
@@ -120,12 +91,12 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [offers, setOffers] = useState<Offer[]>([]);
   const [selectedOffer, setSelectedOffer] = useState<Offer | null>(null);
   const [lastRide, setLastRide] = useState<Ride | null>(null);
-  const [passengerHistory, setPassengerHistory] = useState<Ride[]>(RIDE_HISTORY);
+  const [passengerHistory, setPassengerHistory] = useState<Ride[]>([]);
 
   /* ---- Conducteur ---- */
   const [driverOnline, setDriverOnline] = useState(false);
   const [incomingRequest, setIncomingRequest] = useState<RideRequest | null>(null);
-  const [driverRidesToday, setDriverRidesToday] = useState<Ride[]>(DRIVER_TODAY_RIDES);
+  const [driverRidesToday, setDriverRidesToday] = useState<Ride[]>([]);
   const [driverApproved, setDriverApproved] = useState(false);
   const [driverBalance, setDriverBalanceState] = useState(INITIAL_DRIVER_BALANCE);
   const [rechargeRequests, setRechargeRequests] = useState<RechargeRequest[]>([]);
@@ -133,16 +104,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   /* ---- Admin ---- */
   const [adminStats, setAdminStats] = useState<AdminStats>(ADMIN_STATS);
-  const [zoneRules, setZoneRules] = useState<ZonePriceRule[]>(ZONE_RULES);
-  const [adminDrivers, setAdminDrivers] = useState<DriverProfile[]>(DRIVERS);
-
-  const searchTimer = useRef<number | null>(null);
-
-  useEffect(() => {
-    return () => {
-      if (searchTimer.current !== null) window.clearTimeout(searchTimer.current);
-    };
-  }, []);
+  const [zoneRules, setZoneRules] = useState<ZonePriceRule[]>([]);
+  const [adminDrivers, setAdminDrivers] = useState<DriverProfile[]>([]);
 
   /* ---- Solde virtuel conducteur ---- */
   /** Fixe le solde (jamais négatif). */
@@ -277,16 +240,19 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setPhone('');
   }, []);
 
-  const startSearch = useCallback(() => {
+  /**
+   * Lance la recherche d'un conducteur. Retourne `true` si au moins un
+   * conducteur réel est disponible (inscrit et non bloqué).
+   * ⚠️ Aucune offre fictive : le moteur d'offres réel arrivera avec Firebase.
+   */
+  const startSearch = useCallback((): boolean => {
     setOffers([]);
     setSelectedOffer(null);
-    setRideStatus('searching');
-    if (searchTimer.current !== null) window.clearTimeout(searchTimer.current);
-    searchTimer.current = window.setTimeout(() => {
-      setOffers(buildOffers(vehicle ?? 'moto', passengers, distanceKm));
-      setRideStatus('offers');
-    }, 2200);
-  }, [vehicle, passengers, distanceKm]);
+
+    const available = listDrivers().some((driver) => !driver.blocked);
+    setRideStatus(available ? 'searching' : 'idle');
+    return available;
+  }, []);
 
   const chooseOffer = useCallback((offer: Offer) => {
     setSelectedOffer(offer);
@@ -339,7 +305,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
   ]);
 
   const cancelRide = useCallback(() => {
-    if (searchTimer.current !== null) window.clearTimeout(searchTimer.current);
     setRideStatus('cancelled');
     setOffers([]);
     setSelectedOffer(null);
@@ -364,13 +329,13 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   const toggleOnline = useCallback(() => setDriverOnline((online) => !online), []);
 
-  const triggerIncoming = useCallback(() => setIncomingRequest(SAMPLE_REQUEST), []);
-
   const rejectIncoming = useCallback(() => setIncomingRequest(null), []);
 
   const acceptIncoming = useCallback(
     (fare: number): boolean => {
-      const request = SAMPLE_REQUEST;
+      const request = incomingRequest;
+      if (!request) return false;
+
       const commission = commissionOf(fare);
 
       // Blocage : le solde doit couvrir la commission de la course.
@@ -408,7 +373,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       setIncomingRequest(null);
       return true;
     },
-    [driverBalance, debitDriverBalance],
+    [incomingRequest, driverBalance, debitDriverBalance],
   );
 
   const approveDriver = useCallback(() => setDriverApproved(true), []);
@@ -496,7 +461,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
     driverOnline,
     toggleOnline,
     incomingRequest,
-    triggerIncoming,
     acceptIncoming,
     rejectIncoming,
     driverRidesToday,

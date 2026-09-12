@@ -43,7 +43,14 @@ export default function Searching() {
   useEffect(() => {
     if (rideStatus === 'offers') {
       navigate(offers.length > 0 ? '/passenger/offers' : '/passenger/unavailable');
+      return;
     }
+
+    if (rideStatus !== 'searching') return;
+
+    // Aucun moteur d'offres réel pour l'instant → repli propre vers Unavailable.
+    const timer = window.setTimeout(() => navigate('/passenger/unavailable'), 2200);
+    return () => window.clearTimeout(timer);
   }, [rideStatus, offers, navigate]);
 
   const cancelSearch = () => {

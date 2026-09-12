@@ -203,6 +203,21 @@ export function listUsers(): User[] {
   return readUsers();
 }
 
+/** Liste les conducteurs inscrits (role = 'driver'). */
+export function listDrivers(): User[] {
+  return readUsers().filter((user) => user.role === 'driver');
+}
+
+/** Liste les clients inscrits (role = 'passenger'). */
+export function listPassengers(): User[] {
+  return readUsers().filter((user) => user.role === 'passenger');
+}
+
+/** Récupère un conducteur par son identifiant. */
+export function getDriverById(id: string): User | null {
+  return readUsers().find((user) => user.role === 'driver' && user.id === id) ?? null;
+}
+
 /** Bloque ou débloque un compte (par numéro). */
 export function setUserBlocked(phone: string, blocked: boolean): void {
   const normalized = normalizePhone(phone);

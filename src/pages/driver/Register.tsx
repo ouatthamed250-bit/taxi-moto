@@ -227,7 +227,7 @@ export default function DriverRegister() {
                     className="driver-register-input"
                     type="text"
                     autoComplete="name"
-                    placeholder="Kouassi Yao"
+                    placeholder="Votre nom complet"
                     value={name}
                     onChange={(event) => setName(event.target.value)}
                   />

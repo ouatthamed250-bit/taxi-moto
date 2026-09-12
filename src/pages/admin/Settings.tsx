@@ -278,6 +278,9 @@ export default function Settings() {
           <span className="admin-section-count">{zoneRules.length} zones</span>
         </div>
 
+        {zoneRules.length === 0 ? (
+          <p className="admin-empty">Aucune zone tarifaire configurée</p>
+        ) : (
         <div className="admin-table-wrap">
           <table className="admin-table">
             <thead>
@@ -328,6 +331,7 @@ export default function Settings() {
             </tbody>
           </table>
         </div>
+        )}
       </section>
 
       <button type="button" className="admin-settings-save admin-settings-save--full" onClick={saveAll}>

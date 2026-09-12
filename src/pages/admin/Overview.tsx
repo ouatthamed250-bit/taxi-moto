@@ -12,7 +12,7 @@ import {
 } from 'lucide-react';
 import { VEHICLES, fcfa } from '../../theme';
 import { useApp } from '../../store/useApp';
-import { ADMIN_RIDES } from '../../data/mock';
+import { listDrivers, listPassengers } from '../../services/authLocal';
 import './Overview.css';
 
 const STATUS_META: Record<string, { label: string; tone: string }> = {
@@ -37,21 +37,20 @@ const QUICK_ACTIONS = [
 ];
 
 export default function Overview() {
-  const { adminStats, zoneRules, adminDrivers, appSettings } = useApp();
+  const { adminStats, zoneRules, appSettings, passengerHistory, driverRidesToday } = useApp();
 
-  const driversOnline = adminDrivers.filter((driver) => driver.online).length;
-  const averageRating =
-    adminDrivers.length > 0
-      ? (
-          adminDrivers.reduce((sum, driver) => sum + driver.rating, 0) / adminDrivers.length
-        ).toFixed(1)
-      : '—';
+  /* Vraies données utilisateur (localStorage). */
+  const passengers = listPassengers();
+  const drivers = listDrivers();
+
+  /* Toutes les courses réelles connues (passager + conducteur). */
+  const rides = [...passengerHistory, ...driverRidesToday];
 
   const kpis = [
     {
       key: 'rides',
       icon: Coins,
-      label: 'Courses totales',
+      label: 'Courses terminées',
       value: adminStats.ridesCompleted.toLocaleString('fr-FR'),
     },
     { key: 'revenue', icon: Wallet, label: 'Revenu brut total', value: fcfa(adminStats.revenue) },
@@ -64,14 +63,14 @@ export default function Overview() {
     {
       key: 'drivers',
       icon: Users,
-      label: 'Conducteurs actifs',
-      value: `${driversOnline} / ${adminStats.drivers}`,
+      label: 'Conducteurs inscrits',
+      value: drivers.length.toString(),
     },
     {
       key: 'passengers',
       icon: UserRound,
-      label: 'Passagers inscrits',
-      value: adminStats.passengers.toLocaleString('fr-FR'),
+      label: 'Clients inscrits',
+      value: passengers.length.toString(),
     },
     {
       key: 'active',
@@ -80,7 +79,7 @@ export default function Overview() {
       value: adminStats.ridesActive.toString(),
     },
     { key: 'zones', icon: MapPin, label: 'Zones couvertes', value: zoneRules.length.toString() },
-    { key: 'rating', icon: Star, label: 'Note moyenne', value: averageRating },
+    { key: 'rating', icon: Star, label: 'Note moyenne', value: '—' },
   ];
 
   return (
@@ -140,9 +139,12 @@ export default function Overview() {
             <Activity size={16} />
           </span>
           <h2 className="admin-section-title">Courses en temps réel</h2>
-          <span className="admin-section-count">{ADMIN_RIDES.length} suivies</span>
+          <span className="admin-section-count">{rides.length} suivies</span>
         </div>
 
+        {rides.length === 0 ? (
+          <p className="admin-empty">Aucune course pour le moment</p>
+        ) : (
         <div className="admin-table-wrap">
           <table className="admin-table admin-table--rides">
             <thead>
@@ -158,7 +160,7 @@ export default function Overview() {
               </tr>
             </thead>
             <tbody>
-              {ADMIN_RIDES.map((ride) => {
+              {rides.map((ride) => {
                 const meta = STATUS_META[ride.status] ?? { label: ride.status, tone: 'gray' };
 
                 return (
@@ -185,6 +187,7 @@ export default function Overview() {
             </tbody>
           </table>
         </div>
+        )}
       </section>
     </>
   );

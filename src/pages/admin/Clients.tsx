@@ -1,18 +1,16 @@
 import { useRef, useState } from 'react';
 import { Ban, CheckCircle2, Search, Users } from 'lucide-react';
 import { useApp } from '../../store/useApp';
-import { listUsers, setUserBlocked } from '../../services/authLocal';
+import { listPassengers, setUserBlocked } from '../../services/authLocal';
 import './Clients.css';
 
 export default function Clients() {
   const { appSettings } = useApp();
 
-  const [users, setUsers] = useState(() => listUsers());
+  const [passengers, setPassengers] = useState(() => listPassengers());
   const [query, setQuery] = useState('');
   const [toast, setToast] = useState('');
   const toastTimer = useRef<number | null>(null);
-
-  const passengers = users.filter((user) => user.role === 'passenger');
 
   const normalizedQuery = query.trim().toLowerCase();
   const filtered = normalizedQuery
@@ -31,7 +29,7 @@ export default function Clients() {
 
   const toggleBlocked = (phone: string, blocked: boolean) => {
     setUserBlocked(phone, blocked);
-    setUsers(listUsers());
+    setPassengers(listPassengers());
     showToast(blocked ? 'Compte bloqué' : 'Compte débloqué');
   };
 
@@ -71,7 +69,9 @@ export default function Clients() {
         </div>
 
         {filtered.length === 0 ? (
-          <p className="admin-empty">Aucun client trouvé.</p>
+          <p className="admin-empty">
+            {passengers.length === 0 ? 'Aucun client inscrit' : 'Aucun client trouvé'}
+          </p>
         ) : (
           <div className="admin-table-wrap">
             <table className="admin-table">

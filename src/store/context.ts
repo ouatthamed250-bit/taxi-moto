@@ -49,7 +49,7 @@ export interface AppContextValue {
   selectedOffer: Offer | null;
   lastRide: Ride | null;
   passengerHistory: Ride[];
-  startSearch: () => void;
+  startSearch: () => boolean;
   chooseOffer: (o: Offer) => void;
   advanceRide: () => void;
   cancelRide: () => void;
@@ -60,7 +60,6 @@ export interface AppContextValue {
   driverOnline: boolean;
   toggleOnline: () => void;
   incomingRequest: RideRequest | null;
-  triggerIncoming: () => void;
   acceptIncoming: (fare: number) => boolean;
   rejectIncoming: () => void;
   driverRidesToday: Ride[];

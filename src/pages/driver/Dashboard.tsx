@@ -1,8 +1,7 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   AlertTriangle,
-  BellRing,
   Check,
   Clock,
   MapPin,
@@ -37,7 +36,6 @@ export default function DriverDashboard() {
     driverOnline,
     toggleOnline,
     incomingRequest,
-    triggerIncoming,
     acceptIncoming,
     rejectIncoming,
     driverRidesToday,
@@ -78,12 +76,6 @@ export default function DriverDashboard() {
       );
     }
   };
-
-  useEffect(() => {
-    if (!driverOnline || incomingRequest) return;
-    const timer = window.setTimeout(() => triggerIncoming(), 3000);
-    return () => window.clearTimeout(timer);
-  }, [driverOnline, incomingRequest, triggerIncoming]);
 
   const info = VEHICLES[incomingRequest?.vehicle ?? 'moto'];
 
@@ -388,20 +380,6 @@ export default function DriverDashboard() {
               ))}
             </section>
           )}
-
-          {/* Bouton de test — développement uniquement */}
-          {import.meta.env.DEV && (
-            <button
-              type="button"
-              className="driver-dashboard-dev"
-              onClick={triggerIncoming}
-            >
-              <BellRing size={16} />
-              Tester la notification (dev)
-            </button>
-          )}
-
-
 
         </section>
       </div>

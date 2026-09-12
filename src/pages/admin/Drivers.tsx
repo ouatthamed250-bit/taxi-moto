@@ -1,42 +1,32 @@
 import { useRef, useState } from 'react';
-import {
-  AlertTriangle,
-  Bike,
-  CheckCircle2,
-  Gift,
-  Search,
-  Wallet,
-  X,
-} from 'lucide-react';
+import { AlertTriangle, Bike, CheckCircle2, Gift, Search, Wallet, X } from 'lucide-react';
 import { VEHICLES, fcfa } from '../../theme';
 import { useApp } from '../../store/useApp';
-import { listUsers } from '../../services/authLocal';
-import type { DriverProfile } from '../../types';
+import { listDrivers, setUserBlocked } from '../../services/authLocal';
+import type { User } from '../../types';
 import './Drivers.css';
 
 const MIN_GIFT = 100;
 const MAX_GIFT = 50000;
 
-type DriverFilter = 'all' | 'online' | 'offline' | 'suspended';
+type DriverFilter = 'all' | 'active' | 'suspended';
 
 const FILTERS: { key: DriverFilter; label: string }[] = [
   { key: 'all', label: 'Tous' },
-  { key: 'online', label: 'En ligne' },
-  { key: 'offline', label: 'Hors ligne' },
+  { key: 'active', label: 'Actifs' },
   { key: 'suspended', label: 'Suspendus' },
 ];
 
 export default function Drivers() {
-  const { adminDrivers, addDriverGift, driverBalance, userName } = useApp();
+  const { addDriverGift, driverBalance, userName } = useApp();
 
-  const [registered] = useState(() => listUsers().filter((user) => user.role === 'driver'));
-  const [suspended, setSuspended] = useState<string[]>([]);
+  const [drivers, setDrivers] = useState(() => listDrivers());
   const [filter, setFilter] = useState<DriverFilter>('all');
   const [query, setQuery] = useState('');
 
   const [previewPhoto, setPreviewPhoto] = useState<string | null>(null);
 
-  const [giftDriver, setGiftDriver] = useState<DriverProfile | null>(null);
+  const [giftDriver, setGiftDriver] = useState<User | null>(null);
   const [giftAmount, setGiftAmount] = useState('');
   const [giftMessage, setGiftMessage] = useState('');
   const [giftError, setGiftError] = useState('');
@@ -50,30 +40,21 @@ export default function Drivers() {
     toastTimer.current = window.setTimeout(() => setToast(''), 2400);
   };
 
-  const photoFor = (driver: DriverProfile) =>
-    registered.find((user) => user.name.trim().toLowerCase() === driver.name.trim().toLowerCase());
-
   const normalizedQuery = query.trim().toLowerCase();
-  const filtered = adminDrivers.filter((driver) => {
-    const isSuspended = suspended.includes(driver.id);
-    if (filter === 'online' && (!driver.online || isSuspended)) return false;
-    if (filter === 'offline' && (driver.online || isSuspended)) return false;
-    if (filter === 'suspended' && !isSuspended) return false;
+  const filtered = drivers.filter((driver) => {
+    if (filter === 'active' && driver.blocked) return false;
+    if (filter === 'suspended' && !driver.blocked) return false;
     if (normalizedQuery && !driver.name.toLowerCase().includes(normalizedQuery)) return false;
     return true;
   });
 
-  const suspend = (driver: DriverProfile) => {
-    setSuspended((list) => (list.includes(driver.id) ? list : [...list, driver.id]));
-    showToast(`${driver.name} suspendu`);
+  const setSuspended = (driver: User, blocked: boolean) => {
+    setUserBlocked(driver.phone, blocked);
+    setDrivers(listDrivers());
+    showToast(blocked ? `${driver.name} suspendu` : `${driver.name} réactivé`);
   };
 
-  const reactivate = (driver: DriverProfile) => {
-    setSuspended((list) => list.filter((id) => id !== driver.id));
-    showToast(`${driver.name} réactivé`);
-  };
-
-  const openGift = (driver: DriverProfile) => {
+  const openGift = (driver: User) => {
     setGiftDriver(driver);
     setGiftAmount('');
     setGiftMessage('');
@@ -113,7 +94,8 @@ export default function Drivers() {
         <div>
           <h1 className="admin-page-title">Conducteurs</h1>
           <p className="admin-page-subtitle">
-            {adminDrivers.length} conducteurs · solde virtuel simulé {fcfa(driverBalance)}
+            {drivers.length} conducteur{drivers.length > 1 ? 's' : ''} inscrit
+            {drivers.length > 1 ? 's' : ''} · solde virtuel simulé {fcfa(driverBalance)}
           </p>
         </div>
       </div>
@@ -147,7 +129,9 @@ export default function Drivers() {
             <button
               key={item.key}
               type="button"
-              className={`admin-recharge-tab${filter === item.key ? ' admin-recharge-tab--active' : ''}`}
+              className={`admin-recharge-tab${
+                filter === item.key ? ' admin-recharge-tab--active' : ''
+              }`}
               onClick={() => setFilter(item.key)}
             >
               {item.label}
@@ -168,7 +152,9 @@ export default function Drivers() {
         </div>
 
         {filtered.length === 0 ? (
-          <p className="admin-empty">Aucun conducteur dans ce filtre.</p>
+          <p className="admin-empty">
+            {drivers.length === 0 ? 'Aucun conducteur inscrit' : 'Aucun conducteur dans ce filtre'}
+          </p>
         ) : (
           <div className="admin-table-wrap">
             <table className="admin-table">
@@ -184,14 +170,7 @@ export default function Drivers() {
               </thead>
               <tbody>
                 {filtered.map((driver) => {
-                  const account = photoFor(driver);
-                  const isSuspended = suspended.includes(driver.id);
-                  const statusLabel = isSuspended
-                    ? 'Suspendu'
-                    : driver.online
-                      ? 'En ligne'
-                      : 'Hors ligne';
-                  const tone = isSuspended ? 'red' : driver.online ? 'green' : 'gray';
+                  const vehicleKey = driver.vehicle ?? 'moto';
                   const isMe =
                     driver.name.trim().toLowerCase() === (userName || '').trim().toLowerCase();
 
@@ -202,31 +181,35 @@ export default function Drivers() {
                           <span className="admin-avatar">
                             {driver.name.trim().charAt(0).toUpperCase() || 'C'}
                           </span>
-                          <strong>{driver.name}</strong>
+                          <div>
+                            <strong>{driver.name}</strong>
+                            <br />
+                            <span className="admin-muted">{driver.phone}</span>
+                          </div>
                         </div>
                       </td>
 
                       <td>
                         <div className="admin-photos">
-                          {account?.driverPhoto ? (
+                          {driver.driverPhoto ? (
                             <button
                               type="button"
                               className="admin-photo"
-                              onClick={() => setPreviewPhoto(account.driverPhoto ?? null)}
+                              onClick={() => setPreviewPhoto(driver.driverPhoto ?? null)}
                             >
-                              <img src={account.driverPhoto} alt="Photo du conducteur" />
+                              <img src={driver.driverPhoto} alt="Photo du conducteur" />
                             </button>
                           ) : (
                             <span className="admin-photo admin-photo--empty">👤</span>
                           )}
 
-                          {account?.vehiclePhoto ? (
+                          {driver.vehiclePhoto ? (
                             <button
                               type="button"
                               className="admin-photo"
-                              onClick={() => setPreviewPhoto(account.vehiclePhoto ?? null)}
+                              onClick={() => setPreviewPhoto(driver.vehiclePhoto ?? null)}
                             >
-                              <img src={account.vehiclePhoto} alt="Photo du véhicule" />
+                              <img src={driver.vehiclePhoto} alt="Photo du véhicule" />
                             </button>
                           ) : (
                             <span className="admin-photo admin-photo--empty">🏍️</span>
@@ -235,24 +218,30 @@ export default function Drivers() {
                       </td>
 
                       <td>
-                        {VEHICLES[driver.vehicle].emoji} {VEHICLES[driver.vehicle].label}
+                        {VEHICLES[vehicleKey].emoji} {VEHICLES[vehicleKey].label}
                         <br />
-                        <span className="admin-muted">{driver.plate}</span>
+                        <span className="admin-muted">{driver.plate ?? '—'}</span>
                       </td>
 
                       <td>{isMe ? fcfa(driverBalance) : '—'}</td>
 
                       <td>
-                        <span className={`admin-pill admin-pill--${tone}`}>{statusLabel}</span>
+                        <span
+                          className={`admin-pill ${
+                            driver.blocked ? 'admin-pill--red' : 'admin-pill--green'
+                          }`}
+                        >
+                          {driver.blocked ? 'Suspendu' : 'Actif'}
+                        </span>
                       </td>
 
                       <td>
                         <div className="admin-actions">
-                          {isSuspended ? (
+                          {driver.blocked ? (
                             <button
                               type="button"
                               className="admin-toggle admin-toggle--restore"
-                              onClick={() => reactivate(driver)}
+                              onClick={() => setSuspended(driver, false)}
                             >
                               Réactiver
                             </button>
@@ -260,7 +249,7 @@ export default function Drivers() {
                             <button
                               type="button"
                               className="admin-toggle admin-toggle--suspend"
-                              onClick={() => suspend(driver)}
+                              onClick={() => setSuspended(driver, true)}
                             >
                               Suspendre
                             </button>

@@ -161,7 +161,7 @@ export default function PassengerRegister() {
                 className="register-input"
                 type="text"
                 autoComplete="name"
-                placeholder="Aïcha Koné"
+                placeholder="Votre nom complet"
                 value={name}
                 onChange={(event) => setName(event.target.value)}
               />
