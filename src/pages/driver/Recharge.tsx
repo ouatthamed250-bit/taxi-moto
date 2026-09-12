@@ -29,57 +29,81 @@ type OperatorTone = 'orange' | 'wave' | 'mtn' | 'moov';
 interface MobileOperator {
   key: string;
   name: string;
+  /** Libellé court du bouton (fallback USSD). */
+  action: string;
   phone: string;
   tone: OperatorTone;
   available: boolean;
-  /** Code USSD fixe (menu vocal de l'opérateur). */
+  /** Code USSD complet (lien tel:). */
   ussd: string;
-  /** Lien web de secours. */
+  /** Numéro de dépôt à saisir au menu vocal. */
+  depositNumber: string;
+  /** Scheme de l'application mobile money ('' = pas d'app). */
+  appScheme: string;
+  /** Repli web si l'app n'est pas installée. */
+  appFallbackUrl: string;
+  /** Libellé de l'app pour le bouton « Ouvrir l'application … ». */
+  appLabel: string;
+  /** Lien web de secours générique. */
   webLink: string;
-  /** Libellé court du bouton. */
-  action: string;
 }
 
 const OPERATORS: MobileOperator[] = [
   {
     key: 'orange',
     name: 'Orange Money',
+    action: 'Orange Money',
     phone: '0749883981',
     tone: 'orange',
     available: true,
-    ussd: '#144*1#',
+    ussd: '*144*0749883981#',
+    depositNumber: '0749883981',
+    appScheme: 'orange-money://',
+    appFallbackUrl: 'https://orange.ci',
+    appLabel: 'Orange Money',
     webLink: 'https://orange.ci/',
-    action: 'Orange Money',
   },
   {
     key: 'wave',
     name: 'Wave',
+    action: 'Wave',
     phone: '0554233234',
     tone: 'wave',
     available: true,
     ussd: '*9113#',
+    depositNumber: '0554233234',
+    appScheme: 'wave://send?phone=0554233234',
+    appFallbackUrl: 'https://wave.com',
+    appLabel: 'Wave',
     webLink: 'https://wave.com/',
-    action: 'Wave',
   },
   {
     key: 'mtn',
     name: 'MTN Money',
+    action: 'MTN',
     phone: '0554233234',
     tone: 'mtn',
     available: true,
-    ussd: '*133#',
+    ussd: '*133*0554233234#',
+    depositNumber: '0554233234',
+    appScheme: 'mtn-momo://',
+    appFallbackUrl: 'https://mtn.ci',
+    appLabel: 'MTN MoMo',
     webLink: 'https://mtn.ci/',
-    action: 'MTN',
   },
   {
     key: 'moov',
     name: 'Moov Money',
+    action: 'Moov',
     phone: '—',
     tone: 'moov',
     available: false,
     ussd: '',
+    depositNumber: '—',
+    appScheme: '',
+    appFallbackUrl: '',
+    appLabel: 'Moov',
     webLink: '',
-    action: 'Moov',
   },
 ];
 
@@ -101,18 +125,15 @@ function openOperatorLink(operator: MobileOperator): void {
 }
 
 /**
- * Tente d'ouvrir l'application Wave via son scheme (`wave://send?phone=…`).
- * Si l'app n'est pas installée, la page reste visible ~1,2 s → repli sur le
- * site web Wave (https://wave.com).
+ * Tente d'ouvrir l'application mobile money via son scheme. Si l'app n'est pas
+ * installée, la page reste visible ~1,2 s → repli sur le site web de l'opérateur.
  */
-function openWaveApp(): void {
-  const appScheme = 'wave://send?phone=0554233234';
-  const webFallback = 'https://wave.com';
+function openAppScheme(appScheme: string, fallbackUrl: string): void {
+  if (!appScheme) return;
 
   const timer = window.setTimeout(() => {
-    // Toujours sur la page ? L'app ne s'est pas ouverte → repli web.
     if (document.visibilityState === 'visible') {
-      window.location.href = webFallback;
+      window.location.href = fallbackUrl;
     }
   }, 1200);
 
@@ -126,6 +147,34 @@ function openWaveApp(): void {
   );
 
   window.location.href = appScheme;
+}
+
+/** Ouvre l'application Orange Money (repli : orange.ci). */
+function openOrangeApp(operator: MobileOperator): void {
+  openAppScheme(operator.appScheme, operator.appFallbackUrl);
+}
+
+/** Ouvre l'application Wave (repli : wave.com). */
+function openWaveApp(operator: MobileOperator): void {
+  openAppScheme(operator.appScheme, operator.appFallbackUrl);
+}
+
+/** Ouvre l'application MTN MoMo (repli : mtn.ci). */
+function openMtnApp(operator: MobileOperator): void {
+  openAppScheme(operator.appScheme, operator.appFallbackUrl);
+}
+
+/** Sélectionne l'ouverture d'app selon l'opérateur. */
+const APP_OPENERS: Partial<Record<string, (operator: MobileOperator) => void>> = {
+  orange: openOrangeApp,
+  wave: openWaveApp,
+  mtn: openMtnApp,
+};
+
+/** Ouvre l'app mobile money de l'opérateur choisi (si disponible). */
+function openOperatorApp(operator: MobileOperator): void {
+  const openApp = APP_OPENERS[operator.key];
+  if (openApp) openApp(operator);
 }
 
 export default function DriverRecharge() {
@@ -397,7 +446,7 @@ export default function DriverRecharge() {
                     de dépôt ({fcfa(depositFee)}) sont à votre charge.
                   </p>
 
-                  {operator.key === 'wave' ? (
+                  {operator.appScheme ? (
                     <>
                       <button
                         type="button"
@@ -410,15 +459,15 @@ export default function DriverRecharge() {
 
                       <button
                         type="button"
-                        className="driver-recharge-open driver-recharge-open--wave"
-                        onClick={openWaveApp}
+                        className={`driver-recharge-open driver-recharge-open--${operator.key}`}
+                        onClick={() => openOperatorApp(operator)}
                       >
                         <ExternalLink size={16} />
-                        Ouvrir l'application Wave
+                        Ouvrir l'application {operator.appLabel}
                       </button>
 
                       <p className="driver-recharge-ussd">
-                        Le numéro de dépôt à saisir est : <code>{operator.phone}</code>
+                        Le numéro de dépôt à saisir est : <code>{operator.depositNumber}</code>
                       </p>
                     </>
                   ) : (

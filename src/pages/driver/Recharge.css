@@ -692,6 +692,33 @@
   box-shadow: 0 2px 0 rgba(0, 130, 170, 0.4);
 }
 
+/* Variante Orange Money — bouton d'ouverture de l'application. */
+.driver-recharge-open--orange {
+  margin-top: 10px;
+  background: linear-gradient(145deg, #ff8a00, #f36c00);
+  box-shadow:
+    0 5px 0 rgba(150, 70, 0, 0.4),
+    0 12px 24px rgba(255, 138, 0, 0.28);
+}
+
+.driver-recharge-open--orange:active {
+  box-shadow: 0 2px 0 rgba(150, 70, 0, 0.4);
+}
+
+/* Variante MTN MoMo (jaune) — bouton d'ouverture de l'application. */
+.driver-recharge-open--mtn {
+  margin-top: 10px;
+  color: var(--taxi-navy, #062b67);
+  background: linear-gradient(145deg, #ffd93d, #ffcb05);
+  box-shadow:
+    0 5px 0 rgba(170, 130, 0, 0.4),
+    0 12px 24px rgba(255, 203, 5, 0.3);
+}
+
+.driver-recharge-open--mtn:active {
+  box-shadow: 0 2px 0 rgba(170, 130, 0, 0.4);
+}
+
 .driver-recharge-weblink {
   display: block;
   margin-top: 12px;
