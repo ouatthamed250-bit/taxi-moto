@@ -111,6 +111,22 @@ export function reconcileRideHistory(
   return normalizeRideHistory([...cloud, ...pending]);
 }
 
+/** Courses réellement NOTÉES par un client. */
+export function countRatedRides(rides: Ride[]): number {
+  return rides.filter((ride) => typeof ride.rating === 'number' && ride.rating > 0).length;
+}
+
+/**
+ * NOTE MOYENNE d'un conducteur = moyenne des notes REÇUES.
+ * `null` si aucune course n'a été notée → l'UI affiche « Pas encore noté ».
+ */
+export function averageRideRating(rides: Ride[]): number | null {
+  const rated = rides.filter((ride) => typeof ride.rating === 'number' && ride.rating > 0);
+  if (rated.length === 0) return null;
+
+  return rated.reduce((total, ride) => total + (ride.rating ?? 0), 0) / rated.length;
+}
+
 /** Date du jour au format `dd/mm/yyyy` (même format que `nowDate()`). */
 export function todayStamp(now = new Date()): string {
   return now.toLocaleDateString('fr-FR');

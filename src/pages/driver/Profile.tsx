@@ -19,17 +19,9 @@ import { COLORS, VEHICLES, fcfa } from '../../theme';
 import { useApp } from '../../store/useApp';
 import { updateUser } from '../../services/firestore';
 import { compressImageFile } from '../../services/imageCompress';
+import { averageRideRating, countRatedRides } from '../../data/rides';
 import type { VehicleType } from '../../types';
 import './Profile.css';
-
-const DRIVER_RATING = 4.8;
-const DRIVER_RIDES = 412;
-const DRIVER_PLATE = 'AB-1234-CI';
-
-const VEHICLE_MODELS: Record<VehicleType, string> = {
-  moto: 'Yamaha Crux',
-  tricycle: 'TVS King',
-};
 
 const MENU = [
   { key: 'vehicle', icon: Bike, label: 'Mon véhicule', hint: 'Véhicule, modèle et plaque' },
@@ -53,7 +45,7 @@ export default function DriverProfile() {
     currentUser,
     driverApproved,
     vehicle,
-    driverRidesToday,
+    driverRideHistory,
     driverNet,
     logout,
   } = useApp();
@@ -126,13 +118,26 @@ export default function DriverProfile() {
 
   const vehicleKey: VehicleType = vehicle ?? 'moto';
   const info = VEHICLES[vehicleKey];
-  const model = VEHICLE_MODELS[vehicleKey];
   const displayName = userName || 'Conducteur';
   const initial = displayName.trim().charAt(0).toUpperCase() || 'C';
 
+  /*
+   * ⚠️ AUCUNE DONNÉE FICTIVE : tout vient du store (Firestore).
+   *   • Courses  → nombre réel de courses terminées du conducteur ;
+   *   • Note     → moyenne des notes REÇUES (les courses notées par les clients) ;
+   *   • Plaque   → compte Firestore `users/{accountId}.plate`.
+   */
+  const rideCount = driverRideHistory.length;
+
+  /* Note moyenne RÉELLE des courses notées (`null` = pas encore noté). */
+  const averageRating = averageRideRating(driverRideHistory);
+  const ratedCount = countRatedRides(driverRideHistory);
+  const roundedRating = averageRating !== null ? Math.round(averageRating) : 0;
+  const plate = currentUser?.plate || '';
+
   const handleMenu = (key: string) => {
     if (key === 'vehicle') {
-      showToast(`${info.label} · ${model} · ${DRIVER_PLATE}`);
+      showToast(`${info.label}${plate ? ` · ${plate}` : ''}`);
       return;
     }
 
@@ -175,51 +180,66 @@ export default function DriverProfile() {
           </div>
         </header>
 
-        {/* ===== CARTE UTILISATEUR ===== */}
+        {/* ===== SECTION 1 : IDENTITÉ ===== */}
         <section className="driver-profile-card">
-          {/* Photo du conducteur (identique à celle vue par le client). */}
-          {photos.driverPhoto ? (
-            <img
-              className="driver-profile-avatar driver-profile-avatar--photo"
-              src={photos.driverPhoto}
-              alt={displayName}
-            />
-          ) : (
-            <div className="driver-profile-avatar">{initial}</div>
-          )}
+          <div className="driver-profile-identity-row">
+            {/* Photo du conducteur (identique à celle vue par le client). */}
+            {photos.driverPhoto ? (
+              <img
+                className="driver-profile-avatar driver-profile-avatar--photo"
+                src={photos.driverPhoto}
+                alt={displayName}
+              />
+            ) : (
+              <div className="driver-profile-avatar">{initial}</div>
+            )}
 
-          <div className="driver-profile-identity">
-            <strong className="driver-profile-name">{displayName}</strong>
-            <span className="driver-profile-phone">{phone || '+225 —'}</span>
+            <div className="driver-profile-identity">
+              <strong className="driver-profile-name">{displayName}</strong>
+              <span className="driver-profile-phone">{phone || '+225 —'}</span>
 
-            <div className="driver-profile-badges">
-              <span
-                className={`driver-profile-badge ${
-                  driverApproved ? 'driver-profile-badge--green' : 'driver-profile-badge--orange'
-                }`}
-              >
-                <ShieldCheck size={12} />
-                {driverApproved ? 'Conducteur vérifié' : 'Validation en attente'}
-              </span>
+              <div className="driver-profile-badges">
+                <span
+                  className={`driver-profile-badge ${
+                    driverApproved ? 'driver-profile-badge--green' : 'driver-profile-badge--orange'
+                  }`}
+                >
+                  <ShieldCheck size={12} />
+                  {driverApproved ? 'Conducteur vérifié' : 'Validation en attente'}
+                </span>
 
-              <span className="driver-profile-badge driver-profile-badge--navy">
-                <Star size={11} fill="currentColor" />
-                {info.label}
-              </span>
+                <span className="driver-profile-badge driver-profile-badge--navy">
+                  <Bike size={11} />
+                  {info.label}
+                </span>
+              </div>
+
+              {plate && <span className="driver-profile-plate">{plate}</span>}
             </div>
-
-            <span className="driver-profile-plate">{DRIVER_PLATE}</span>
           </div>
 
-          {/* ===== PHOTOS DE PROFIL ET DU VÉHICULE ===== */}
+          {/* ===== SECTION 2 : PHOTOS (bloc séparé, 2 colonnes) ===== */}
           <div className="driver-profile-photos">
             <label className="driver-profile-photo-btn">
-              <Camera size={15} />
-              {photoBusy === 'driver'
-                ? 'Envoi…'
-                : photos.driverPhoto
-                  ? 'Changer ma photo'
-                  : 'Ajouter ma photo'}
+              <span className="driver-profile-photo-preview driver-profile-photo-preview--round">
+                {photos.driverPhoto ? (
+                  <img src={photos.driverPhoto} alt="" />
+                ) : (
+                  <Camera size={17} />
+                )}
+              </span>
+
+              <span className="driver-profile-photo-text">
+                <strong>Ma photo</strong>
+                <small>
+                  {photoBusy === 'driver'
+                    ? 'Envoi…'
+                    : photos.driverPhoto
+                      ? 'Changer'
+                      : 'Ajouter'}
+                </small>
+              </span>
+
               <input
                 type="file"
                 accept="image/*"
@@ -228,33 +248,39 @@ export default function DriverProfile() {
             </label>
 
             <label className="driver-profile-photo-btn driver-profile-photo-btn--vehicle">
-              {photos.vehiclePhoto && (
-                <img
-                  className="driver-profile-vehicle-thumb"
-                  src={photos.vehiclePhoto}
-                  alt={info.label}
-                />
-              )}
-              <Camera size={15} />
-              {photoBusy === 'vehicle'
-                ? 'Envoi…'
-                : photos.vehiclePhoto
-                  ? 'Changer la photo de ma moto'
-                  : 'Ajouter la photo de ma moto'}
+              <span className="driver-profile-photo-preview driver-profile-photo-preview--square">
+                {photos.vehiclePhoto ? (
+                  <img src={photos.vehiclePhoto} alt="" />
+                ) : (
+                  <Bike size={17} />
+                )}
+              </span>
+
+              <span className="driver-profile-photo-text">
+                <strong>Ma moto</strong>
+                <small>
+                  {photoBusy === 'vehicle'
+                    ? 'Envoi…'
+                    : photos.vehiclePhoto
+                      ? 'Changer'
+                      : 'Ajouter'}
+                </small>
+              </span>
+
               <input
                 type="file"
                 accept="image/*"
                 onChange={(event) => void changePhoto('vehicle', event.target.files?.[0])}
               />
             </label>
-
-            <p className="driver-profile-photos-note">
-              Ces photos sont affichées au client avant qu’il accepte votre prix.
-            </p>
           </div>
+
+          <p className="driver-profile-photos-note">
+            Ces photos sont affichées au client avant qu’il accepte votre prix.
+          </p>
         </section>
 
-        {/* ===== NOTE MOYENNE ===== */}
+        {/* ===== SECTION 3 : NOTE MOYENNE (vraies données) ===== */}
         <section className="driver-profile-rating">
           <div className="driver-profile-rating-left">
             <span className="driver-profile-rating-icon">
@@ -262,25 +288,43 @@ export default function DriverProfile() {
             </span>
 
             <div>
-              <strong className="driver-profile-rating-value">{DRIVER_RATING}</strong>
+              <strong className="driver-profile-rating-value">
+                {averageRating !== null ? averageRating.toFixed(1) : '—'}
+              </strong>
               <span className="driver-profile-rating-label">Note moyenne</span>
             </div>
           </div>
 
-          <span className="driver-profile-rating-rides">
-            {DRIVER_RIDES} courses réalisées
-          </span>
+          <div className="driver-profile-rating-right">
+            <span className="driver-profile-rating-stars" aria-hidden="true">
+              {[1, 2, 3, 4, 5].map((value) => (
+                <Star
+                  key={value}
+                  size={15}
+                  fill={value <= roundedRating ? 'currentColor' : 'none'}
+                />
+              ))}
+            </span>
+
+            <span className="driver-profile-rating-rides">
+              {averageRating === null
+                ? 'Pas encore noté'
+                : `${ratedCount} note${ratedCount > 1 ? 's' : ''} reçue${
+                    ratedCount > 1 ? 's' : ''
+                  }`}
+            </span>
+          </div>
         </section>
 
-        {/* ===== STATS ===== */}
+        {/* ===== SECTION 4 : STATS (vraies données) ===== */}
         <section className="driver-profile-stats">
           <div className="driver-profile-stat">
-            <strong>{driverRidesToday.length}</strong>
-            <span>Courses</span>
+            <strong>{rideCount}</strong>
+            <span>{rideCount > 1 ? 'Courses' : 'Course'}</span>
           </div>
 
           <div className="driver-profile-stat">
-            <strong>{DRIVER_RATING}</strong>
+            <strong>{averageRating !== null ? averageRating.toFixed(1) : '—'}</strong>
             <span>Note moyenne</span>
           </div>
 
@@ -309,7 +353,9 @@ export default function DriverProfile() {
                 <span className="driver-profile-menu-content">
                   <strong>{item.label}</strong>
                   <small>
-                    {item.key === 'vehicle' ? `${info.label} · ${model}` : item.hint}
+                    {item.key === 'vehicle'
+                      ? `${info.label}${plate ? ` · ${plate}` : ''}`
+                      : item.hint}
                   </small>
                 </span>
 

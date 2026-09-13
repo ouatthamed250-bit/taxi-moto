@@ -669,3 +669,113 @@
   font-weight: 700;
   text-align: center;
 }
+
+/* ==========================================================================
+   LAYOUT CORRIGE DU PROFIL CONDUCTEUR — SECTIONS EMPILEES
+   ⚠️ Ces regles remplacent celles du haut de fichier : la carte utilisateur
+   n est plus une simple ligne flex (le bloc photos debordait sur l identite).
+   Structure : 1) identite  2) photos (2 colonnes)  3) note  4) stats
+   ========================================================================== */
+.driver-profile-card {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 16px;
+}
+
+/* Section 1 : avatar + identite sur UNE ligne */
+.driver-profile-identity-row {
+  display: flex;
+  align-items: center;
+  gap: 15px;
+  min-width: 0;
+}
+
+/* Section 2 : 2 boutons photos cote a cote (empiles sur petit ecran) */
+.driver-profile-photos {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  width: 100%;
+  margin-top: 0;
+}
+
+.driver-profile-photo-btn {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 10px;
+  min-width: 0;
+  padding: 11px;
+  text-align: left;
+}
+
+.driver-profile-photo-preview {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 42px;
+  height: 42px;
+  flex: 0 0 42px;
+  overflow: hidden;
+  border: 2px solid #fff;
+  border-radius: 14px;
+  background: var(--taxi-gray-100, #eef2f7);
+  color: var(--taxi-gray-500, #7a879b);
+  box-shadow: 0 4px 10px rgba(6, 43, 103, 0.15);
+}
+
+.driver-profile-photo-preview--round {
+  border-radius: 50%;
+}
+
+.driver-profile-photo-preview img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.driver-profile-photo-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.driver-profile-photo-text strong {
+  color: var(--taxi-navy, #062b67);
+  font-size: 12px;
+  font-weight: 900;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.driver-profile-photo-text small {
+  color: var(--taxi-gray-500, #7a879b);
+  font-size: 10.5px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+}
+
+@media (max-width: 360px) {
+  .driver-profile-photos {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Section 3 : note moyenne + etoiles */
+.driver-profile-rating-right {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 5px;
+  min-width: 0;
+}
+
+.driver-profile-rating-stars {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  color: #f5a623;
+}

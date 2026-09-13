@@ -954,7 +954,17 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setPassengerHistory((history) =>
       history.map((ride, index) => (index === 0 ? { ...ride, rating } : ride)),
     );
-  }, []);
+
+    /*
+     * Persistance de la NOTE sur la course (Firestore) : c'est ce qui alimente
+     * la NOTE MOYENNE RÉELLE du conducteur dans son profil.
+     */
+    const rideId = lastRide?.id ?? activeRideIdRef.current;
+    if (isCloudEnabled() && rideId) {
+      void updateRide(rideId, { rating });
+      console.info(`[course] note ${rating}/5 enregistrée pour ${rideId}.`);
+    }
+  }, [lastRide]);
 
   const resetBooking = useCallback(() => {
     setRideStatus('idle');
