@@ -90,7 +90,7 @@ export interface AppContextValue {
   /** Client : envoie une contre-offre (consomme un tour). */
   sendCounterOffer: (offerId: string, amount: number) => void;
   /** Conducteur : contre-propose après l'offre du client. */
-  driverCounterOffer: (offerId: string, amount: number) => void;
+  driverCounterOffer: (offerId: string, amount: number) => Promise<boolean>;
   /** Accepte l'offre (client) ou la contre-offre du client (conducteur). */
   acceptOffer: (offerId: string) => void;
   /** Refuse l'offre : le conducteur est retiré de la course. */

@@ -80,6 +80,7 @@ import type { LivePosition } from '../services/realtimeDb';
 import { COURSE_STATUS_BY_RIDE, RIDE_STATUS_BY_COURSE } from '../data/courseStatus';
 import { mergeRideHistory, sortRidesDesc, todayStamp } from '../data/rides';
 import {
+  MAX_NEGOTIATION_ROUNDS,
   canDriverCounter,
   canPassengerAcceptOffer,
   canPassengerCounter,
@@ -1445,9 +1446,14 @@ const sendCounterOffer = useCallback(
 
 /** CONDUCTEUR : contre-propose après la contre-offre du client. */
 const driverCounterOffer = useCallback(
-  (offerId: string, amount: number) => {
+  async (offerId: string, amount: number): Promise<boolean> => {
     const offer = liveOffers.find((item) => item.id === offerId) ?? myOffer;
-    if (!offer) return;
+
+    if (!offer) {
+      console.warn('[driver] contre-proposition ignorée : offre introuvable.');
+      setOfferNotice('Négociation terminée — la demande n’est plus disponible.');
+      return false;
+    }
 
     const rounds = offer.rounds ?? [];
 
@@ -1459,7 +1465,7 @@ const driverCounterOffer = useCallback(
     if (!canDriverCounter(rounds)) {
       console.warn('[négociation] limite de 3 contre-offres chauffeur atteinte.');
       setOfferNotice('Limite de 3 tours atteinte — acceptez le prix du client ou refusez.');
-      return;
+      return false;
     }
 
     const message: NegotiationMessage = {
@@ -1469,6 +1475,10 @@ const driverCounterOffer = useCallback(
     };
     const nextRounds = [...rounds, message];
 
+    console.info(
+      `[driver] contre-proposition ${message.amount} F (tour ${countRounds(nextRounds)}/${MAX_NEGOTIATION_ROUNDS})`,
+    );
+
     // Retour visuel immédiat : le conducteur repasse « en attente du client ».
     updateOfferLocally(offerId, {
       price: message.amount,
@@ -1477,19 +1487,33 @@ const driverCounterOffer = useCallback(
       rounds: nextRounds,
     });
 
-    void publishNegotiation(offerId, message, nextRounds.length);
-    void publishOfferStatus(offerId, 'negotiating', {
-      status: 'negotiating',
-      price: message.amount,
-      currentRound: countRounds(nextRounds),
-      rounds: nextRounds,
-    });
+    /*
+     * Écriture RTDB : proposition (`negotiations/{id}/rounds/{n}`) + mise à jour
+     * de l'offre. On ATTEND le résultat pour pouvoir le confirmer à l'UI.
+     */
+    const [negotiationOk, statusOk] = await Promise.all([
+      publishNegotiation(offerId, message, nextRounds.length),
+      publishOfferStatus(offerId, 'negotiating', {
+        status: 'negotiating',
+        price: message.amount,
+        currentRound: countRounds(nextRounds),
+        rounds: nextRounds,
+      }),
+    ]);
+
     logNegotiation({
       ...offer,
       price: message.amount,
       status: 'negotiating',
       rounds: nextRounds,
     });
+
+    const ok = negotiationOk && statusOk;
+    console.info(`[driver] résultat : ${ok ? 'OK' : 'ÉCHEC (écriture RTDB)'}`);
+
+    setOfferNotice(ok ? null : 'Envoi impossible — vérifiez votre connexion.');
+
+    return ok;
   },
   [liveOffers, myOffer, logNegotiation, updateOfferLocally, setOfferNotice],
 );

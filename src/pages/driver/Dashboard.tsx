@@ -80,6 +80,9 @@ export default function DriverDashboard() {
   /** Modale de contre-proposition (négociation). */
   const [counterOpen, setCounterOpen] = useState(false);
   const [counterAmount, setCounterAmount] = useState(MIN_FARE);
+  /** Envoi en cours + erreur éventuelle (l'envoi est confirmé par la RTDB). */
+  const [counterSending, setCounterSending] = useState(false);
+  const [counterError, setCounterError] = useState('');
 
   /**
    * Publication de la position conducteur.
@@ -128,6 +131,44 @@ export default function DriverDashboard() {
       id: incomingRequest?.id ?? '',
       delta: clampFare(next) - fareEstimate.exact,
     });
+  };
+
+  /**
+   * Ouvre la modale « Contre-proposer » : prix pré-rempli = prix du client
+   * + 100 F (borné 1 000 – 3 000 F par `clampFare`).
+   */
+  const openDriverCounter = () => {
+    if (!myOffer) return;
+
+    const next = clampFare(myOffer.price + 100);
+    setCounterAmount(next);
+    setCounterError('');
+    setCounterOpen(true);
+
+    console.log('[driver] contre-proposer cliqué', next);
+  };
+
+  /** Envoie la contre-proposition (ferme la modale seulement si la RTDB a répondu). */
+  const sendDriverCounter = async () => {
+    if (!myOffer) return;
+
+    const amount = clampFare(counterAmount);
+    console.log('[driver] envoi de la contre-proposition', amount);
+
+    setCounterSending(true);
+    setCounterError('');
+
+    const ok = await driverCounterOffer(myOffer.id, amount);
+
+    setCounterSending(false);
+    console.log('[driver] résultat :', ok ? 'OK' : 'ÉCHEC');
+
+    if (!ok) {
+      setCounterError('Envoi impossible — vérifiez votre connexion et réessayez.');
+      return;
+    }
+
+    setCounterOpen(false);
   };
 
   const myDriverId = accountId || phone || 'driver-local';
@@ -721,10 +762,7 @@ export default function DriverDashboard() {
                         <button
                           type="button"
                           className="driver-dashboard-counter-btn"
-                          onClick={() => {
-                            setCounterAmount(clampFare(myOffer.price));
-                            setCounterOpen(true);
-                          }}
+                          onClick={openDriverCounter}
                           disabled={!canCounterNow}
                         >
                           <Handshake size={16} />
@@ -844,8 +882,8 @@ export default function DriverDashboard() {
             <h2 className="driver-counter-title">Contre-proposer</h2>
 
             <p className="driver-counter-sub">
-              Le client propose {fcfa(lastOfferRound?.amount ?? myOffer.price)} — votre
-              contre-proposition :
+              Le client propose {fcfa(lastOfferRound?.amount ?? myOffer.price)} —{' '}
+              {roundLabel(offerRounds)}. Votre contre-proposition :
             </p>
 
             <div className="driver-dashboard-fare">
@@ -865,8 +903,20 @@ export default function DriverDashboard() {
                 min={MIN_FARE}
                 max={MAX_FARE}
                 step={100}
-                onChange={(event) => setCounterAmount(clampFare(Number(event.target.value)))}
+                inputMode="numeric"
+                aria-label="Votre prix"
+                onChange={(event) => {
+                  /*
+                   * SAISIE LIBRE : on ne borne PAS à chaque frappe (sinon
+                   * impossible de taper « 1400 » : chaque chiffre était ramené
+                   * à 1 000). Le prix est borné à 1 000 – 3 000 F à l'envoi.
+                   */
+                  const next = Number(event.target.value);
+                  setCounterAmount(Number.isFinite(next) ? next : MIN_FARE);
+                }}
+                onBlur={() => setCounterAmount((value) => clampFare(value))}
               />
+              <span className="driver-dashboard-fare-unit">F</span>
 
               <button
                 type="button"
@@ -879,22 +929,28 @@ export default function DriverDashboard() {
             </div>
 
             <p className="driver-dashboard-net">
-              Commission 10 % ({fcfa(commissionOf(counterAmount))}) = Net :{' '}
+              Commission 10 % ({fcfa(commissionOf(clampFare(counterAmount)))}) = Net :{' '}
               <strong className="driver-dashboard-net-value">
-                {fcfa(netEarnings(counterAmount))}
+                {fcfa(netEarnings(clampFare(counterAmount)))}
               </strong>
             </p>
+
+            {counterError && (
+              <p className="driver-counter-error" role="alert">
+                {counterError}
+              </p>
+            )}
 
             <button
               type="button"
               className="driver-counter-send"
               onClick={() => {
-                driverCounterOffer(myOffer.id, counterAmount);
-                setCounterOpen(false);
+                void sendDriverCounter();
               }}
+              disabled={counterSending}
             >
               <Handshake size={16} />
-              Envoyer ma contre-proposition
+              {counterSending ? 'Envoi…' : 'Envoyer ma contre-proposition'}
             </button>
           </div>
         </div>
