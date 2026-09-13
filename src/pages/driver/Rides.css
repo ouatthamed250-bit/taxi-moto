@@ -635,3 +635,13 @@
 }
 
 
+
+/* ---------- HISTORIQUE VIDE : 5 ETOILES VIDES ---------- */
+.driver-rides-empty-stars {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  margin: 10px 0 0;
+  color: rgba(6, 43, 103, 0.18);
+}

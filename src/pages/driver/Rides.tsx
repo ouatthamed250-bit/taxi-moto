@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Bike, Car, History, MapPin, Radar } from 'lucide-react';
+import { Bike, Car, History, MapPin, Radar, Star } from 'lucide-react';
 import { Page } from '../../components/Page';
 import { COLORS, VEHICLES, fcfa } from '../../theme';
 import { useApp } from '../../store/useApp';
@@ -165,8 +165,24 @@ export default function DriverRides() {
               <History size={30} strokeWidth={1.8} />
             </span>
 
-            <strong>Aucune course sur cette période</strong>
-            <p>Changez de filtre ou repassez en ligne pour recevoir des demandes.</p>
+            <strong>
+              {driverRideHistory.length === 0
+                ? 'Aucune course pour l’instant'
+                : 'Aucune course sur cette période'}
+            </strong>
+
+            {/* Historique vierge : 5 étoiles VIDES (aucune note pour l'instant). */}
+            <div className="driver-rides-empty-stars" aria-hidden="true">
+              {[1, 2, 3, 4, 5].map((value) => (
+                <Star key={value} size={22} />
+              ))}
+            </div>
+
+            <p>
+              {driverRideHistory.length === 0
+                ? 'Passez en ligne : chaque course terminée apparaîtra ici automatiquement.'
+                : 'Changez de filtre ou repassez en ligne pour recevoir des demandes.'}
+            </p>
 
             <button
               type="button"

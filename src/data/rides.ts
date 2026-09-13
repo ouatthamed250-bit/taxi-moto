@@ -87,6 +87,30 @@ export function mergeRideHistory(current: Ride[], incoming: Ride[]): Ride[] {
   return normalizeRideHistory([...current, ...incoming]);
 }
 
+/**
+ * RÉCONCILIATION avec Firestore : la liste cloud fait FOI (une course supprimée
+ * — purge admin — disparaît aussi de l'écran). On conserve seulement les
+ * courses locales très récentes absentes du cloud (écriture en cours).
+ */
+export function reconcileRideHistory(
+  current: Ride[],
+  incoming: Ride[],
+  graceMs = 15_000,
+  now = Date.now(),
+): Ride[] {
+  const cloud = normalizeRideHistory(incoming);
+  const cloudIds = new Set(cloud.map((ride) => ride.id));
+
+  const pending = current.filter(
+    (ride) =>
+      !cloudIds.has(ride.id) &&
+      isFinishedRide(ride) &&
+      now - rideTimestamp(ride) <= graceMs,
+  );
+
+  return normalizeRideHistory([...cloud, ...pending]);
+}
+
 /** Date du jour au format `dd/mm/yyyy` (même format que `nowDate()`). */
 export function todayStamp(now = new Date()): string {
   return now.toLocaleDateString('fr-FR');

@@ -51,6 +51,19 @@ function RequireAdmin() {
   return <Outlet />;
 }
 
+/**
+ * Garde de SESSION : au rafraîchissement, on patiente (loader) le temps que le
+ * cache local puis Firestore restaurent le rôle — l'utilisateur n'est jamais
+ * redirigé vers /login par erreur.
+ */
+function SessionGate() {
+  const { sessionReady } = useApp();
+
+  if (!sessionReady) return <Loader />;
+
+  return <Outlet />;
+}
+
 function App() {
   return (
     <AppProvider>
@@ -64,37 +77,40 @@ function App() {
             <Route path="/register/passenger" element={<PassengerRegister />} />
             <Route path="/register/driver" element={<DriverRegister />} />
 
-            <Route path="/passenger" element={<PassengerHome />} />
-            <Route path="/passenger/search" element={<Searching />} />
-            <Route path="/passenger/offers" element={<Offers />} />
-            <Route path="/passenger/tracking" element={<Tracking />} />
-            <Route path="/passenger/unavailable" element={<Unavailable />} />
-            <Route path="/passenger/ride" element={<PassengerRide />} />
-            <Route path="/passenger/history" element={<PassengerHistory />} />
-            <Route path="/passenger/profile" element={<PassengerProfile />} />
+            {/* Espace connecté : session restaurée avant affichage. */}
+            <Route element={<SessionGate />}>
+              <Route path="/passenger" element={<PassengerHome />} />
+              <Route path="/passenger/search" element={<Searching />} />
+              <Route path="/passenger/offers" element={<Offers />} />
+              <Route path="/passenger/tracking" element={<Tracking />} />
+              <Route path="/passenger/unavailable" element={<Unavailable />} />
+              <Route path="/passenger/ride" element={<PassengerRide />} />
+              <Route path="/passenger/history" element={<PassengerHistory />} />
+              <Route path="/passenger/profile" element={<PassengerProfile />} />
 
-            <Route path="/driver" element={<DriverDashboard />} />
-            <Route path="/driver/rides" element={<DriverRides />} />
-            <Route path="/driver/earnings" element={<DriverEarnings />} />
-            <Route path="/driver/profile" element={<DriverProfile />} />
-            <Route path="/driver/recharge" element={<DriverRecharge />} />
+              <Route path="/driver" element={<DriverDashboard />} />
+              <Route path="/driver/rides" element={<DriverRides />} />
+              <Route path="/driver/earnings" element={<DriverEarnings />} />
+              <Route path="/driver/profile" element={<DriverProfile />} />
+              <Route path="/driver/recharge" element={<DriverRecharge />} />
+
+              {/* Espace admin protégé : RequireAdmin → AdminLayout → pages. */}
+              <Route path="/admin" element={<RequireAdmin />}>
+                <Route element={<AdminLayout />}>
+                  <Route path="overview" element={<AdminOverview />} />
+                  <Route path="clients" element={<AdminClients />} />
+                  <Route path="drivers" element={<AdminDrivers />} />
+                  <Route path="deposits" element={<AdminDeposits />} />
+                  <Route path="gifts" element={<AdminGifts />} />
+                  <Route path="map" element={<AdminLiveMap />} />
+                  <Route path="settings" element={<AdminSettings />} />
+                  <Route path="profile" element={<AdminProfile />} />
+                </Route>
+              </Route>
+            </Route>
 
             {/* Accès admin caché : porte d'entrée (code d'accès). */}
             <Route path="/admin" element={<AdminGate />} />
-
-            {/* Espace admin protégé : RequireAdmin → AdminLayout → pages. */}
-            <Route path="/admin" element={<RequireAdmin />}>
-              <Route element={<AdminLayout />}>
-                <Route path="overview" element={<AdminOverview />} />
-                <Route path="clients" element={<AdminClients />} />
-                <Route path="drivers" element={<AdminDrivers />} />
-                <Route path="deposits" element={<AdminDeposits />} />
-                <Route path="gifts" element={<AdminGifts />} />
-                <Route path="map" element={<AdminLiveMap />} />
-                <Route path="settings" element={<AdminSettings />} />
-                <Route path="profile" element={<AdminProfile />} />
-              </Route>
-            </Route>
           </Routes>
         </Suspense>
 

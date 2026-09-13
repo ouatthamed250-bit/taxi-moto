@@ -14,6 +14,7 @@
 import {
   addDoc,
   collection,
+  deleteDoc,
   doc,
   getDoc,
   getDocs,
@@ -179,6 +180,28 @@ export async function createRide(data: Ride): Promise<WriteResult> {
     return { ok: true, id: created.id };
   } catch (error) {
     return { ok: false, id: data.id, error: toWriteError(error) };
+  }
+}
+
+/** Supprime TOUTES les courses d'un conducteur (purge de l'historique). */
+export async function deleteRidesByDriver(driverId: string): Promise<number> {
+  const db = getFirestoreDb();
+  if (!db || !driverId) return 0;
+
+  try {
+    const snapshot = await getDocs(
+      query(collection(db, 'rides'), where('driverId', '==', driverId)),
+    );
+
+    await Promise.all(snapshot.docs.map((item) => deleteDoc(item.ref)));
+
+    console.info(
+      `[historique] ${snapshot.size} course(s) supprimée(s) pour ${driverId}.`,
+    );
+    return snapshot.size;
+  } catch (error) {
+    console.warn('[firestore] deleteRidesByDriver :', error);
+    return 0;
   }
 }
 

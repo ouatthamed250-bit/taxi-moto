@@ -39,6 +39,12 @@ export interface AppContextValue {
    */
   accountId: string;
   currentUser: User | null;
+  /**
+   * Session applicative PRÊTE (cache local appliqué + restauration cloud
+   * terminée). L'UI affiche un loader tant que ce n'est pas vrai : au refresh,
+   * l'utilisateur n'est jamais « déconnecté » par erreur.
+   */
+  sessionReady: boolean;
   login: (phone: string, password: string) => Promise<AuthResult>;
   loginAsAdmin: () => void;
   registerPassenger: (input: PassengerRegisterInput) => Promise<AuthResult>;
@@ -72,6 +78,12 @@ export interface AppContextValue {
   lastRide: Ride | null;
   passengerHistory: Ride[];
   startSearch: () => boolean;
+  /** RELANCE la demande après expiration (compte à rebours remis à 30 s). */
+  relaunchSearch: () => boolean;
+  /** Secondes restantes avant expiration de la demande (null = aucune). */
+  searchSecondsLeft: number | null;
+  /** La demande a expiré sans conducteur (30 s). */
+  searchExpired: boolean;
   chooseOffer: (o: Offer) => void;
   advanceRide: () => void;
   cancelRide: () => void;
@@ -120,6 +132,11 @@ export interface AppContextValue {
    * de la plus récente à la plus ancienne.
    */
   driverRideHistory: Ride[];
+  /**
+   * Purge l'historique d'un conducteur (courses Firestore supprimées).
+   * Sans argument : le conducteur connecté. Retourne le nombre supprimé.
+   */
+  clearDriverHistory: (driverId?: string) => Promise<number>;
   driverRevenue: number;
   driverCommission: number;
   driverNet: number;

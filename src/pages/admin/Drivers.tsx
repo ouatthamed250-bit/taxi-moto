@@ -18,7 +18,7 @@ const FILTERS: { key: DriverFilter; label: string }[] = [
 ];
 
 export default function Drivers() {
-  const { addDriverGift, driverBalance, userName } = useApp();
+  const { addDriverGift, driverBalance, userName, clearDriverHistory } = useApp();
 
   const [drivers, setDrivers] = useState(() => listDrivers());
   const [filter, setFilter] = useState<DriverFilter>('all');
@@ -52,6 +52,24 @@ export default function Drivers() {
     setUserBlocked(driver.phone, blocked);
     setDrivers(listDrivers());
     showToast(blocked ? `${driver.name} suspendu` : `${driver.name} réactivé`);
+  };
+
+  /**
+   * VIDE l'historique d'un conducteur : supprime ses courses dans Firestore
+   * (`clearDriverHistory`) → elles disparaissent aussi en temps réel chez lui.
+   */
+  const purgeHistory = async (driver: User) => {
+    const ok = window.confirm(
+      `Vider l’historique de ${driver.name} ? Les courses terminées seront supprimées.`,
+    );
+    if (!ok) return;
+
+    const deleted = await clearDriverHistory(driver.id);
+    showToast(
+      deleted > 0
+        ? `${deleted} course(s) supprimée(s) pour ${driver.name}`
+        : `Historique déjà vide pour ${driver.name}`,
+    );
   };
 
   const openGift = (driver: User) => {
@@ -267,6 +285,17 @@ export default function Drivers() {
                             onClick={() => openGift(driver)}
                           >
                             🎁 Offrir un cadeau
+                          </button>
+
+                          {/* Purge de l'historique (courses Firestore) du conducteur. */}
+                          <button
+                            type="button"
+                            className="admin-toggle admin-toggle--suspend"
+                            onClick={() => {
+                              void purgeHistory(driver);
+                            }}
+                          >
+                            🗑 Vider l’historique
                           </button>
                         </div>
                       </td>

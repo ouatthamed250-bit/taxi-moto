@@ -74,6 +74,10 @@ export default function Offers() {
   const [negotiating, setNegotiating] = useState<Offer | null>(null);
   /** Prix proposé par le client dans la modale. */
   const [counterAmount, setCounterAmount] = useState(MIN_FARE);
+  /** Photo agrandie (conducteur ou véhicule) — modale plein écran. */
+  const [photoPreview, setPhotoPreview] = useState<string | null>(null);
+  /** Photos illisibles (base64 corrompu) → repli initiale / icône. */
+  const [brokenPhotos, setBrokenPhotos] = useState<Record<string, boolean>>({});
 
   const vehicleKey: VehicleType = vehicle ?? 'moto';
   const info = VEHICLES[vehicleKey];
@@ -310,7 +314,25 @@ export default function Offers() {
                   className={`offers-card offers-card--${driver.vehicle}`}
                 >
                   <div className="offers-card-head">
-                    <span className="offers-avatar">{initial}</span>
+                    {/* Photo du CONDUCTEUR (agrandissable) — initiale sinon. */}
+                    {driver.photo && !brokenPhotos[offer.id] ? (
+                      <button
+                        type="button"
+                        className="offers-avatar offers-avatar--photo"
+                        onClick={() => setPhotoPreview(driver.photo ?? null)}
+                        aria-label={`Agrandir la photo de ${driver.name}`}
+                      >
+                        <img
+                          src={driver.photo}
+                          alt={driver.name}
+                          onError={() =>
+                            setBrokenPhotos((previous) => ({ ...previous, [offer.id]: true }))
+                          }
+                        />
+                      </button>
+                    ) : (
+                      <span className="offers-avatar">{initial}</span>
+                    )}
 
                     <div className="offers-driver">
                       <strong className="offers-driver-name">{driver.name}</strong>
@@ -326,6 +348,36 @@ export default function Offers() {
                         {VEHICLES[driver.vehicle].label} · {driver.plate}
                       </span>
                     </div>
+
+                    {/* Photo de la MOTO/TRICYCLE : le client juge l'état du véhicule. */}
+                    {driver.vehiclePhoto && !brokenPhotos[`${offer.id}-v`] ? (
+                      <button
+                        type="button"
+                        className="offers-vehicle-photo"
+                        onClick={() => setPhotoPreview(driver.vehiclePhoto ?? null)}
+                        aria-label="Agrandir la photo du véhicule"
+                      >
+                        <img
+                          src={driver.vehiclePhoto}
+                          alt={VEHICLES[driver.vehicle].label}
+                          onError={() =>
+                            setBrokenPhotos((previous) => ({
+                              ...previous,
+                              [`${offer.id}-v`]: true,
+                            }))
+                          }
+                        />
+                        <span className="offers-vehicle-photo-zoom">Agrandir</span>
+                      </button>
+                    ) : (
+                      <span className="offers-vehicle-photo offers-vehicle-photo--empty">
+                        {driver.vehicle === 'moto' ? (
+                          <Bike size={24} strokeWidth={1.9} />
+                        ) : (
+                          <Car size={24} strokeWidth={1.9} />
+                        )}
+                      </span>
+                    )}
 
                     <div className="offers-price">
                       <strong>{fcfa(driverAmount)}</strong>
@@ -530,6 +582,31 @@ export default function Offers() {
         <p className="offers-footnote">
           Le prix accepté dans l’application est verrouillé.
         </p>
+
+        {/* ===== MODALE : PHOTO AGRANDIE (conducteur ou véhicule) ===== */}
+        {photoPreview && (
+          <div className="offers-modal" role="dialog" aria-modal="true">
+            <button
+              type="button"
+              className="offers-modal-backdrop"
+              aria-label="Fermer"
+              onClick={() => setPhotoPreview(null)}
+            />
+
+            <div className="offers-photo-card">
+              <img src={photoPreview} alt="Photo agrandie" />
+
+              <button
+                type="button"
+                className="offers-photo-close"
+                onClick={() => setPhotoPreview(null)}
+              >
+                <X size={18} />
+                Fermer
+              </button>
+            </div>
+          </div>
+        )}
 
       </div>
     </Page>

@@ -951,3 +951,102 @@
   font-weight: 900;
   cursor: pointer;
 }
+
+/* ==========================================================================
+   PHOTOS DU CONDUCTEUR ET DU VEHICULE (page Offres client)
+   ========================================================================== */
+.offers-avatar--photo {
+  padding: 0;
+  border: 2px solid #fff;
+  overflow: hidden;
+  cursor: zoom-in;
+  box-shadow: 0 6px 16px rgba(6, 43, 103, 0.22);
+}
+
+.offers-avatar--photo img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+/* Photo du vehicule : rectangle arrondi 80x80, cliquable */
+.offers-vehicle-photo {
+  position: relative;
+  width: 80px;
+  height: 80px;
+  flex: 0 0 80px;
+  padding: 0;
+  border: 3px solid #fff;
+  border-radius: 18px;
+  overflow: hidden;
+  background: var(--taxi-gray-100, #eef2f7);
+  box-shadow: 0 8px 18px rgba(6, 43, 103, 0.2);
+  cursor: zoom-in;
+}
+
+.offers-vehicle-photo img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.offers-vehicle-photo--empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--taxi-gray-500, #7a879b);
+  cursor: default;
+}
+
+.offers-vehicle-photo-zoom {
+  position: absolute;
+  inset: auto 0 0 0;
+  padding: 3px 0;
+  background: rgba(6, 43, 103, 0.72);
+  color: #fff;
+  font-size: 9px;
+  font-weight: 900;
+  letter-spacing: 0.3px;
+  text-transform: uppercase;
+}
+
+/* Modale d agrandissement */
+.offers-photo-card {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  width: 100%;
+  max-width: 420px;
+  padding: 14px;
+  border-radius: 24px;
+  background: rgba(255, 255, 255, 0.98);
+  box-shadow: 0 24px 60px rgba(6, 43, 103, 0.3);
+}
+
+.offers-photo-card img {
+  width: 100%;
+  max-height: 62vh;
+  border-radius: 18px;
+  object-fit: contain;
+  background: #f4f7fb;
+}
+
+.offers-photo-close {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 13px;
+  border: none;
+  border-radius: 16px;
+  color: #fff;
+  background: linear-gradient(145deg, #0b5fff, #062b67);
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 900;
+  cursor: pointer;
+}

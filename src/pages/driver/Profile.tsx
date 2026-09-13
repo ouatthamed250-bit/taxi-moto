@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import {
   ArrowLeft,
   Bike,
+  Camera,
   ChevronRight,
   FileText,
   HelpCircle,
@@ -16,6 +17,8 @@ import {
 import { Page } from '../../components/Page';
 import { COLORS, VEHICLES, fcfa } from '../../theme';
 import { useApp } from '../../store/useApp';
+import { updateUser } from '../../services/firestore';
+import { compressImageFile } from '../../services/imageCompress';
 import type { VehicleType } from '../../types';
 import './Profile.css';
 
@@ -43,11 +46,70 @@ const MENU = [
 
 export default function DriverProfile() {
   const navigate = useNavigate();
-  const { userName, phone, driverApproved, vehicle, driverRidesToday, driverNet, logout } =
-    useApp();
+  const {
+    userName,
+    phone,
+    accountId,
+    currentUser,
+    driverApproved,
+    vehicle,
+    driverRidesToday,
+    driverNet,
+    logout,
+  } = useApp();
 
   const [toast, setToast] = useState('');
   const toastTimer = useRef<number | null>(null);
+  /** Photos du conducteur et de son véhicule (mises à jour à l'envoi). */
+  const [photos, setPhotos] = useState({
+    driverPhoto: currentUser?.driverPhoto ?? '',
+    vehiclePhoto: currentUser?.vehiclePhoto ?? '',
+  });
+  /** Type de photo en cours d'envoi ('' = aucun). */
+  const [photoBusy, setPhotoBusy] = useState<'' | 'driver' | 'vehicle'>('');
+
+  /**
+   * Change la photo du conducteur (`driverPhoto`) ou de son véhicule
+   * (`vehiclePhoto`) : compression puis écriture dans `users/{accountId}` —
+   * le client les voit ensuite sur l'écran des offres.
+   */
+  const changePhoto = async (kind: 'driver' | 'vehicle', file: File | null | undefined) => {
+    if (!file || !accountId) return;
+
+    setPhotoBusy(kind);
+
+    try {
+      const compressed = await compressImageFile(file, {
+        maxWidth: 640,
+        maxBytes: 120 * 1024,
+        quality: 0.6,
+      });
+
+      const patch =
+        kind === 'driver'
+          ? { driverPhoto: compressed.dataUrl }
+          : { vehiclePhoto: compressed.dataUrl };
+
+      const result = await updateUser(accountId, patch);
+
+      if (!result.ok) {
+        throw new Error(result.error ?? 'écriture impossible');
+      }
+
+      setPhotos((current) => ({ ...current, ...patch }));
+      console.info(
+        `[driver] photo ${kind} mise à jour (${Math.round(compressed.bytes / 1024)} Ko)`,
+      );
+      showToast(
+        kind === 'driver' ? 'Photo de profil mise à jour ✅' : 'Photo du véhicule mise à jour ✅',
+      );
+    } catch (error) {
+      console.warn('[driver] photo impossible :', error);
+      showToast('Envoi de la photo impossible — réessayez.');
+    } finally {
+      setPhotoBusy('');
+    }
+  };
 
   useEffect(
     () => () => {
@@ -115,7 +177,16 @@ export default function DriverProfile() {
 
         {/* ===== CARTE UTILISATEUR ===== */}
         <section className="driver-profile-card">
-          <div className="driver-profile-avatar">{initial}</div>
+          {/* Photo du conducteur (identique à celle vue par le client). */}
+          {photos.driverPhoto ? (
+            <img
+              className="driver-profile-avatar driver-profile-avatar--photo"
+              src={photos.driverPhoto}
+              alt={displayName}
+            />
+          ) : (
+            <div className="driver-profile-avatar">{initial}</div>
+          )}
 
           <div className="driver-profile-identity">
             <strong className="driver-profile-name">{displayName}</strong>
@@ -138,6 +209,48 @@ export default function DriverProfile() {
             </div>
 
             <span className="driver-profile-plate">{DRIVER_PLATE}</span>
+          </div>
+
+          {/* ===== PHOTOS DE PROFIL ET DU VÉHICULE ===== */}
+          <div className="driver-profile-photos">
+            <label className="driver-profile-photo-btn">
+              <Camera size={15} />
+              {photoBusy === 'driver'
+                ? 'Envoi…'
+                : photos.driverPhoto
+                  ? 'Changer ma photo'
+                  : 'Ajouter ma photo'}
+              <input
+                type="file"
+                accept="image/*"
+                onChange={(event) => void changePhoto('driver', event.target.files?.[0])}
+              />
+            </label>
+
+            <label className="driver-profile-photo-btn driver-profile-photo-btn--vehicle">
+              {photos.vehiclePhoto && (
+                <img
+                  className="driver-profile-vehicle-thumb"
+                  src={photos.vehiclePhoto}
+                  alt={info.label}
+                />
+              )}
+              <Camera size={15} />
+              {photoBusy === 'vehicle'
+                ? 'Envoi…'
+                : photos.vehiclePhoto
+                  ? 'Changer la photo de ma moto'
+                  : 'Ajouter la photo de ma moto'}
+              <input
+                type="file"
+                accept="image/*"
+                onChange={(event) => void changePhoto('vehicle', event.target.files?.[0])}
+              />
+            </label>
+
+            <p className="driver-profile-photos-note">
+              Ces photos sont affichées au client avant qu’il accepte votre prix.
+            </p>
           </div>
         </section>
 

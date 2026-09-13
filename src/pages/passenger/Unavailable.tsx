@@ -9,12 +9,13 @@ import './Unavailable.css';
 /**
  * Raison de l'indisponibilité :
  *  - 'zone'      : la destination est HORS zone de couverture ;
- *  - 'no-driver' : destination couverte, mais aucun conducteur disponible.
+ *  - 'no-driver' : destination couverte, mais aucun conducteur disponible ;
+ *  - 'expired'   : la demande a EXPIRÉ après 30 s sans acceptation.
  * ⚠️ Ne jamais afficher « zone non couverte » pour une destination couverte
  * (bug : un quartier de la base comme « Gonzagueville — Éléphant » pouvait
  * être annoncé comme non couvert).
  */
-type UnavailableReason = 'zone' | 'no-driver';
+type UnavailableReason = 'zone' | 'no-driver' | 'expired';
 
 const COPY: Record<
   UnavailableReason,
@@ -35,12 +36,19 @@ const COPY: Record<
     badge: 'Réessayer bientôt',
     notify: 'M’avertir dès qu’un conducteur sera disponible',
   },
+  expired: {
+    title: 'Aucun conducteur disponible pour le moment',
+    subtitleStart: 'Personne n’a accepté votre course autour de',
+    subtitleEnd: 'Relancez votre demande : les conducteurs en ligne la reçoivent aussitôt.',
+    badge: 'Relancer',
+    notify: 'M’avertir dès qu’un conducteur sera disponible',
+  },
 };
 
 export default function Unavailable() {
   const navigate = useNavigate();
   const location = useLocation();
-  const { destination, distanceKm, phone } = useApp();
+  const { destination, distanceKm, phone, relaunchSearch } = useApp();
 
   const [notified, setNotified] = useState(false);
   const [userPhone, setUserPhone] = useState('');
@@ -49,8 +57,19 @@ export default function Unavailable() {
   const stateReason = (location.state as { reason?: UnavailableReason } | null)?.reason;
   const queryReason = new URLSearchParams(location.search).get('reason');
   const reason: UnavailableReason =
-    stateReason ?? (queryReason === 'zone' ? 'zone' : 'no-driver');
+    stateReason ??
+    (queryReason === 'zone'
+      ? 'zone'
+      : queryReason === 'expired'
+        ? 'expired'
+        : 'no-driver');
   const copy = COPY[reason];
+
+  /** RELANCE : nouvelle demande (30 s) puis retour sur l'écran de recherche. */
+  const relaunch = () => {
+    relaunchSearch();
+    navigate('/passenger/search');
+  };
 
   const estimate = estimateFare(distanceKm);
   const zone = destination || 'cette zone';
@@ -151,6 +170,11 @@ export default function Unavailable() {
         </section>
 
         {/* ===== ACTIONS ===== */}
+        <button type="button" className="unavailable-retry" onClick={relaunch}>
+          <Radar size={18} />
+          Relancer ma demande
+        </button>
+
         <button
           type="button"
           className="unavailable-notify"

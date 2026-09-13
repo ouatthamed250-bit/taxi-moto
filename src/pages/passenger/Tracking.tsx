@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   ArrowLeft,
@@ -65,6 +65,8 @@ export default function Tracking() {
     driverPosition,
     setPassengerPosition,
   } = useApp();
+  /** Photo agrandie (chauffeur / véhicule). */
+  const [photoPreview, setPhotoPreview] = useState<string | null>(null);
 
   /* Géolocalisation réelle du client (watch continu). */
   const geo = useGeolocation({ onUpdate: (position) => setPassengerPosition(position) });
@@ -267,7 +269,19 @@ export default function Tracking() {
           {/* Chauffeur */}
           <article className="tracking-driver">
             <div className="tracking-driver-head">
-              <span className="tracking-avatar">{initial}</span>
+              {/* Photo du chauffeur (agrandissable) — initiale sinon. */}
+              {driver.photo ? (
+                <button
+                  type="button"
+                  className="tracking-avatar tracking-avatar--photo"
+                  onClick={() => setPhotoPreview(driver.photo ?? null)}
+                  aria-label={`Agrandir la photo de ${driver.name}`}
+                >
+                  <img src={driver.photo} alt={driver.name} />
+                </button>
+              ) : (
+                <span className="tracking-avatar">{initial}</span>
+              )}
 
               <div className="tracking-driver-id">
                 <strong className="tracking-driver-name">{driver.name}</strong>
@@ -283,6 +297,18 @@ export default function Tracking() {
                   {info.label} · {driver.plate}
                 </span>
               </div>
+
+              {/* Photo de la moto : le client peut juger l'état du véhicule. */}
+              {driver.vehiclePhoto && (
+                <button
+                  type="button"
+                  className="tracking-vehicle-photo"
+                  onClick={() => setPhotoPreview(driver.vehiclePhoto ?? null)}
+                  aria-label="Agrandir la photo du véhicule"
+                >
+                  <img src={driver.vehiclePhoto} alt={info.label} />
+                </button>
+              )}
 
               <div className="tracking-price">
                 <strong>{fcfa(selectedOffer.price)}</strong>
@@ -420,6 +446,31 @@ export default function Tracking() {
 
         </section>
       </div>
+
+      {/* ===== MODALE : PHOTO AGRANDIE (chauffeur / véhicule) ===== */}
+      {photoPreview && (
+        <div className="tracking-photo-modal" role="dialog" aria-modal="true">
+          <button
+            type="button"
+            className="tracking-photo-backdrop"
+            aria-label="Fermer"
+            onClick={() => setPhotoPreview(null)}
+          />
+
+          <div className="tracking-photo-card">
+            <img src={photoPreview} alt="Photo agrandie" />
+
+            <button
+              type="button"
+              className="tracking-photo-close"
+              onClick={() => setPhotoPreview(null)}
+            >
+              <X size={18} />
+              Fermer
+            </button>
+          </div>
+        </div>
+      )}
     </Page>
   );
 }

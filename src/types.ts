@@ -41,6 +41,10 @@ export interface DriverProfile {
   availableSeats: number;
   /** Téléphone du conducteur (compte réel `authLocal`) — pour l'appel/SMS. */
   phone?: string;
+  /** Photo du conducteur (base64, `users/{id}.driverPhoto`). */
+  photo?: string;
+  /** Photo de la moto/tricycle (base64, `users/{id}.vehiclePhoto`). */
+  vehiclePhoto?: string;
 }
 
 /** Un tour de négociation : qui a proposé quoi, et quand. */

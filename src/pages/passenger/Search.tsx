@@ -42,6 +42,8 @@ export default function Searching() {
     destinationLibre,
     distanceKm,
     cancelRide,
+    searchSecondsLeft,
+    searchExpired,
   } = useApp();
 
   // Fallback visuel si le visuel véhicule ne charge pas (badge + icône).
@@ -52,15 +54,21 @@ export default function Searching() {
   const estimate = estimateFare(distanceKm);
 
   /**
-   * Suivi de l'état de la course — AUCUNE ANNULATION AUTOMATIQUE.
+   * Suivi de l'état de la course.
    *
-   * La demande reste publiée sur la Realtime Database tant que le client ne
-   * l'annule pas : le conducteur a tout le temps de répondre (bip répété).
+   * La demande est publiée sur la Realtime Database et EXPIRE au bout de 30 s
+   * sans acceptation d'un conducteur (`searchExpired`) → écran « indisponible »
+   * avec la possibilité de RELANCER en un clic.
    *   • 'offers'   → écran des propositions de prix ;
    *   • 'driver_found' et suivants → suivi de course (le conducteur a accepté) ;
    *   • 'idle'     → aucun conducteur n'était disponible au moment de commander.
    */
   useEffect(() => {
+    if (searchExpired) {
+      navigate('/passenger/unavailable', { state: { reason: 'expired' } });
+      return;
+    }
+
     if (rideStatus === 'offers') {
       navigate(
         offers.length > 0 ? '/passenger/offers' : '/passenger/unavailable',
@@ -77,7 +85,7 @@ export default function Searching() {
     if (rideStatus === 'idle') {
       navigate('/passenger/unavailable', { state: { reason: 'no-driver' } });
     }
-  }, [rideStatus, offers, navigate]);
+  }, [rideStatus, offers, searchExpired, navigate]);
 
   const cancelSearch = () => {
     cancelRide();
@@ -130,9 +138,20 @@ export default function Searching() {
           </div>
 
           <h2 className="search-title">Recherche d’un conducteur…</h2>
+
+          {/* Compte à rebours visible : la demande expire au bout de 30 s. */}
+          {searchSecondsLeft !== null ? (
+            <p className="search-countdown" role="status" aria-live="polite">
+              <strong>{searchSecondsLeft}s</strong> restantes avant expiration
+            </p>
+          ) : (
+            <p className="search-subtitle">
+              Votre demande est envoyée aux conducteurs en ligne.
+            </p>
+          )}
+
           <p className="search-subtitle">
-            Votre demande est envoyée aux conducteurs en ligne — elle reste
-            active jusqu’à leur réponse.
+            Sans acceptation sous 30 secondes, vous pourrez relancer votre demande.
           </p>
         </main>
 

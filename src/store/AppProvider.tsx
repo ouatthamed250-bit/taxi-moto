@@ -32,6 +32,7 @@ import { commissionOf, netEarnings, clampFare } from '../theme';
 import { getCurrentUser } from '../services/authLocal';
 import {
   ensureCloudSession,
+  getDriverById,
   isCloudEnabled,
   listDrivers,
   login as authLogin,
@@ -47,6 +48,7 @@ import {
   createGift,
   createRechargeRequest,
   createRide,
+  deleteRidesByDriver,
   listGifts,
   listRechargeRequests,
   saveNegotiation,
@@ -78,7 +80,7 @@ import {
 } from '../services/realtimeDb';
 import type { LivePosition } from '../services/realtimeDb';
 import { COURSE_STATUS_BY_RIDE, RIDE_STATUS_BY_COURSE } from '../data/courseStatus';
-import { mergeRideHistory, sortRidesDesc, todayStamp } from '../data/rides';
+import { mergeRideHistory, reconcileRideHistory, sortRidesDesc, todayStamp } from '../data/rides';
 import {
   MAX_NEGOTIATION_ROUNDS,
   canDriverCounter,
@@ -122,6 +124,13 @@ const ALERT_REPEAT_MS = 6000;
 
 /** Statuts pour lesquels le conducteur a une course « en cours ». */
 const DRIVER_ACTIVE_STATUSES: CourseStatus[] = ['accepted', 'arrived', 'in_progress'];
+
+/**
+ * Durée de vie d'une demande de course (ms) : sans ACCEPTATION d'un conducteur
+ * au bout de 30 s, la demande expire automatiquement (le client est prévenu et
+ * peut relancer en un clic).
+ */
+export const REQUEST_TTL_MS = 30_000;
 
 function nowDate(): string {
   return new Date().toLocaleDateString('fr-FR');
@@ -209,6 +218,16 @@ export function AppProvider({ children }: { children: ReactNode }) {
   /** Message d'information CLIENT (refus du chauffeur, expiration…). */
   const [passengerNotice, setPassengerNotice] = useState('');
   /**
+   * Session applicative PRÊTE (cache local appliqué + tentative de restauration
+   * cloud terminée) : tant que ce n'est pas vrai, l'UI affiche un loader au lieu
+   * de risquer une redirection « déconnecté » pendant le refresh.
+   */
+  const [sessionReady, setSessionReady] = useState(false);
+  /** Compte à rebours de la demande (seconde par seconde), null = pas de recherche. */
+  const [searchSecondsLeft, setSearchSecondsLeft] = useState<number | null>(null);
+  /** La demande a expiré sans conducteur (30 s) → écran « indisponible ». */
+  const [searchExpired, setSearchExpired] = useState(false);
+  /**
    * État de la synchronisation temps réel des recharges.
    * 'error' = l'admin ne reçoit RIEN de Firestore → affiché sur sa page.
    */
@@ -267,6 +286,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const pendingRequestsRef = useRef<RideRequest[]>([]);
   /** Offres connues côté CLIENT → détecte le retrait d'un conducteur. */
   const knownOfferIds = useRef<string[]>([]);
+  /** Échéance de la demande publiée (0 = aucune demande active). */
+  const requestExpiryAt = useRef(0);
   /**
    * Identifiant TEMPS RÉEL = uid Firebase (`auth.uid`).
    * Les règles RTDB imposent `auth.uid === $uid` pour écrire une position ou
@@ -453,6 +474,27 @@ export function AppProvider({ children }: { children: ReactNode }) {
       accountId,
       debitDriverBalance,
     ],
+  );
+
+  /**
+   * Purge l'HISTORIQUE d'un conducteur (bouton admin « Vider l'historique ») :
+   * supprime ses courses dans Firestore puis vide l'historique local.
+   * Sans argument, purge l'historique du conducteur connecté.
+   */
+  const clearDriverHistory = useCallback(
+    async (driverId?: string): Promise<number> => {
+      const target = driverId || accountId || phone;
+
+      const deleted =
+        isCloudEnabled() && target ? await deleteRidesByDriver(target) : 0;
+
+      // L'historique affiché est vidé immédiatement (le cloud fait foi ensuite).
+      if (!driverId || target === accountId) setDriverRideHistory([]);
+
+      console.info(`[historique] purgé : ${deleted} course(s) pour ${target || 'local'}.`);
+      return deleted;
+    },
+    [accountId, phone],
   );
 
   /**
@@ -719,19 +761,40 @@ export function AppProvider({ children }: { children: ReactNode }) {
    * Lance la recherche d'un conducteur. Retourne `true` si au moins un
    * conducteur réel est disponible (inscrit et non bloqué).
    * ⚠️ Aucune offre fictive : le moteur d'offres réel arrivera avec Firebase.
+   *
+   * Une DEMANDE EXPIRÉE AUTOMATIQUEMENT au bout de `REQUEST_TTL_MS` (30 s) sans
+   * acceptation → `expireSearch()` (voir l'effet compte à rebours plus bas).
    */
   const startSearch = useCallback((): boolean => {
     setOffers([]);
     setSelectedOffer(null);
+    setSearchExpired(false);
 
     const available = listDrivers().some((driver) => !driver.blocked);
     setRideStatus(available ? 'searching' : 'idle');
+
+    if (!available) {
+      requestExpiryAt.current = 0;
+      setSearchSecondsLeft(null);
+      return false;
+    }
+
+    /*
+     * Échéance : 30 s. On la CONSERVE si elle est déjà en cours (republication
+     * après expiration des offres) afin qu'elle ne soit pas repoussée sans fin.
+     */
+    if (requestExpiryAt.current <= Date.now()) {
+      requestExpiryAt.current = Date.now() + REQUEST_TTL_MS;
+    }
+    setSearchSecondsLeft(
+      Math.max(1, Math.ceil((requestExpiryAt.current - Date.now()) / 1000)),
+    );
 
     /*
      * Publication de la demande sur la Realtime Database : les conducteurs
      * en ligne la reçoivent instantanément (son d'alerte + carte).
      */
-    if (available && isCloudEnabled() && liveUserId) {
+    if (isCloudEnabled() && liveUserId) {
       const requestId = `REQ-${Date.now().toString(36)}`;
       activeRequestId.current = requestId;
 
@@ -765,6 +828,64 @@ export function AppProvider({ children }: { children: ReactNode }) {
     userName,
     phone,
   ]);
+
+  /**
+   * La demande expire au bout de 30 s sans acceptation : on retire la demande
+   * de la RTDB (plus proposée aux conducteurs) et le client peut relancer.
+   */
+  const expireSearch = useCallback(() => {
+    if (rideStatusRef.current !== 'searching') return;
+
+    requestExpiryAt.current = 0;
+    setSearchSecondsLeft(null);
+    setSearchExpired(true);
+
+    if (activeRequestId.current) {
+      void removeRideRequest(activeRequestId.current);
+      activeRequestId.current = '';
+    }
+
+    console.warn('[course] demande expirée : 30 s sans acceptation.');
+    setRideStatus('idle');
+  }, []);
+
+  /**
+   * Compte à rebours visible (« Recherche en cours… 25 s restantes »).
+   * Il ne tourne QUE pendant la phase « searching » : une ACCEPTATION (statut
+   * `driver_found`) ou une offre reçue (`offers`) l'arrête immédiatement.
+   */
+  useEffect(() => {
+    // Hors période de recherche : le compteur disparaît (état dérivé, différé).
+    if (rideStatus !== 'searching') {
+      const reset = window.setTimeout(() => setSearchSecondsLeft(null), 0);
+      return () => window.clearTimeout(reset);
+    }
+
+    if (requestExpiryAt.current <= 0) return undefined;
+
+    const tick = () => {
+      const left = Math.max(0, Math.ceil((requestExpiryAt.current - Date.now()) / 1000));
+      setSearchSecondsLeft(left > 0 ? left : null);
+
+      if (left <= 0) expireSearch();
+    };
+
+    // Premier rafraîchissement différé (pas de setState synchrone dans l'effet).
+    const first = window.setTimeout(tick, 0);
+    const timer = window.setInterval(tick, 1000);
+
+    return () => {
+      window.clearTimeout(first);
+      window.clearInterval(timer);
+    };
+  }, [rideStatus, expireSearch]);
+
+  /** RELANCE : publie une nouvelle demande (bouton « Relancer ma demande »). */
+  const relaunchSearch = useCallback((): boolean => {
+    requestExpiryAt.current = 0;
+    setSearchExpired(false);
+    return startSearch();
+  }, [startSearch]);
 
   const chooseOffer = useCallback((offer: Offer) => {
     setSelectedOffer(offer);
@@ -809,6 +930,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setOffers([]);
     setSelectedOffer(null);
 
+    // Annulation : le compte à rebours de la demande est stoppé.
+    requestExpiryAt.current = 0;
+    setSearchSecondsLeft(null);
+    setSearchExpired(false);
+
     // Statut partagé : la course en cours est annulée.
     if (activeRideIdRef.current) {
       void updateRideStatus(activeRideIdRef.current, 'cancelled');
@@ -842,6 +968,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setVehicle(null);
     setPassengers(1);
 
+    // Nouveau tunnel : compte à rebours remis à zéro.
+    requestExpiryAt.current = 0;
+    setSearchSecondsLeft(null);
+    setSearchExpired(false);
+
     // Fin de course : plus de course active.
     activeRideIdRef.current = '';
     setActiveRide(null);
@@ -863,10 +994,16 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setDriverOnline(next);
     unlockAudio();
 
+    // Passage hors ligne : plus de bip ni de demande affichée.
+    if (!next) {
+      stopIncomingAlert();
+      setIncomingRequest(null);
+    }
+
     if (isCloudEnabled() && liveUserId) {
       void publishOnlineStatus(liveUserId, next);
     }
-  }, [driverOnline, liveUserId]);
+  }, [driverOnline, liveUserId, stopIncomingAlert]);
 
   /**
    * Sélectionne une destination complète.
@@ -1059,21 +1196,59 @@ export function AppProvider({ children }: { children: ReactNode }) {
    * en erreur ne se réessaie pas tout seul.
    */
   useEffect(() => {
-    if (!isCloudEnabled()) return undefined;
+    /** Minuteurs à nettoyer au démontage (aucun setState synchrone dans l'effet). */
+    const timers: number[] = [];
+
+    /*
+     * 1) CACHE LOCAL D'ABORD : le rôle + l'accountId survivent au rafraîchissement
+     *    de la page (aucune déconnexion involontaire, aucune redirection).
+     *    ⚠️ On n'applique PAS le cache si une session ADMIN est en cours.
+     */
+    if (!isAdminAuthenticated()) {
+      const cached = getCurrentUser();
+      if (cached) timers.push(window.setTimeout(() => applyUser(cached), 0));
+    }
+
+    if (!isCloudEnabled()) {
+      // Mode local : pas de session cloud à attendre.
+      timers.push(window.setTimeout(() => setSessionReady(true), 0));
+      return () => timers.forEach((id) => window.clearTimeout(id));
+    }
 
     let active = true;
     const sync = () => {
       if (active) setCloudReady(currentFirebaseUid() !== null);
     };
 
-    void ensureCloudSession().then(sync);
+    void ensureCloudSession()
+      .then(sync)
+      .catch((error) =>
+        console.warn('[firebase] session indisponible (mode local conservé) :', error),
+      );
     const unsubscribe = onAuthChange(() => sync());
+
+    // Filet de sécurité : l'application ne reste JAMAIS bloquée sur le loader.
+    timers.push(window.setTimeout(() => setSessionReady(true), 4000));
+
+    /*
+     * 2) Compte le plus à jour depuis Firestore. Un échec (réseau, permission
+     *    transitoire) NE déconnecte PAS : on garde la session du cache local.
+     */
+    void restoreSession()
+      .then((user) => {
+        if (active && user) applyUser(user);
+      })
+      .catch((error) => console.warn('[session] restauration partielle :', error))
+      .finally(() => {
+        if (active) setSessionReady(true);
+      });
 
     return () => {
       active = false;
+      timers.forEach((id) => window.clearTimeout(id));
       unsubscribe();
     };
-  }, []);
+  }, [applyUser]);
 
   /** Restaure la session Firebase puis suit les changements de session. */
   useEffect(() => {
@@ -1169,7 +1344,22 @@ export function AppProvider({ children }: { children: ReactNode }) {
  *   • une demande déjà traitée (acceptée/refusée) ne re-déclenche plus le bip.
  */
 useEffect(() => {
-  if (!isCloudEnabled() || !cloudReady) return undefined;
+  /*
+   * ⚠️ SON D'ALERTE : uniquement pour un CONDUCTEUR EN LIGNE.
+   * Sinon (page Welcome, client, conducteur hors ligne) on n'ouvre même pas
+   * l'abonnement RTDB aux demandes → aucun bip, aucune vibration.
+   */
+  if (!isCloudEnabled() || !cloudReady || !isDriverAccount || !driverOnline) {
+    // Conducteur passé hors ligne : on coupe tout ce qui était en cours.
+    if (!isDriverAccount || !driverOnline) {
+      const cleanup = window.setTimeout(() => {
+        stopIncomingAlert();
+        setIncomingRequest(null);
+      }, 0);
+      return () => window.clearTimeout(cleanup);
+    }
+    return undefined;
+  }
 
   const unsubscribe = subscribeToRideRequests((requests) => {
     // On mémorise TOUTES les demandes publiées (résolution par `requestId`).
@@ -1207,7 +1397,7 @@ useEffect(() => {
     stopIncomingAlert();
     unsubscribe();
   };
-}, [cloudReady, isDriverAccount, liveUserId, stopIncomingAlert]);
+}, [cloudReady, isDriverAccount, driverOnline, liveUserId, stopIncomingAlert]);
 
 /* ================================================================
  *  OFFRES DE PRIX & NÉGOCIATION (client ↔ chauffeur, 3 tours max)
@@ -1215,25 +1405,37 @@ useEffect(() => {
 
 /** Offre live (RTDB) → objet `Offer` du store, négociation comprise. */
 const toStoreOffer = useCallback(
-  (offer: LiveOffer): Offer => ({
-    id: offer.id,
-    requestId: offer.requestId,
-    price: offer.price,
-    negotiation: toNegotiation(offer.rounds ?? [], offer.status),
-    driver: {
-      id: offer.driverAccountId || offer.driverId,
-      name: offer.driverName,
-      rating: 0,
-      rides: 0,
-      vehicle: offer.vehicle,
-      plate: offer.driverPlate ?? '—',
-      model: offer.vehicle === 'tricycle' ? 'Tricycle' : 'Moto',
-      online: true,
-      zone: 'Zone couverte',
-      availableSeats: 1,
-      phone: offer.driverPhone,
-    },
-  }),
+  (offer: LiveOffer): Offer => {
+    /*
+     * Photos du conducteur et de son véhicule : elles vivent dans
+     * `users/{id}` (Firestore) → on les lit dans le CACHE local alimenté par
+     * `subscribeToUsers` (aucune photo dans la RTDB : payload trop lourd).
+     */
+    const account = offer.driverAccountId || offer.driverId;
+    const cached = account ? getDriverById(account) : null;
+
+    return {
+      id: offer.id,
+      requestId: offer.requestId,
+      price: offer.price,
+      negotiation: toNegotiation(offer.rounds ?? [], offer.status),
+      driver: {
+        id: offer.driverAccountId || offer.driverId,
+        name: offer.driverName,
+        rating: 0,
+        rides: 0,
+        vehicle: offer.vehicle,
+        plate: offer.driverPlate ?? '—',
+        model: offer.vehicle === 'tricycle' ? 'Tricycle' : 'Moto',
+        online: true,
+        zone: 'Zone couverte',
+        availableSeats: 1,
+        phone: offer.driverPhone,
+        photo: cached?.driverPhoto,
+        vehiclePhoto: cached?.vehiclePhoto,
+      },
+    };
+  },
   [],
 );
 
@@ -1740,11 +1942,11 @@ useEffect(() => {
         if (isDriverAccount) {
           /*
            * HISTORIQUE conducteur : source de vérité = Firestore (une course =
-           * un document, filtré par `driverId === accountId`). On fusionne à
-           * chaque snapshot : dédoublonnage par `id` + tri décroissant, et les
-           * courses en cours sont exclues (elles restent dans `activeRide`).
+           * un document, filtré par `driverId === accountId`). `reconcileRideHistory`
+           * fait FOI sur le cloud (une course supprimée disparaît aussi) tout en
+           * gardant les écritures locales de la dernière seconde.
            */
-          setDriverRideHistory((list) => mergeRideHistory(list, rides));
+          setDriverRideHistory((list) => reconcileRideHistory(list, rides));
 
           const mine =
             rides.find((ride) => DRIVER_ACTIVE_STATUSES.includes(ride.status)) ?? null;
@@ -1848,6 +2050,7 @@ useEffect(() => {
     phone,
     accountId,
     currentUser,
+    sessionReady,
     login,
     loginAsAdmin,
     registerPassenger,
@@ -1875,6 +2078,9 @@ useEffect(() => {
     lastRide,
     passengerHistory,
     startSearch,
+    relaunchSearch,
+    searchSecondsLeft,
+    searchExpired,
     chooseOffer,
     advanceRide,
     cancelRide,
@@ -1901,6 +2107,7 @@ useEffect(() => {
     rejectIncoming,
     driverRidesToday,
     driverRideHistory,
+    clearDriverHistory,
     driverRevenue,
     driverCommission,
     driverNet,

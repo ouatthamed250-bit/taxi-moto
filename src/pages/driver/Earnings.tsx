@@ -7,6 +7,7 @@ import {
   History,
   Minus,
   Radar,
+  Star,
   TrendingDown,
   TrendingUp,
   UserRound,
@@ -320,7 +321,22 @@ export default function DriverEarnings() {
           </div>
 
           {rides.length === 0 ? (
-            <p className="driver-earnings-history-empty">Aucune course pour le moment.</p>
+            <div className="driver-earnings-history-empty">
+              <strong>
+                {driverRideHistory.length === 0
+                  ? 'Aucune course pour l’instant'
+                  : 'Aucune course sur cette période'}
+              </strong>
+
+              {/* 5 étoiles VIDES : historique vierge */}
+              <div className="driver-earnings-empty-stars" aria-hidden="true">
+                {[1, 2, 3, 4, 5].map((value) => (
+                  <Star key={value} size={20} />
+                ))}
+              </div>
+
+              <span>Vos courses terminées s’afficheront ici automatiquement.</span>
+            </div>
           ) : (
             <div className="driver-earnings-history">
               {rides.map((ride) => (
