@@ -126,8 +126,21 @@ export function getDistanceKm(
 /** Déplacement minimal (km) considéré comme significatif — 10 m par défaut. */
 export const MIN_MOVE_KM = 0.01;
 
-/** Précision maximale acceptée (mètres) : au-delà, la position est ignorée. */
-export const MAX_ACCURACY_METERS = 50;
+/**
+ * Précision maximale acceptée (mètres) : au-delà, la position est signalée
+ * comme IMPRÉCISE (avertissement dans l'UI) mais reste utilisable.
+ * ⚠️ Ancien seuil : 50 m — trop strict sur Android, où le GPS renvoie très
+ * souvent 50 à 150 m (intérieur, ruelles, premier fix) → le marqueur du
+ * chauffeur n'apparaissait jamais chez le client.
+ */
+export const MAX_ACCURACY_METERS = 100;
+
+/**
+ * Au-delà de cette précision (mètres), la mesure est aberrante (position
+ * grossière type « antenne relais ») : on la rejette pour éviter que le
+ * marqueur saute complètement à côté.
+ */
+export const REJECT_ACCURACY_METERS = 500;
 
 /**
  * Filtre anti-jitter : le GPS d'un téléphone immobile saute de quelques mètres.

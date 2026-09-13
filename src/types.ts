@@ -123,6 +123,8 @@ export interface RideRequest {
   passengerName?: string;
   /** Téléphone du client (compte réel authLocal). */
   passengerPhone?: string;
+  /** Horodatage de publication (RTDB) — base de l'expiration à 30 s. */
+  createdAt?: number;
 }
 
 export interface Ride {

@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
+  AlertCircle,
   ArrowLeft,
   Check,
   Loader2,
@@ -67,12 +68,30 @@ export default function Tracking() {
   } = useApp();
   /** Photo agrandie (chauffeur / véhicule). */
   const [photoPreview, setPhotoPreview] = useState<string | null>(null);
+  /** > 10 s sans position du chauffeur → bandeau « chargement ». */
+  const [positionWaitElapsed, setPositionWaitElapsed] = useState(false);
 
   /* Géolocalisation réelle du client (watch continu). */
   const geo = useGeolocation({ onUpdate: (position) => setPassengerPosition(position) });
 
-  /* Position live du chauffeur (Firebase Realtime Database) → temps réel. */
-  const liveDriver = useDriverLivePosition(selectedOffer?.driver.id);
+  /*
+   * Position live du chauffeur (Firebase Realtime Database) → temps réel.
+   * `driverLive` porte aussi la QUALITÉ du signal (`imprecise`).
+   */
+  const driverLive = useDriverLivePosition(selectedOffer?.driver.id);
+  const liveDriver = driverLive?.position ?? null;
+
+  /*
+   * Bandeau « Position du chauffeur en cours de chargement… » : affiché si
+   * aucune position n'est reçue après 10 secondes. Dès qu'une position arrive,
+   * la condition d'affichage (`!liveDriver`) le masque automatiquement.
+   */
+  useEffect(() => {
+    if (liveDriver) return undefined;
+
+    const timer = window.setTimeout(() => setPositionWaitElapsed(true), 10_000);
+    return () => window.clearTimeout(timer);
+  }, [liveDriver]);
 
   useEffect(() => {
     if (!selectedOffer) navigate('/passenger');
@@ -237,6 +256,30 @@ export default function Tracking() {
         <section className="tracking-content">
           <span className="tracking-orb tracking-orb--orange" />
           <span className="tracking-orb tracking-orb--blue" />
+
+          {/* ===== POSITION DU CHAUFFEUR EN COURS DE CHARGEMENT (10 s) ===== */}
+          {!liveDriver && positionWaitElapsed && (
+            <div className="tracking-position-loading" role="status" aria-live="polite">
+              <span className="tracking-position-spinner" aria-hidden="true" />
+              Position du chauffeur en cours de chargement…
+            </div>
+          )}
+
+          {/* Position approximative (GPS faible) : l'info reste affichée. */}
+          {liveDriver && driverLive?.imprecise && (
+            <p className="tracking-position-imprecise">
+              Position approximative (précision{' '}
+              {Math.round(liveDriver.accuracy ?? 0)} m) — le marqueur s’affinera.
+            </p>
+          )}
+
+          {/* Géolocalisation du CLIENT refusée : le chauffeur ne peut pas le localiser. */}
+          {(geo.permission === 'denied' || Boolean(geo.error)) && (
+            <div className="tracking-geo-alert" role="alert">
+              <AlertCircle size={15} />
+              Activez la géolocalisation pour que le chauffeur vous trouve.
+            </div>
+          )}
 
           {/* Message d'état temps réel (statut partagé piloté par le chauffeur) */}
           <p className={`tracking-live-message tracking-live-message--${tone}`}>

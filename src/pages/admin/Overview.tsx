@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
   Activity,
@@ -13,6 +14,7 @@ import {
 import { VEHICLES, fcfa } from '../../theme';
 import { useApp } from '../../store/useApp';
 import { listDrivers, listPassengers } from '../../services/authLocal';
+import { cleanupExpiredRequests, clearAllRideRequests } from '../../services/realtimeDb';
 import './Overview.css';
 
 const STATUS_META: Record<string, { label: string; tone: string }> = {
@@ -38,6 +40,39 @@ const QUICK_ACTIONS = [
 
 export default function Overview() {
   const { adminStats, zoneRules, appSettings, passengerHistory, driverRidesToday } = useApp();
+
+  /** Message de retour des actions de maintenance RTDB. */
+  const [cleanupMessage, setCleanupMessage] = useState('');
+  const [cleanupBusy, setCleanupBusy] = useState<'' | 'expired' | 'all'>('');
+
+  /** Supprime les demandes de course périmées (> 30 s). */
+  const handleCleanup = async () => {
+    setCleanupBusy('expired');
+    const removed = await cleanupExpiredRequests();
+    setCleanupBusy('');
+    setCleanupMessage(
+      removed > 0
+        ? `🧹 ${removed} demande(s) expirée(s) supprimée(s).`
+        : 'Aucune demande expirée à supprimer.',
+    );
+  };
+
+  /** Purge TOUTES les demandes de course (résidus de tests). */
+  const handleClearAll = async () => {
+    const ok = window.confirm(
+      'Vider TOUTES les demandes de course en cours (RTDB) ? Les clients devront relancer.',
+    );
+    if (!ok) return;
+
+    setCleanupBusy('all');
+    const removed = await clearAllRideRequests();
+    setCleanupBusy('');
+    setCleanupMessage(
+      removed > 0
+        ? `🗑 ${removed} demande(s) supprimée(s) de la Realtime Database.`
+        : 'Aucune demande à supprimer.',
+    );
+  };
 
   /* Vraies données utilisateur (localStorage). */
   const passengers = listPassengers();
@@ -130,6 +165,54 @@ export default function Overview() {
             </Link>
           ))}
         </div>
+      </section>
+
+      {/* ===== MAINTENANCE : DEMANDES DE COURSE (RTDB) ===== */}
+      <section className="admin-section">
+        <div className="admin-section-head">
+          <span className="admin-section-icon">
+            <Activity size={16} />
+          </span>
+          <h2 className="admin-section-title">Maintenance des demandes de course</h2>
+        </div>
+
+        <p className="admin-muted">
+          Les demandes de plus de 30 secondes sont des résidus (application fermée
+          sans annulation). Elles rejouent sinon le son d’alerte chez les
+          conducteurs qui passent en ligne.
+        </p>
+
+        <div className="admin-quick-actions">
+          <button
+            type="button"
+            className="admin-quick-action"
+            onClick={() => {
+              void handleCleanup();
+            }}
+          >
+            <span className="admin-quick-emoji" aria-hidden="true">
+              🧹
+            </span>
+            <span>{cleanupBusy === 'expired' ? 'Nettoyage…' : 'Nettoyer les demandes expirées'}</span>
+            <ArrowRight size={16} className="admin-quick-arrow" />
+          </button>
+
+          <button
+            type="button"
+            className="admin-quick-action"
+            onClick={() => {
+              void handleClearAll();
+            }}
+          >
+            <span className="admin-quick-emoji" aria-hidden="true">
+              🗑
+            </span>
+            <span>{cleanupBusy === 'all' ? 'Purge…' : 'Vider toutes les demandes'}</span>
+            <ArrowRight size={16} className="admin-quick-arrow" />
+          </button>
+        </div>
+
+        {cleanupMessage && <p className="admin-empty">{cleanupMessage}</p>}
       </section>
 
       {/* ===== COURSES EN TEMPS RÉEL ===== */}

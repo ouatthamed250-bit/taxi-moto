@@ -103,9 +103,15 @@ export function useGeolocation(options: UseGeolocationOptions = {}): UseGeolocat
     };
   }, []);
 
-  /* Suivi continu dès que la permission est accordée. */
+  /* Suivi continu dès que la permission N'EST PAS refusée. */
   useEffect(() => {
-    if (!enabled || !supported || permission !== 'granted') return;
+    /*
+     * ⚠️ On démarre aussi quand l'état est « prompt » : sur beaucoup de
+     * navigateurs Android / WebView, `permissions.query('geolocation')` renvoie
+     * « prompt » alors que la géolocalisation fonctionne — l'ancien code
+     * n'ouvrait JAMAIS le watch dans ce cas (aucune position publiée).
+     */
+    if (!enabled || !supported || permission === 'denied') return undefined;
 
     watchId.current = watchPosition(
       (next) => {

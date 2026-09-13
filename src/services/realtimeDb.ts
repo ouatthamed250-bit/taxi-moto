@@ -10,7 +10,7 @@
  * Toutes les fonctions `subscribe*` retournent une fonction de DÉSABONNEMENT.
  * Si Firebase/RTDB n'est pas configuré, tout est inerte (no-op).
  */
-import { onDisconnect, onValue, ref, remove, set, update } from 'firebase/database';
+import { onDisconnect, onValue, ref, remove, set, update, get } from 'firebase/database';
 import type { Unsubscribe } from 'firebase/database';
 import type {
   GeoPosition,
@@ -20,6 +20,14 @@ import type {
   RideRequest,
 } from '../types';
 import { getRealtimeDb } from './firebase';
+import { RIDE_REQUEST_TTL_MS, isRequestFresh } from '../data/rideRequests';
+
+/**
+ * Règles d'âge des demandes de course (module PUR) — ré-exportées pour le store
+ * et les pages admin. `isRequestFresh` est aussi utilisée ici pour filtrer et
+ * supprimer les résidus.
+ */
+export { RIDE_REQUEST_TTL_MS, isRequestFresh };
 
 /** Position horodatée reçue du temps réel. */
 export interface LivePosition extends GeoPosition {
@@ -243,7 +251,13 @@ export async function publishRideRequest(request: RideRequest): Promise<boolean>
   }
 }
 
-/** Écoute les demandes de course en attente. */
+/**
+ * Écoute les demandes de course en attente.
+ *
+ * ⚠️ Les demandes PÉRIMÉES (> 30 s) sont filtrées AVANT tout affichage/alerte,
+ * et supprimées de la RTDB au passage : plus de « vieille course » qui rejoue
+ * le son d'alerte quand un conducteur passe en ligne.
+ */
 export function subscribeToRideRequests(
   callback: (requests: RideRequest[]) => void,
 ): Unsubscribe {
@@ -254,10 +268,82 @@ export function subscribeToRideRequests(
     ref(rtdb, 'rideRequests'),
     (snapshot) => {
       const value = (snapshot.val() as Record<string, RideRequest> | null) ?? {};
-      callback(Object.values(value));
+      const now = Date.now();
+
+      const fresh: RideRequest[] = [];
+      const stale: string[] = [];
+
+      for (const [id, request] of Object.entries(value)) {
+        const item = { ...request, id: request.id || id };
+
+        if (isRequestFresh(item, now)) {
+          fresh.push(item);
+        } else {
+          stale.push(item.id);
+        }
+      }
+
+      // Nettoyage silencieux des résidus (jamais affichés, jamais sonores).
+      if (stale.length > 0) {
+        console.info(`[rtdb] ${stale.length} demande(s) périmée(s) supprimée(s).`);
+        void Promise.all(stale.map((id) => removeRideRequest(id)));
+      }
+
+      callback(fresh);
     },
     (error) => console.warn('[rtdb] subscribeToRideRequests :', error),
   );
+}
+
+/**
+ * NETTOYAGE : supprime toutes les demandes plus vieilles que 30 s.
+ * Appelé à la connexion d'un conducteur (et par le bouton admin).
+ * Retourne le nombre de demandes supprimées.
+ */
+export async function cleanupExpiredRequests(now = Date.now()): Promise<number> {
+  const rtdb = getRealtimeDb();
+  if (!rtdb) return 0;
+
+  try {
+    const snapshot = await get(ref(rtdb, 'rideRequests'));
+    const value = (snapshot.val() as Record<string, RideRequest> | null) ?? {};
+
+    const stale = Object.entries(value)
+      .map(([id, request]) => ({ ...request, id: request.id || id }))
+      .filter((request) => !isRequestFresh(request, now))
+      .map((request) => request.id);
+
+    if (stale.length === 0) return 0;
+
+    await Promise.all(stale.map((id) => removeRideRequest(id)));
+    console.info(`[rtdb] nettoyage : ${stale.length} demande(s) périmée(s) supprimée(s).`);
+    return stale.length;
+  } catch (error) {
+    console.warn('[rtdb] cleanupExpiredRequests :', error);
+    return 0;
+  }
+}
+
+/**
+ * PURGE MANUELLE : supprime TOUTES les demandes de course (résidus de tests).
+ * Retourne le nombre de demandes supprimées.
+ */
+export async function clearAllRideRequests(): Promise<number> {
+  const rtdb = getRealtimeDb();
+  if (!rtdb) return 0;
+
+  try {
+    const snapshot = await get(ref(rtdb, 'rideRequests'));
+    const value = (snapshot.val() as Record<string, RideRequest> | null) ?? {};
+    const count = Object.keys(value).length;
+
+    await remove(ref(rtdb, 'rideRequests'));
+    console.info(`[rtdb] purge : ${count} demande(s) supprimée(s).`);
+    return count;
+  } catch (error) {
+    console.warn('[rtdb] clearAllRideRequests :', error);
+    return 0;
+  }
 }
 
 /** Retire une demande de course (annulation client ou course acceptée). */

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   AlertTriangle,
@@ -80,6 +80,8 @@ export default function DriverDashboard() {
   /** Modale de contre-proposition (négociation). */
   const [counterOpen, setCounterOpen] = useState(false);
   const [counterAmount, setCounterAmount] = useState(MIN_FARE);
+  /** > 10 s sans position GPS : bandeau « chargement ». */
+  const [gpsWaiting, setGpsWaiting] = useState(false);
   /** Envoi en cours + erreur éventuelle (l'envoi est confirmé par la RTDB). */
   const [counterSending, setCounterSending] = useState(false);
   const [counterError, setCounterError] = useState('');
@@ -93,15 +95,38 @@ export default function DriverDashboard() {
     minDistanceKm: MIN_MOVE_KM,
     minIntervalMs: PUBLISH_INTERVAL_MS,
     onUpdate: (position) => {
+      /*
+       * Trace GPS : permet de vérifier sur le téléphone (chrome://inspect) que
+       * la position est bien captée ET publiée sur la RTDB.
+       */
+      console.log(
+        '[GPS] position publiée:',
+        position.latitude.toFixed(5),
+        position.longitude.toFixed(5),
+        `${Math.round(position.accuracy ?? 0)} m`,
+      );
       setDriverPosition(position);
     },
   });
+
+  /** > 10 s sans position GPS : bandeau d'information (carte centrée sur la ville). */
+  useEffect(() => {
+    if (geo.position) return undefined;
+
+    const timer = window.setTimeout(() => setGpsWaiting(true), 10_000);
+    return () => window.clearTimeout(timer);
+  }, [geo.position]);
 
   const mapCenter: [number, number] = geo.position
     ? [geo.position.latitude, geo.position.longitude]
     : ABIDJAN_CENTER;
 
-  const showGeoBanner = geo.permission !== 'granted' || Boolean(geo.error);
+  /*
+   * Bandeau d'aide : uniquement si la géoloc est REFUSÉE / indisponible.
+   * (État « prompt » : le suivi GPS démarre quand même et déclenche la demande
+   * de permission du navigateur → plus de faux bandeau.)
+   */
+  const showGeoBanner = !geo.supported || geo.permission === 'denied' || Boolean(geo.error);
 
   const isLowBalance = driverBalance < appSettings.lowBalanceThreshold;
 
@@ -340,6 +365,14 @@ export default function DriverDashboard() {
                 Activer
               </button>
             )}
+          </div>
+        )}
+
+        {/* ===== POSITION GPS EN COURS DE CHARGEMENT (10 s) ===== */}
+        {!geo.position && gpsWaiting && (
+          <div className="driver-dashboard-gps-banner" role="status" aria-live="polite">
+            <span className="driver-dashboard-gps-spinner" aria-hidden="true" />
+            Position GPS en cours de chargement… la carte se centrera sur vous.
           </div>
         )}
 

@@ -63,6 +63,9 @@ import {
 } from '../services/firestore';
 import type { WriteResult } from '../services/firestore';
 import {
+  RIDE_REQUEST_TTL_MS,
+  cleanupExpiredRequests,
+  isRequestFresh,
   publishDriverPosition,
   publishNegotiation,
   publishOffer,
@@ -129,8 +132,10 @@ const DRIVER_ACTIVE_STATUSES: CourseStatus[] = ['accepted', 'arrived', 'in_progr
  * Durée de vie d'une demande de course (ms) : sans ACCEPTATION d'un conducteur
  * au bout de 30 s, la demande expire automatiquement (le client est prévenu et
  * peut relancer en un clic).
+ * ⚠️ Source unique : `RIDE_REQUEST_TTL_MS` (service RTDB, utilisé aussi par le
+ * filtrage/la purge des demandes fantômes).
  */
-export const REQUEST_TTL_MS = 30_000;
+export { RIDE_REQUEST_TTL_MS as REQUEST_TTL_MS } from '../services/realtimeDb';
 
 function nowDate(): string {
   return new Date().toLocaleDateString('fr-FR');
@@ -784,7 +789,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
      * après expiration des offres) afin qu'elle ne soit pas repoussée sans fin.
      */
     if (requestExpiryAt.current <= Date.now()) {
-      requestExpiryAt.current = Date.now() + REQUEST_TTL_MS;
+      requestExpiryAt.current = Date.now() + RIDE_REQUEST_TTL_MS;
     }
     setSearchSecondsLeft(
       Math.max(1, Math.ceil((requestExpiryAt.current - Date.now()) / 1000)),
@@ -1371,6 +1376,13 @@ useEffect(() => {
     return undefined;
   }
 
+  /*
+   * NETTOYAGE À LA CONNEXION : on purge les demandes périmées (> 30 s) laissées
+   * par un test précédent (app fermée sans annulation) — sinon elles rejouent le
+   * son d'alerte à chaque passage en ligne.
+   */
+  void cleanupExpiredRequests();
+
   const unsubscribe = subscribeToRideRequests((requests) => {
     // On mémorise TOUTES les demandes publiées (résolution par `requestId`).
     pendingRequestsRef.current = requests;
@@ -1381,7 +1393,12 @@ useEffect(() => {
       requests.find(
         (request) =>
           request.passengerId !== liveUserId &&
-          request.id !== dismissedRequestId.current,
+          request.id !== dismissedRequestId.current &&
+          /*
+           * ⚠️ DOUBLE VÉRIFICATION DE L'ÂGE : on ne déclenche JAMAIS le bip sur
+           * une demande périmée (le service filtre déjà, ceci est un garde-fou).
+           */
+          isRequestFresh(request),
       ) ?? null;
 
     if (!pending) {
