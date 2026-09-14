@@ -16,7 +16,7 @@
    + NOTIFICATIONS PUSH (FCM) : voir le bloc en fin de fichier.
    ========================================================================== */
 
-const VERSION = 'v3';
+const VERSION = 'v4';
 const IMAGE_CACHE = `taxi-moto-images-${VERSION}`;
 const RUNTIME_CACHE = `taxi-moto-runtime-${VERSION}`;
 /** Cache des navigations : coquille SPA (secours) + page hors ligne. */
@@ -118,6 +118,68 @@ async function withFallback(strategy, fallback) {
   }
 }
 
+/* ==================== ASSETS : FALLBACK HTML INTERDIT ==================== */
+/*
+ * ⚠️ PIÈGE VERCEL (cause de la page blanche « History ») :
+ * la règle SPA `"rewrites": [{ "source": "/(.*)", "destination": "/index.html" }]`
+ * fait répondre `index.html` en `200 text/html` pour un `assets/History-XXXX.js`
+ * qui n'existe PLUS (ancien hash après redéploiement). Conséquences si on le
+ * laissait passer :
+ *   • erreur MIME « Expected a JavaScript-or-Wasm module script… » ;
+ *   • et surtout le HTML serait MIS EN CACHE sous une URL de JS → l'asset
+ *     resterait cassé DÉFINITIVEMENT, même après retour du réseau.
+ *
+ * Règle appliquée à TOUS les assets (JS, CSS, images, polices) :
+ *   • une réponse HTML n'est JAMAIS mise en cache ;
+ *   • une entrée HTML déjà en cache est SUPPRIMÉE (auto-guérison) ;
+ *   • on renvoie une 404 propre : l'import échoue franchement, ce qui déclenche
+ *     le rechargement automatique de `lazyWithRetry`.
+ *
+ * ⚠️ Les NAVIGATIONS (qui, elles, DOIVENT renvoyer du HTML) sont traitées par
+ * `navigationHandler` et ne passent jamais par ces fonctions.
+ */
+
+/** La réponse est-elle du HTML (donc PAS un asset valide) ? */
+function isHtmlResponse(response) {
+  const type = response ? response.headers.get('content-type') : null;
+  return Boolean(type && type.toLowerCase().includes('text/html'));
+}
+
+/** Réponse propre : l'asset n'existe plus côté serveur (nouveau build). */
+function assetGoneResponse() {
+  return textResponse('Asset introuvable (nouvelle version déployée).', 404, 'Not Found');
+}
+
+/**
+ * Asset en cache, en IGNORANT (et purgeant) une éventuelle entrée HTML
+ * empoisonnée par un déploiement précédent.
+ */
+async function matchAsset(cache, request) {
+  const cached = await cache.match(request);
+  if (!cached) return undefined;
+
+  if (isHtmlResponse(cached)) {
+    try {
+      await cache.delete(request);
+    } catch {
+      // suppression impossible : on ignore
+    }
+    return undefined;
+  }
+
+  return cached;
+}
+
+/** Asset en cache, toutes caches confondues (HTML empoisonné exclu). */
+async function matchAnyAsset(request) {
+  try {
+    const found = await caches.match(request);
+    return found && !isHtmlResponse(found) ? found : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
 /* ============================== STRATÉGIES ============================== */
 
 /**
@@ -128,10 +190,18 @@ async function cacheFirst(request, cacheName) {
   try {
     const cache = await caches.open(cacheName);
 
-    const cached = await cache.match(request);
+    // Entrée HTML empoisonnée ignorée/purgée (voir plus haut).
+    const cached = await matchAsset(cache, request);
     if (cached) return cached;
 
     const response = await fetch(request);
+
+    /*
+     * ⚠️ Le serveur a renvoyé du HTML au lieu de l'asset (fallback SPA de
+     * Vercel) : on ne met RIEN en cache et on ne renvoie PAS ce HTML.
+     */
+    if (isHtmlResponse(response)) return assetGoneResponse();
+
     if (response && response.ok) cache.put(request, response.clone());
 
     return response;
@@ -139,12 +209,8 @@ async function cacheFirst(request, cacheName) {
     console.warn('[sw] cacheFirst en échec :', error);
 
     // Dernier recours : n'importe quel cache (l'asset a pu être stocké ailleurs).
-    try {
-      const elsewhere = await caches.match(request);
-      if (elsewhere) return elsewhere;
-    } catch {
-      // stockage indisponible : on ignore
-    }
+    const elsewhere = await matchAnyAsset(request);
+    if (elsewhere) return elsewhere;
 
     return textResponse('Ressource indisponible hors ligne.', 404, 'Not Found');
   }
@@ -161,23 +227,33 @@ async function networkFirst(request, cacheName) {
     try {
       const response = await fetch(request);
 
+      /*
+       * ⚠️ HTML au lieu d'un asset (fallback SPA de Vercel sur un ancien hash) :
+       * ni mise en cache, ni renvoi → l'import du chunk échoue proprement et
+       * `lazyWithRetry` recharge l'application.
+       */
+      if (isHtmlResponse(response)) {
+        const cached = await matchAsset(cache, request);
+        return cached ?? assetGoneResponse();
+      }
+
       if (response && response.ok) {
         cache.put(request, response.clone());
         return response;
       }
 
       // Réponse HTTP en erreur (4xx / 5xx) : la version en cache est préférable.
-      const cached = await cache.match(request);
+      const cached = await matchAsset(cache, request);
       if (cached) return cached;
 
       return response;
     } catch (error) {
       console.warn('[sw] réseau indisponible (networkFirst) :', error);
 
-      const cached = await cache.match(request);
+      const cached = await matchAsset(cache, request);
       if (cached) return cached;
 
-      const elsewhere = await caches.match(request);
+      const elsewhere = await matchAnyAsset(request);
       if (elsewhere) return elsewhere;
 
       return textResponse(
@@ -321,6 +397,11 @@ self.addEventListener('fetch', (event) => {
    * était le chemin qui laissait la page blanche (promesse rejetée quand le
    * `fetch` échouait). Ici, le réseau passe d'abord (index toujours frais),
    * puis la coquille SPA en cache, puis `offline.html`.
+   *
+   * ⚠️ SEULES les navigations peuvent renvoyer du HTML : une requête
+   * `/assets/History-XXXX.js` a un `mode` 'cors'/'same-origin' → elle part dans
+   * `networkFirst`, JAMAIS dans `navigationHandler`. `index.html` n'est donc
+   * jamais mis en cache sous une URL d'asset.
    */
   if (request.mode === 'navigate') {
     event.respondWith(withFallback(() => navigationHandler(request), offlineResponse));
