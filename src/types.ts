@@ -283,6 +283,18 @@ export interface AppSettings {
 /** Rôle d'un compte utilisateur (hors visiteur / administration). */
 export type UserRole = 'passenger' | 'driver';
 
+/**
+ * Permission navigateur pour les notifications système.
+ * `unsupported` = API `Notification` absente (navigateur trop ancien).
+ */
+export type PushPermission = 'unsupported' | 'default' | 'granted' | 'denied';
+
+/**
+ * État de la messagerie push sur CET appareil.
+ * `unconfigured` = navigateur compatible mais Firebase/VAPID non configuré.
+ */
+export type PushSupport = 'supported' | 'unsupported' | 'unconfigured';
+
 /** Compte utilisateur persisté localement (localStorage pour l'instant). */
 export interface User {
   id: string;
@@ -305,6 +317,11 @@ export interface User {
   driverBalance?: number;
   /** Compte bloqué par l'administration. */
   blocked?: boolean;
+  /**
+   * Token FCM du dernier appareil du conducteur (notifications push des
+   * nouvelles courses). Effacé à la déconnexion / au passage hors ligne.
+   */
+  fcmToken?: string;
   createdAt: number;
 }
 

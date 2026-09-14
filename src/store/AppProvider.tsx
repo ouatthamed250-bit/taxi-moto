@@ -18,6 +18,7 @@ import type {
   NegotiationMessage,
   Offer,
   PassengerRegisterInput,
+  PushPermission,
   RechargeRequest,
   Ride,
   RideRequest,
@@ -28,7 +29,7 @@ import type {
   ZonePriceRule,
 } from '../types';
 import { ADMIN_STATS } from '../data/mock';
-import { commissionOf, netEarnings, clampFare } from '../theme';
+import { commissionOf, estimateFare, netEarnings, clampFare } from '../theme';
 import { getCurrentUser } from '../services/authLocal';
 import {
   ensureCloudSession,
@@ -97,6 +98,17 @@ import {
 } from '../data/negotiation';
 import { unlockAudio } from '../services/notification';
 import { startRingtone, stopRingtone } from '../services/ringtoneService';
+import {
+  disablePushForUser,
+  enablePushForUser,
+  notificationPermission,
+  onMessageReceived,
+  pushSupport,
+  readPushPromptDismissed,
+  registerPushTokenForUser,
+  showNotification,
+  writePushPromptDismissed,
+} from '../services/pushNotifications';
 import { INITIAL_DRIVER_BALANCE } from '../services/wallet';
 import { readAppSettings, writeAppSettings } from '../services/settingsLocal';
 import { isAdminAuthenticated } from '../services/adminAuth';
@@ -203,6 +215,14 @@ export function AppProvider({ children }: { children: ReactNode }) {
   /* ---- Conducteur ---- */
   const [driverOnline, setDriverOnline] = useState(false);
   const [incomingRequest, setIncomingRequest] = useState<RideRequest | null>(null);
+  /** Permission navigateur pour les notifications système (état affiché). */
+  const [pushPermission, setPushPermission] = useState<PushPermission>(() =>
+    notificationPermission(),
+  );
+  /** Bandeau d'activation des notifications déjà ignoré par le conducteur. */
+  const [pushPromptDismissed, setPushPromptDismissed] = useState(() =>
+    readPushPromptDismissed(),
+  );
   /**
    * HISTORIQUE conducteur : une course = un document Firestore = une entrée.
    * Alimenté par la complétion (côté conducteur) ET par la synchronisation
@@ -758,6 +778,14 @@ export function AppProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const logout = useCallback(async (): Promise<void> => {
+    /*
+     * Notifications push : on retire le token du device ET du compte AVANT de
+     * fermer la session (sinon le serveur continuerait de cibler cet appareil).
+     */
+    if (currentUser?.role === 'driver') {
+      await disablePushForUser(accountId || liveUserId);
+    }
+
     // Fin de session : on coupe d'abord la présence temps réel (le conducteur
     // ne doit pas rester « en ligne » sur la carte après déconnexion).
     if (isCloudEnabled() && liveUserId && currentUser?.role === 'driver') {
@@ -769,7 +797,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setRole('guest');
     setUserName('');
     setPhone('');
-  }, [liveUserId, currentUser]);
+  }, [liveUserId, accountId, currentUser]);
 
   /**
    * Lance la recherche d'un conducteur. Retourne `true` si au moins un
@@ -1008,10 +1036,83 @@ export function AppProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
+  /* ================================================================
+   *  NOTIFICATIONS PUSH (FCM) — CONDUCTEUR uniquement
+   * ================================================================ */
+
+  /**
+   * Demande la permission puis enregistre le token FCM dans
+   * `users/{uid}.fcmToken` (bouton « Activer les notifications »).
+   */
+  const enablePushNotifications = useCallback(async (): Promise<boolean> => {
+    const uid = accountId || liveUserId;
+    if (!uid) return false;
+
+    const { granted, token } = await enablePushForUser(uid);
+    setPushPermission(notificationPermission());
+
+    // Refus : on n'affiche plus le bandeau (choix de l'utilisateur respecté).
+    if (!granted) {
+      writePushPromptDismissed();
+      setPushPromptDismissed(true);
+    }
+
+    return Boolean(token);
+  }, [accountId, liveUserId]);
+
+  /** Masque le bandeau d'activation (choix mémorisé en localStorage). */
+  const dismissPushPrompt = useCallback(() => {
+    writePushPromptDismissed();
+    setPushPromptDismissed(true);
+  }, []);
+
+  /**
+   * Notification SYSTÈME d'une nouvelle course lorsque l'app n'est PAS au
+   * premier plan : le conducteur peut avoir changé d'application, il doit
+   * quand même voir la demande arriver.
+   */
+  const notifyIncomingRequest = useCallback((request: RideRequest) => {
+    if (typeof document === 'undefined' || !document.hidden) return;
+    if (notificationPermission() !== 'granted') return;
+
+    const fare = estimateFare(request.distanceKm).exact;
+
+    void showNotification(
+      '🚨 Nouvelle course',
+      `${request.pickup} — ${request.destination} · ${request.distanceKm} km · ${fare} F`,
+      { url: '/driver', requestId: request.id },
+    );
+  }, []);
+
+  /**
+   * Messages FCM reçus quand l'app est OUVERTE (premier plan).
+   *
+   * ⚠️ Le SDK n'affiche PAS automatiquement les messages au premier plan : on
+   * affiche nous-mêmes la notification système UNIQUEMENT si l'onglet est en
+   * arrière-plan. Au premier plan, la carte « NOUVELLE COURSE » et la sonnerie
+   * prennent le relais (aucun doublon sonore).
+   */
+  useEffect(() => {
+    if (!isDriverAccount) return undefined;
+
+    return onMessageReceived((payload) => {
+      const title = payload.notification?.title ?? '🚨 Nouvelle course';
+      const body = payload.notification?.body ?? '';
+      const data = payload.data ?? {};
+
+      if (typeof document !== 'undefined' && document.hidden) {
+        void showNotification(title, body, { ...data, url: data.url || '/driver' });
+      } else {
+        console.info('[push] message reçu au premier plan :', title);
+      }
+    });
+  }, [isDriverAccount]);
+
   /**
    * Bascule le statut en ligne du conducteur.
    * Publie l'état sur la Realtime Database (`/online/drivers/{uid}`) et débloque
    * l'audio (obligatoire sur mobile pour le son d'alerte des nouvelles courses).
+   * En ligne → (ré)enregistre le token push ; hors ligne → le supprime.
    */
   const toggleOnline = useCallback(() => {
     const next = !driverOnline;
@@ -1022,12 +1123,25 @@ export function AppProvider({ children }: { children: ReactNode }) {
     if (!next) {
       stopIncomingAlert();
       setIncomingRequest(null);
+
+      // Le device ne doit plus être ciblé par les notifications push.
+      void disablePushForUser(accountId || liveUserId);
+    } else if (currentUser?.role === 'driver') {
+      // Token (re)créé si la permission est déjà accordée — sinon le bandeau
+      // du Dashboard invite le conducteur à l'activer.
+      void registerPushTokenForUser(accountId || liveUserId);
     }
 
     if (isCloudEnabled() && liveUserId) {
       void publishOnlineStatus(liveUserId, next);
     }
-  }, [driverOnline, liveUserId, stopIncomingAlert]);
+  }, [
+    driverOnline,
+    liveUserId,
+    accountId,
+    currentUser,
+    stopIncomingAlert,
+  ]);
 
   /**
    * Sélectionne une destination complète.
@@ -1429,13 +1543,21 @@ useEffect(() => {
      */
     stopIncomingAlert();
     startRingtone();
+
+    /*
+     * NOTIFICATION SYSTÈME (fallback) : si l'app n'est pas au premier plan, le
+     * conducteur reçoit en plus une notification navigateur (clic → /driver).
+     * La vraie push « app fermée » passera par le Service Worker + FCM dès que
+     * les Cloud Functions seront déployées.
+     */
+    notifyIncomingRequest(pending);
   });
 
   return () => {
     stopIncomingAlert();
     unsubscribe();
   };
-}, [cloudReady, isDriverAccount, driverOnline, liveUserId, stopIncomingAlert]);
+}, [cloudReady, isDriverAccount, driverOnline, liveUserId, stopIncomingAlert, notifyIncomingRequest]);
 
 /* ================================================================
  *  OFFRES DE PRIX & NÉGOCIATION (client ↔ chauffeur, 3 tours max)
@@ -2143,6 +2265,12 @@ useEffect(() => {
     incomingRequest,
     acceptIncoming,
     rejectIncoming,
+
+    pushSupport: pushSupport(),
+    pushPermission,
+    pushPromptDismissed,
+    enablePushNotifications,
+    dismissPushPrompt,
     driverRidesToday,
     driverRideHistory,
     clearDriverHistory,

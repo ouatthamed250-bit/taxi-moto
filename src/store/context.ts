@@ -14,6 +14,8 @@ import type {
   Negotiation,
   Offer,
   PassengerRegisterInput,
+  PushPermission,
+  PushSupport,
   RechargeRequest,
   Ride,
   RideRequest,
@@ -125,6 +127,24 @@ export interface AppContextValue {
   incomingRequest: RideRequest | null;
   acceptIncoming: (fare: number) => boolean;
   rejectIncoming: () => void;
+
+  /* ---- Notifications push (conducteur) ---- */
+  /**
+   * Support de la messagerie push sur CET appareil :
+   * `unsupported` (navigateur), `unconfigured` (Firebase/VAPID), `supported`.
+   */
+  pushSupport: PushSupport;
+  /** Permission navigateur pour les notifications système. */
+  pushPermission: PushPermission;
+  /** true = le conducteur a choisi de ne plus voir le bandeau d'activation. */
+  pushPromptDismissed: boolean;
+  /**
+   * Demande la permission, récupère le token FCM et l'enregistre dans
+   * `users/{uid}.fcmToken`. Retourne `true` si le token est disponible.
+   */
+  enablePushNotifications: () => Promise<boolean>;
+  /** Masque définitivement le bandeau (choix mémorisé en localStorage). */
+  dismissPushPrompt: () => void;
   driverRidesToday: Ride[];
   /**
    * Historique COMPLET du conducteur (source Firestore, une course = un doc) :

@@ -1,7 +1,8 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   AlertTriangle,
+  BellRing,
   Check,
   Clock,
   Handshake,
@@ -48,6 +49,16 @@ import './Dashboard.css';
 /** Intervalle minimal entre deux publications de position (5 s). */
 const PUBLISH_INTERVAL_MS = 5000;
 
+/** Bandeau d'information sur les notifications push du conducteur. */
+interface PushBanner {
+  tone: 'info' | 'warn' | 'error';
+  text: string;
+  /** true = bouton « Activer les notifications ». */
+  action: boolean;
+  /** true = bouton de fermeture (« plus tard »). */
+  dismissible: boolean;
+}
+
 export default function DriverDashboard() {
   const navigate = useNavigate();
   const {
@@ -57,6 +68,11 @@ export default function DriverDashboard() {
     incomingRequest,
     acceptIncoming,
     rejectIncoming,
+    pushSupport,
+    pushPermission,
+    pushPromptDismissed,
+    enablePushNotifications,
+    dismissPushPrompt,
     driverRidesToday,
     driverRevenue,
     driverCommission,
@@ -162,6 +178,54 @@ export default function DriverDashboard() {
   const showGeoBanner = !geo.supported || geo.permission === 'denied' || Boolean(geo.error);
 
   const isLowBalance = driverBalance < appSettings.lowBalanceThreshold;
+
+  /**
+   * Bandeau notifications push (DÉRIVÉ, pas d'état) :
+   *   • navigateur incompatible / clé VAPID absente → message clair ;
+   *   • permission refusée  → explication (réglages du navigateur) ;
+   *   • permission accordée → rien à afficher ;
+   *   • permission en attente → invitation UNE SEULE FOIS (non intrusive).
+   */
+  const pushBanner = useMemo<PushBanner | null>(() => {
+    if (pushSupport === 'unsupported') {
+      return {
+        tone: 'warn',
+        text: 'Ce navigateur ne gère pas les notifications. Installez l’app ou utilisez Chrome / Safari récent pour recevoir les courses app fermée.',
+        action: false,
+        dismissible: false,
+      };
+    }
+
+    if (pushSupport === 'unconfigured') {
+      return {
+        tone: 'warn',
+        text: 'Notifications non configurées (clé VAPID manquante côté serveur).',
+        action: false,
+        dismissible: false,
+      };
+    }
+
+    if (pushPermission === 'granted') return null;
+
+    if (pushPermission === 'denied') {
+      return {
+        tone: 'error',
+        text: 'Notifications bloquées — autorisez-les dans les réglages du navigateur pour ne plus rater de course.',
+        action: false,
+        dismissible: false,
+      };
+    }
+
+    // Permission « default » : invitation (jamais deux fois).
+    if (pushPromptDismissed) return null;
+
+    return {
+      tone: 'info',
+      text: '🔔 Activez les notifications pour recevoir les courses même quand l’app est fermée',
+      action: true,
+      dismissible: true,
+    };
+  }, [pushSupport, pushPermission, pushPromptDismissed]);
 
   /* ---- Prix conseillé (barème unique — aucun prix en dur) ---- */
   const fareEstimate = estimateFare(incomingRequest?.distanceKm ?? 0);
@@ -396,6 +460,43 @@ export default function DriverDashboard() {
                 }}
               >
                 Activer
+              </button>
+            )}
+          </div>
+        )}
+
+        {/* ===== BANDEAU NOTIFICATIONS PUSH (une seule fois, non intrusif) ===== */}
+        {pushBanner && (
+          <div
+            className={`driver-dashboard-push driver-dashboard-push--${pushBanner.tone}`}
+            role={pushBanner.tone === 'error' ? 'alert' : 'status'}
+          >
+            <span className="driver-dashboard-push-icon">
+              <BellRing size={18} />
+            </span>
+
+            <span className="driver-dashboard-push-text">{pushBanner.text}</span>
+
+            {pushBanner.action && (
+              <button
+                type="button"
+                className="driver-dashboard-push-btn"
+                onClick={() => {
+                  void enablePushNotifications();
+                }}
+              >
+                Activer
+              </button>
+            )}
+
+            {pushBanner.dismissible && (
+              <button
+                type="button"
+                className="driver-dashboard-push-close"
+                aria-label="Plus tard"
+                onClick={dismissPushPrompt}
+              >
+                Plus tard
               </button>
             )}
           </div>
