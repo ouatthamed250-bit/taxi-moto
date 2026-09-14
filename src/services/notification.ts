@@ -6,10 +6,11 @@
  * conducteur, bouton « Commander » du client).
  */
 
+import { vibrate } from '../utils/vibrate';
+
 interface LegacyWindow extends Window {
   webkitAudioContext?: typeof AudioContext;
 }
-
 let audioContext: AudioContext | null = null;
 
 /**
@@ -73,13 +74,8 @@ export function playAlertSound(): void {
   window.setTimeout(() => beep(1320, 0.22, 0.5), 260);
   window.setTimeout(() => beep(880, 0.3, 0.5), 560);
 
-  if (typeof navigator !== 'undefined' && 'vibrate' in navigator) {
-    try {
-      navigator.vibrate?.([400, 150, 400]);
-    } catch {
-      // vibration indisponible : on ignore
-    }
-  }
+  // Vibration SÉCURISÉE (silencieuse si le navigateur la bloque : aucune erreur).
+  vibrate([400, 150, 400]);
 }
 
 /** Petit clic de confirmation (message envoyé, offre acceptée…). */

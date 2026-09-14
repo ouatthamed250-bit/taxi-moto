@@ -12,6 +12,11 @@
  *   • `stopRingtone()` coupe INSTANTANÉMENT (acceptation, refus, expiration).
  */
 import { getAudioContext, unlockAudio } from './notification';
+import {
+  isVibrationSupported,
+  stopVibration as stopDeviceVibration,
+  vibrate,
+} from '../utils/vibrate';
 
 /** Durée d'un motif « 3 bips + pause » (ms). */
 const MOTIF_MS = 2_000;
@@ -73,33 +78,29 @@ export function isAudioUnlocked(): boolean {
   return context ? context.state === 'running' : false;
 }
 
-/** Vibre selon un motif (silencieux si l'API n'est pas disponible). */
-function vibrate(pattern: number[]): void {
-  try {
-    navigator.vibrate?.(pattern);
-  } catch {
-    // vibration indisponible : on ignore
-  }
-}
-
+/**
+ * Démarre la vibration de la sonnerie (motif répété sur boucle).
+ *
+ * ⚠️ Un SEUL intervalle à la fois : on ne relance rien si le motif tourne déjà,
+ * sinon deux intervalles se cumuleraient et la vibration deviendrait erratique.
+ */
 function startVibration(): void {
-  if (typeof navigator === 'undefined' || !('vibrate' in navigator)) return;
+  // Inutile d'armer un intervalle si l'appareil ne peut pas vibrer.
+  if (!isVibrationSupported()) return;
+  if (vibrationTimer !== null) return;
 
   vibrate(VIBRATION_PATTERN);
   vibrationTimer = window.setInterval(() => vibrate(VIBRATION_PATTERN), VIBRATION_LOOP_MS);
 }
 
-function stopVibration(): void {
+/** Coupe la vibration en boucle ET la vibration éventuellement en cours. */
+function stopVibrationLoop(): void {
   if (vibrationTimer !== null) {
     window.clearInterval(vibrationTimer);
     vibrationTimer = null;
   }
 
-  try {
-    navigator.vibrate?.(0);
-  } catch {
-    // vibration indisponible : on ignore
-  }
+  stopDeviceVibration();
 }
 
 /**
@@ -197,7 +198,7 @@ export function stopRingtone(): void {
     durationTimer = null;
   }
 
-  stopVibration();
+  stopVibrationLoop();
 
   for (const oscillator of activeOscillators) {
     try {

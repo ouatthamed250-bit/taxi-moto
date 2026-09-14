@@ -98,6 +98,7 @@ import {
 } from '../data/negotiation';
 import { unlockAudio } from '../services/notification';
 import { startRingtone, stopRingtone } from '../services/ringtoneService';
+import { primeVibration, primeVibrationOnFirstGesture, vibrate } from '../utils/vibrate';
 import {
   disablePushForUser,
   enablePushForUser,
@@ -330,14 +331,20 @@ export function AppProvider({ children }: { children: ReactNode }) {
   }, []);
 
   /**
-   * DÉBLOCAGE AUDIO : les navigateurs mobiles n'autorisent le son qu'après une
-   * action de l'utilisateur. On lève la restriction au PREMIER geste, où qu'il
-   * soit dans l'application (le seul bouton « En ligne » ne suffit pas si la
-   * page a été rechargée sur le tableau de bord conducteur).
+   * DÉBLOCAGE AUDIO + ARMEMENT DES VIBRATIONS au PREMIER geste utilisateur.
+   *
+   *   • les navigateurs mobiles n'autorisent le son qu'après une action ;
+   *   • Chrome n'autorise `navigator.vibrate()` qu'après un toucher, sinon il
+   *     journalise « Blocked call to navigator.vibrate because user hasn't
+   *     tapped on the frame yet » → l'armement ici supprime ce bruit console
+   *     (voir `utils/vibrate.ts`).
    */
   useEffect(() => {
     const unlock = () => unlockAudio();
     window.addEventListener('pointerdown', unlock, { capture: true, once: true });
+
+    // Armement automatique des vibrations dès le premier geste.
+    primeVibrationOnFirstGesture();
 
     return () => window.removeEventListener('pointerdown', unlock, { capture: true });
   }, []);
@@ -1115,6 +1122,15 @@ export function AppProvider({ children }: { children: ReactNode }) {
    * En ligne → (ré)enregistre le token push ; hors ligne → le supprime.
    */
   const toggleOnline = useCallback(() => {
+    /*
+     * GESTE UTILISATEUR : on en profite pour ARMER les vibrations (Chrome exige
+     * une interaction avant d'autoriser `navigator.vibrate`) et offrir un
+     * retour haptique immédiat. Les vibrations suivantes de la session (nouvelle
+     * course) seront alors autorisées par le navigateur.
+     */
+    primeVibration();
+    vibrate(50);
+
     const next = !driverOnline;
     setDriverOnline(next);
     unlockAudio();
