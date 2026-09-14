@@ -12,7 +12,11 @@ interface LegacyWindow extends Window {
 
 let audioContext: AudioContext | null = null;
 
-function getAudioContext(): AudioContext | null {
+/**
+ * Contexte audio PARTAGÉ (exposé pour `ringtoneService`, qui programme des
+ * motifs longs sur le même contexte : un seul `AudioContext` par session).
+ */
+export function getAudioContext(): AudioContext | null {
   if (typeof window === 'undefined') return null;
 
   if (!audioContext) {

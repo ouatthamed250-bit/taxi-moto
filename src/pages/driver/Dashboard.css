@@ -658,6 +658,106 @@
   letter-spacing: -0.3px;
 }
 
+/* ---------- ALERTE « NOUVELLE COURSE » (sonnerie longue) ---------- */
+.driver-dashboard-alert {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: -6px -6px 12px;
+  padding: 12px;
+  border-radius: 18px;
+  background: linear-gradient(135deg, #ff5a5f, #d61b2a);
+  box-shadow: 0 12px 26px rgba(214, 27, 42, 0.32);
+  animation: driver-dashboard-alert-pulse 1.5s ease-in-out infinite;
+}
+
+.driver-dashboard-alert-icon {
+  font-size: 22px;
+  line-height: 1;
+  filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.25));
+}
+
+.driver-dashboard-alert-text {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-width: 0;
+  color: #fff;
+}
+
+.driver-dashboard-alert-text strong {
+  font-size: 14px;
+  font-weight: 900;
+  letter-spacing: 0.6px;
+}
+
+.driver-dashboard-alert-text span {
+  font-size: 10px;
+  font-weight: 700;
+  opacity: 0.92;
+}
+
+.driver-dashboard-alert-timer {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 56px;
+  padding: 7px 10px;
+  border-radius: 999px;
+  color: #d61b2a;
+  background: #fff;
+  font-size: 15px;
+  font-weight: 900;
+  font-variant-numeric: tabular-nums;
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2);
+}
+
+@keyframes driver-dashboard-alert-pulse {
+  0%,
+  100% {
+    transform: scale(1);
+    box-shadow: 0 12px 26px rgba(214, 27, 42, 0.32);
+  }
+
+  50% {
+    transform: scale(1.015);
+    box-shadow: 0 15px 32px rgba(214, 27, 42, 0.5);
+  }
+}
+
+/* Bandeau « son coupé par le navigateur » (aucun geste utilisateur). */
+.driver-dashboard-alert-sound {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0 0 12px;
+  padding: 9px 12px;
+  border: 1px solid rgba(255, 153, 0, 0.35);
+  border-radius: 14px;
+  color: #b26a00;
+  background: #fff6e6;
+  font-size: 11px;
+  font-weight: 800;
+  line-height: 1.4;
+}
+
+/* Boutons d'action AGRANDIS tant qu'une demande attend une réponse. */
+.driver-dashboard-actions--alert {
+  flex-wrap: wrap;
+}
+
+.driver-dashboard-actions--alert .driver-dashboard-accept {
+  flex: 1 1 100%;
+  padding: 17px;
+  font-size: 16px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .driver-dashboard-alert {
+    animation: none;
+  }
+}
+
 .driver-dashboard-rows {
   display: flex;
   flex-direction: column;

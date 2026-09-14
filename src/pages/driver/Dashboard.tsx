@@ -16,6 +16,7 @@ import {
   Ruler,
   UserRound,
   UsersRound,
+  Volume2,
   Wallet,
   X,
 } from 'lucide-react';
@@ -40,6 +41,8 @@ import { MIN_MOVE_KM, distanceBetween, NEAR_DISTANCE_METERS, ARRIVED_DISTANCE_ME
 import { DRIVER_STEPS, COURSE_LABEL, driverStepIndex } from '../../data/courseStatus';
 import { describeRounds, roundLabel, canDriverCounter } from '../../data/negotiation';
 import { callPhone, messagePhone, resolvePassengerPhone } from '../../services/contacts';
+import { isAudioUnlocked } from '../../services/ringtoneService';
+import { RIDE_REQUEST_TTL_MS } from '../../data/rideRequests';
 import './Dashboard.css';
 
 /** Intervalle minimal entre deux publications de position (5 s). */
@@ -85,6 +88,10 @@ export default function DriverDashboard() {
   /** Envoi en cours + erreur éventuelle (l'envoi est confirmé par la RTDB). */
   const [counterSending, setCounterSending] = useState(false);
   const [counterError, setCounterError] = useState('');
+  /** Secondes restantes avant l'expiration de la demande entrante (30 s). */
+  const [requestSecondsLeft, setRequestSecondsLeft] = useState<number | null>(null);
+  /** true = le navigateur bloque le son (aucun geste utilisateur) → bandeau. */
+  const [audioBlocked, setAudioBlocked] = useState(false);
 
   /**
    * Publication de la position conducteur.
@@ -116,6 +123,32 @@ export default function DriverDashboard() {
     const timer = window.setTimeout(() => setGpsWaiting(true), 10_000);
     return () => window.clearTimeout(timer);
   }, [geo.position]);
+
+  /**
+   * Demande entrante : compte à rebours visible (30 s → 0) et détection d'un
+   * son BLOQUÉ par le navigateur (aucun geste utilisateur) → bandeau d'alerte.
+   * La sonnerie elle-même est pilotée par le store (`ringtoneService`).
+   */
+  useEffect(() => {
+    /*
+     * Aucune demande : la carte d'alerte n'est pas rendue (l'état peut rester
+     * obsolète, il est recalculé dès l'arrivée de la prochaine demande).
+     */
+    if (!incomingRequest) return undefined;
+
+    const expiresAt =
+      (incomingRequest.createdAt ?? Date.now()) + RIDE_REQUEST_TTL_MS;
+
+    const tick = () => {
+      const left = Math.max(0, Math.ceil((expiresAt - Date.now()) / 1000));
+      setRequestSecondsLeft(left);
+      setAudioBlocked(!isAudioUnlocked());
+    };
+
+    tick();
+    const timer = window.setInterval(tick, 1000);
+    return () => window.clearInterval(timer);
+  }, [incomingRequest]);
 
   const mapCenter: [number, number] = geo.position
     ? [geo.position.latitude, geo.position.longitude]
@@ -632,6 +665,29 @@ export default function DriverDashboard() {
             </section>
           ) : incomingRequest ? (
             <section className="driver-dashboard-request">
+              <div className="driver-dashboard-alert" role="alert">
+                <span className="driver-dashboard-alert-icon" aria-hidden="true">
+                  🚨
+                </span>
+
+                <span className="driver-dashboard-alert-text">
+                  <strong>NOUVELLE COURSE</strong>
+                  <span>Sonnerie active — répondez avant 0 s</span>
+                </span>
+
+                <span className="driver-dashboard-alert-timer" aria-live="polite">
+                  {requestSecondsLeft ?? 0}s
+                </span>
+              </div>
+
+              {audioBlocked && (
+                <p className="driver-dashboard-alert-sound">
+                  <Volume2 size={14} />
+                  Activez le son de votre téléphone : la sonnerie est momentanément
+                  coupée par le navigateur.
+                </p>
+              )}
+
               <div className="driver-dashboard-request-head">
                 <span className="driver-dashboard-request-badge">Nouvelle demande</span>
                 <span className="driver-dashboard-request-people">
@@ -827,7 +883,7 @@ export default function DriverDashboard() {
                   </button>
                 </section>
               ) : (
-                <div className="driver-dashboard-actions">
+                <div className="driver-dashboard-actions driver-dashboard-actions--alert">
                   <button
                     type="button"
                     className="driver-dashboard-accept"

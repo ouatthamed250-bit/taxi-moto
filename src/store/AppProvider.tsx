@@ -95,7 +95,8 @@ import {
   lastAmount,
   toNegotiation,
 } from '../data/negotiation';
-import { playAlertSound, unlockAudio } from '../services/notification';
+import { unlockAudio } from '../services/notification';
+import { startRingtone, stopRingtone } from '../services/ringtoneService';
 import { INITIAL_DRIVER_BALANCE } from '../services/wallet';
 import { readAppSettings, writeAppSettings } from '../services/settingsLocal';
 import { isAdminAuthenticated } from '../services/adminAuth';
@@ -121,9 +122,6 @@ const RIDE_ORDER: RideStatus[] = [
   'in_progress',
   'completed',
 ];
-
-/** Intervalle de répétition du bip d'une demande en attente (ms). */
-const ALERT_REPEAT_MS = 6000;
 
 /** Statuts pour lesquels le conducteur a une course « en cours ». */
 const DRIVER_ACTIVE_STATUSES: CourseStatus[] = ['accepted', 'arrived', 'in_progress'];
@@ -273,8 +271,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const lastRequestId = useRef('');
   /** Demande déjà traitée (acceptée/refusée) → ne plus alerter. */
   const dismissedRequestId = useRef('');
-  /** Minuterie du bip répété (demande en attente de réponse). */
-  const alertTimerRef = useRef<number | null>(null);
   /** Id de la course active (suivi partagé client/conducteur). */
   const activeRideIdRef = useRef('');
   /** Statut courant, lu par les abonnements sans re-souscription. */
@@ -305,12 +301,25 @@ export function AppProvider({ children }: { children: ReactNode }) {
   /** Le compte connecté est-il un conducteur ? (réception des demandes) */
   const isDriverAccount = currentUser?.role === 'driver';
 
-  /** Arrête le bip répété d'une demande entrante. */
+  /**
+   * Arrête la sonnerie longue d'une demande entrante.
+   * Appelée à l'acceptation, au refus, à l'expiration (30 s) et hors ligne.
+   */
   const stopIncomingAlert = useCallback(() => {
-    if (alertTimerRef.current !== null) {
-      window.clearInterval(alertTimerRef.current);
-      alertTimerRef.current = null;
-    }
+    stopRingtone();
+  }, []);
+
+  /**
+   * DÉBLOCAGE AUDIO : les navigateurs mobiles n'autorisent le son qu'après une
+   * action de l'utilisateur. On lève la restriction au PREMIER geste, où qu'il
+   * soit dans l'application (le seul bouton « En ligne » ne suffit pas si la
+   * page a été rechargée sur le tableau de bord conducteur).
+   */
+  useEffect(() => {
+    const unlock = () => unlockAudio();
+    window.addEventListener('pointerdown', unlock, { capture: true, once: true });
+
+    return () => window.removeEventListener('pointerdown', unlock, { capture: true });
   }, []);
 
   /* Mémorise le statut courant pour les abonnements temps réel. */
@@ -1354,9 +1363,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
  * Demandes de course entrantes — CÔTÉ CONDUCTEUR uniquement.
  *
  *   • le client ne s'alerte jamais lui-même (demandes par d'autres ignorées) ;
- *   • le SON D'ALERTE SE RÉPÈTE toutes les `ALERT_REPEAT_MS` tant que la
- *     demande n'est ni acceptée ni refusée ;
- *   • une demande déjà traitée (acceptée/refusée) ne re-déclenche plus le bip.
+ *   • la SONNERIE LONGUE (≥ 20 s, motif « 3 bips + pause » répété) tourne tant
+ *     que la demande n'est ni acceptée ni refusée — voir `ringtoneService` ;
+ *   • une demande déjà traitée (acceptée/refusée) ne re-déclenche plus la sonnerie.
  */
 useEffect(() => {
   /*
@@ -1413,11 +1422,13 @@ useEffect(() => {
     if (pending.id === lastRequestId.current) return;
 
     lastRequestId.current = pending.id;
-    playAlertSound();
 
-    // Bip répété : le conducteur doit l'entendre jusqu'à sa réponse.
+    /*
+     * SONNERIE LONGUE + VIBRATION : motif répété programmé jusqu'à 30 s, coupé
+     * immédiatement à l'acceptation / au refus / à l'expiration.
+     */
     stopIncomingAlert();
-    alertTimerRef.current = window.setInterval(playAlertSound, ALERT_REPEAT_MS);
+    startRingtone();
   });
 
   return () => {
